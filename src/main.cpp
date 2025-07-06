@@ -1,6 +1,7 @@
 #include <SDL3/SDL.h>
 #include <cmath>
 #include <cstdint>
+#include <fstream>
 #include <iostream>
 #include <random>
 #include <string>
@@ -12,7 +13,7 @@
 #include "bitmap.h"
 #include "vec2.h"
 
-#include "variables.h"
+#include "config.h"
 
 // Entities
 #include "component_storage.h"
@@ -111,8 +112,30 @@ void cleanup() {
 }
 
 int main(int argc, char *argv[]) {
-  std::string bitmap_write_name = "test_image_write.bmp";
-  std::string bitmap_read_name = "test_image_read.bmp";
+  std::string toml_file_name = "./res/test.toml";
+  std::string bitmap_write_name = "./res/test_image_write.bmp";
+  std::string bitmap_read_name = "./res/test_image_read.bmp";
+
+  std::ifstream toml_file(toml_file_name);
+  if (!toml_file) {
+    SDL_Log("Could not open toml");
+    return 1;
+  }
+  std::string line;
+
+  while (std::getline(toml_file, line)) {
+    int comment_pos = line.find("#");
+    if (comment_pos != std::string::npos) {
+      line = line.substr(0, comment_pos);
+    }
+    int equal_sign_pos = line.find("=");
+    if (equal_sign_pos == std::string::npos) {
+      continue;
+    }
+    std::string key = line.substr(0, equal_sign_pos);
+    std::string value = line.substr(equal_sign_pos + 1, line.length());
+    std::cout << key << ": " << value << std::endl;
+  }
 
   int bitmap_write_width = 16;
   int bitmap_write_height = 16;
@@ -154,29 +177,29 @@ int main(int argc, char *argv[]) {
 
   EntityManager entity_manager;
 
-  // Amogus
+  // Cursor
+  EntityID cursor = entity_manager.create();
+  SpriteComponent cursor_sprite = {
+      .bitmap = bmp_write,
+      .size = vec2(bmp_write.get_width(), bmp_write.get_height())};
+  sprite_components[cursor] = cursor_sprite;
+  TransformComponent cursor_transform;
+  transform_components[cursor] = cursor_transform;
+
+  // Player Amogus
   EntityID amogus = entity_manager.create();
-
-  // Add SpriteComponent to amogus
-  SpriteComponent sprite_component;
-  sprite_component.bitmap = bmp_read;
-  // TODO: move this to a setter somehow?
-  sprite_component.size = vec2(static_cast<float>(bitmap_read_width),
-                               static_cast<float>(bitmap_read_height));
+  SpriteComponent sprite_component = {
+      .bitmap = bmp_read,
+      .size = vec2(bitmap_read_width, bitmap_read_height),
+  };
   sprite_components[amogus] = sprite_component;
-
-  // Add TransformComponent to amogus
-  TransformComponent transform_component;
-  transform_component.position = vec2(64.0f, 64.0f);
-  transform_component.rotation = 0.0f;
-  transform_component.scale = vec2(1.0f, 1.0f);
+  TransformComponent transform_component = {
+      .position = vec2(64.0f, 64.0f),
+  };
   transform_components[amogus] = transform_component;
-
-  // Add RigidBodyComponent to amogus
-  RigidBodyComponent rigidbody_component;
-  rigidbody_component.collision_aabb =
-      AABB(vec2(-8.0f, -8.0f), vec2(8.0f, 8.0f));
-  rigidbody_component.velocity = vec2(0.0f, 0.0f);
+  RigidBodyComponent rigidbody_component = {
+      .collision_aabb = AABB(vec2(-8.0f, -8.0f), vec2(8.0f, 8.0f)),
+  };
   rigidbody_components[amogus] = rigidbody_component;
 
   std::mt19937 random_engine;
@@ -185,17 +208,11 @@ int main(int argc, char *argv[]) {
   float velocity_magnitude = 512.0f;
   int friends = 16;
   for (int i = 0; i < friends; ++i) {
-    // Amogus2
     EntityID amogus2 = entity_manager.create();
-
-    // Add SpriteComponent to amogus2
-    SpriteComponent sprite_component2;
-    sprite_component2.bitmap = bmp_read;
-    sprite_component2.size = vec2(static_cast<float>(bitmap_read_width),
-                                  static_cast<float>(bitmap_read_height));
+    SpriteComponent sprite_component2 = {
+        .bitmap = bmp_read,
+        .size = vec2(bitmap_read_width, bitmap_read_height)};
     sprite_components[amogus2] = sprite_component2;
-
-    // Add TransformComponent to amogus2
     TransformComponent transform_component2;
     transform_component2.position =
         vec2(16.0f + (static_cast<float>(WIDTH) - 32.0f) *
@@ -203,8 +220,6 @@ int main(int argc, char *argv[]) {
              16.0f + (static_cast<float>(HEIGHT) - 32.0f) *
                          position_distribution(random_engine));
     transform_components[amogus2] = transform_component2;
-
-    // Add RigidBodyComponent to amogus2
     RigidBodyComponent rigidbody_component2;
     rigidbody_component2.collision_aabb =
         AABB(vec2(-8.0f, -8.0f), vec2(8.0f, 8.0f));
@@ -315,6 +330,13 @@ int main(int argc, char *argv[]) {
       // Physics tick-rate ECS system
       PhysicsSystem::Update(physics_delta_time);
     }
+    float cursor_x;
+    float cursor_y;
+
+    SDL_GetMouseState(&cursor_x, &cursor_y);
+
+    TransformComponent &cursorTransform = transform_components[cursor];
+    cursorTransform.position = vec2(cursor_x, cursor_y) / scale;
 
     // --- Software rendering: fill the pixel buffer (checkerboard) ---
     int checker_size = 1;
