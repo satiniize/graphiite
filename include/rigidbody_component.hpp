@@ -1,7 +1,7 @@
 #pragma once
 
-#include "aabb.h"
-#include "vec2.h"
+#include "aabb.hpp"
+#include "vec2.hpp"
 
 struct RigidBodyComponent {
 public:

@@ -1,7 +1,7 @@
-#include "physics_system.h"
-#include "component_storage.h"
-#include "rigidbody_component.h"
-#include "transform_component.h"
+#include "physics_system.hpp"
+#include "component_storage.hpp"
+#include "rigidbody_component.hpp"
+#include "transform_component.hpp"
 
 #include <algorithm>
 #include <iostream>

@@ -1,10 +1,10 @@
 #pragma once
 
-#include "entity_manager.h"
-#include "rigidbody_component.h"
-#include "sprite_component.h"
-#include "staticbody_component.h"
-#include "transform_component.h"
+#include "entity_manager.hpp"
+#include "rigidbody_component.hpp"
+#include "sprite_component.hpp"
+#include "staticbody_component.hpp"
+#include "transform_component.hpp"
 #include <unordered_map>
 
 // ECS component storage for each component type.

@@ -1,4 +1,4 @@
-#include "bitmap.h"
+#include "bitmap.hpp"
 #include <cstdint>
 #include <fstream>
 #include <string>

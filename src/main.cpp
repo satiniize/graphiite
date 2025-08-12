@@ -10,23 +10,23 @@
 #define WIDTH 320
 #define HEIGHT 180
 
-#include "bitmap.h"
-#include "vec2.h"
+#include "bitmap.hpp"
+#include "vec2.hpp"
 
-#include "config.h"
+#include "config.hpp"
 
 // Entities
-#include "component_storage.h"
-#include "entity_manager.h"
+#include "component_storage.hpp"
+#include "entity_manager.hpp"
 
 // Systems
-#include "physics_system.h"
-#include "sprite_system.h"
+#include "physics_system.hpp"
+#include "rendering_system.hpp"
 
 // Components
-#include "rigidbody_component.h"
-#include "sprite_component.h"
-#include "transform_component.h"
+#include "rigidbody_component.hpp"
+#include "sprite_component.hpp"
+#include "transform_component.hpp"
 
 SDL_Window *window;
 SDL_GPUDevice *device;

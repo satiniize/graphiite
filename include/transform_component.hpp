@@ -1,6 +1,6 @@
 #pragma once
 
-#include "vec2.h"
+#include "vec2.hpp"
 
 // Pure ECS data-only component for transform (position, rotation, scale)
 struct TransformComponent {

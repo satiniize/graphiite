@@ -1,6 +1,6 @@
-#include "component_storage.h"
-#include "sprite_component.h"
-#include "transform_component.h"
+#include "component_storage.hpp"
+#include "sprite_component.hpp"
+#include "transform_component.hpp"
 #include <algorithm>
 #include <cmath>
 #include <cstdint>

@@ -1,8 +1,8 @@
 #pragma once
 
-#include "aabb.h"
-#include "bitmap.h"
-#include "vec2.h"
+#include "aabb.hpp"
+#include "bitmap.hpp"
+#include "vec2.hpp"
 
 // Pure ECS data-only component for sprite rendering
 struct SpriteComponent {

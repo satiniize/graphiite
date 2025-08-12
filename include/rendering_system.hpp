@@ -1,6 +1,6 @@
 #pragma once
 
-#include "component_storage.h"
+#include "component_storage.hpp"
 #include <cstdint>
 
 // SpriteSystem: ECS system for sprite-related logic (AABB update, drawing)
