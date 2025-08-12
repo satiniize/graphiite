@@ -73,6 +73,9 @@ int init() {
   // SDL_GPU
   device = SDL_CreateGPUDevice(SDL_GPU_SHADERFORMAT_SPIRV, true, NULL);
   SDL_ClaimWindowForGPUDevice(device, window);
+  SDL_SetGPUSwapchainParameters(device, window,
+                                SDL_GPU_SWAPCHAINCOMPOSITION_SDR,
+                                SDL_GPU_PRESENTMODE_IMMEDIATE);
 
   // load the vertex shader code
   size_t vertexCodeSize;
