@@ -58,10 +58,6 @@ int init() {
   device = SDL_CreateGPUDevice(SDL_GPU_SHADERFORMAT_SPIRV, true, NULL);
   SDL_ClaimWindowForGPUDevice(device, window);
 
-  SDL_GPUCommandBuffer *commandBuffer = SDL_AcquireGPUCommandBuffer(device);
-
-  SDL_SubmitGPUCommandBuffer(commandBuffer);
-
   // SDL_GPUTextureCreateInfo *gpu_texture_create_info;
 
   // SDL_GPUTexture *gpu_texture =
@@ -101,6 +97,34 @@ void loop() {
   SDL_FRect dst = {0, 0, WIDTH * scale, HEIGHT * scale};
   SDL_RenderTexture(renderer, texture, NULL, &dst);
   SDL_RenderPresent(renderer);
+
+  // SDL_GPU
+  SDL_GPUCommandBuffer *commandBuffer = SDL_AcquireGPUCommandBuffer(device);
+
+  SDL_GPUTexture *swapchainTexture;
+  Uint32 width, height;
+  SDL_WaitAndAcquireGPUSwapchainTexture(commandBuffer, window,
+                                        &swapchainTexture, &width, &height);
+
+  if (swapchainTexture == NULL) {
+    // you must always submit the command buffer
+    SDL_SubmitGPUCommandBuffer(commandBuffer);
+    return;
+  }
+
+  SDL_GPUColorTargetInfo colorTargetInfo{};
+  colorTargetInfo.clear_color = {240 / 255.0f, 240 / 255.0f, 240 / 255.0f,
+                                 255 / 255.0f};
+  colorTargetInfo.load_op = SDL_GPU_LOADOP_CLEAR;
+  colorTargetInfo.store_op = SDL_GPU_STOREOP_STORE;
+  colorTargetInfo.texture = swapchainTexture;
+
+  SDL_GPURenderPass *renderPass =
+      SDL_BeginGPURenderPass(commandBuffer, &colorTargetInfo, 1, NULL);
+
+  SDL_EndGPURenderPass(renderPass);
+
+  SDL_SubmitGPUCommandBuffer(commandBuffer);
 }
 
 void cleanup() {
@@ -109,6 +133,19 @@ void cleanup() {
   SDL_DestroyRenderer(renderer);
   SDL_DestroyWindow(window);
   SDL_Quit();
+}
+
+std::string strip_lr(const std::string &str) {
+  int start = 0;
+  while (start < str.length() &&
+         std::isspace(static_cast<unsigned char>(str[start]))) {
+    ++start;
+  }
+  int end = str.length() - 1;
+  while (end > start && std::isspace(static_cast<unsigned char>(str[end]))) {
+    end--;
+  }
+  return str.substr(start, end - start + 1);
 }
 
 int main(int argc, char *argv[]) {
@@ -124,17 +161,33 @@ int main(int argc, char *argv[]) {
   std::string line;
 
   while (std::getline(toml_file, line)) {
+    // Handle comments
     int comment_pos = line.find("#");
     if (comment_pos != std::string::npos) {
       line = line.substr(0, comment_pos);
     }
+    // Handle tables
+    // Handle key-value pairs
     int equal_sign_pos = line.find("=");
     if (equal_sign_pos == std::string::npos) {
       continue;
     }
-    std::string key = line.substr(0, equal_sign_pos);
-    std::string value = line.substr(equal_sign_pos + 1, line.length());
-    std::cout << key << ": " << value << std::endl;
+    std::string key = strip_lr(line.substr(0, equal_sign_pos));
+    std::string raw_value =
+        strip_lr(line.substr(equal_sign_pos + 1, line.length()));
+    // Boolean true
+    if (raw_value == "true") {
+    }
+    // Boolean false
+    if (raw_value == "false") {
+    }
+    // Float
+    if (raw_value.find(".") != std::string::npos) {
+    }
+    // vec2
+    if (raw_value.starts_with("vec2")) {
+    }
+    std::cout << key << ":" << raw_value << std::endl;
   }
 
   int bitmap_write_width = 16;
