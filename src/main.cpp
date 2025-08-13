@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <fstream>
 #include <iostream>
+#include <iterator>
 #include <random>
 #include <string>
 #include <vector>
@@ -30,10 +31,10 @@
 
 SDL_Window *window;
 SDL_GPUDevice *device;
-SDL_GPUBuffer *vertexBuffer;
-SDL_GPUBuffer *indexBuffer;
-SDL_GPUTransferBuffer *transferBuffer;
-SDL_GPUGraphicsPipeline *graphicsPipeline;
+SDL_GPUBuffer *vertex_buffer;
+SDL_GPUBuffer *index_buffer;
+SDL_GPUTransferBuffer *transfer_buffer;
+SDL_GPUGraphicsPipeline *graphics_pipeline;
 // SDL_Renderer *renderer;
 // SDL_Texture *texture;
 
@@ -181,9 +182,9 @@ int init() {
   pipelineInfo.target_info.color_target_descriptions = colorTargetDescriptions;
 
   // create the pipeline
-  graphicsPipeline = SDL_CreateGPUGraphicsPipeline(device, &pipelineInfo);
+  graphics_pipeline = SDL_CreateGPUGraphicsPipeline(device, &pipelineInfo);
 
-  if (graphicsPipeline == NULL) {
+  if (graphics_pipeline == NULL) {
     SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
                  "Failed to create graphics pipeline");
     return -1;
@@ -197,18 +198,18 @@ int init() {
   SDL_GPUBufferCreateInfo vertex_bufferInfo{};
   vertex_bufferInfo.size = sizeof(vertices);
   vertex_bufferInfo.usage = SDL_GPU_BUFFERUSAGE_VERTEX;
-  vertexBuffer = SDL_CreateGPUBuffer(device, &vertex_bufferInfo);
+  vertex_buffer = SDL_CreateGPUBuffer(device, &vertex_bufferInfo);
 
-  SDL_SetGPUBufferName(device, vertexBuffer, "Vertex Buffer");
+  SDL_SetGPUBufferName(device, vertex_buffer, "Vertex Buffer");
 
   // Uncomment when vertices modified
   // create the index buffer
   SDL_GPUBufferCreateInfo index_bufferInfo{};
   index_bufferInfo.size = sizeof(indices);
   index_bufferInfo.usage = SDL_GPU_BUFFERUSAGE_INDEX;
-  indexBuffer = SDL_CreateGPUBuffer(device, &index_bufferInfo);
+  index_buffer = SDL_CreateGPUBuffer(device, &index_bufferInfo);
 
-  SDL_SetGPUBufferName(device, indexBuffer, "Index Buffer");
+  SDL_SetGPUBufferName(device, index_buffer, "Index Buffer");
 
   // Texture = SDL_CreateGPUTexture(
   //     context->Device, &(SDL_GPUTextureCreateInfo){
@@ -225,11 +226,11 @@ int init() {
   SDL_GPUTransferBufferCreateInfo transferInfo{};
   transferInfo.size = sizeof(vertices) + sizeof(indices); // Add indices size
   transferInfo.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD;
-  transferBuffer = SDL_CreateGPUTransferBuffer(device, &transferInfo);
+  transfer_buffer = SDL_CreateGPUTransferBuffer(device, &transferInfo);
 
   // fill the transfer buffer
   Vertex *data =
-      (Vertex *)SDL_MapGPUTransferBuffer(device, transferBuffer, false);
+      (Vertex *)SDL_MapGPUTransferBuffer(device, transfer_buffer, false);
 
   // SDL_memcpy(data, (void *)vertices, sizeof(vertices));
   data[0] = vertices[0];
@@ -242,7 +243,7 @@ int init() {
   indexData[2] = indices[2];
 
   // unmap the pointer when you are done updating the transfer buffer
-  SDL_UnmapGPUTransferBuffer(device, transferBuffer);
+  SDL_UnmapGPUTransferBuffer(device, transfer_buffer);
 
   // // Set up texture data
   // SDL_GPUTransferBuffer *textureTransferBuffer = SDL_CreateGPUTransferBuffer(
@@ -264,12 +265,12 @@ int init() {
 
   // where is the data
   SDL_GPUTransferBufferLocation vertex_location{};
-  vertex_location.transfer_buffer = transferBuffer;
+  vertex_location.transfer_buffer = transfer_buffer;
   vertex_location.offset = 0;
 
   // where to upload the data
   SDL_GPUBufferRegion vertex_region{};
-  vertex_region.buffer = vertexBuffer;
+  vertex_region.buffer = vertex_buffer;
   vertex_region.size = sizeof(vertices);
   vertex_region.offset = 0;
 
@@ -290,12 +291,12 @@ int init() {
 
   // where is the data
   SDL_GPUTransferBufferLocation index_location{};
-  index_location.transfer_buffer = transferBuffer;
+  index_location.transfer_buffer = transfer_buffer;
   index_location.offset = sizeof(vertices);
 
   // where to upload the data
   SDL_GPUBufferRegion index_region{};
-  index_region.buffer = indexBuffer;
+  index_region.buffer = index_buffer;
   index_region.size = sizeof(indices);
   index_region.offset = 0;
 
@@ -390,12 +391,12 @@ void loop() {
   SDL_GPURenderPass *renderPass =
       SDL_BeginGPURenderPass(commandBuffer, &colorTargetInfo, 1, NULL);
 
-  SDL_BindGPUGraphicsPipeline(renderPass, graphicsPipeline);
+  SDL_BindGPUGraphicsPipeline(renderPass, graphics_pipeline);
 
   // bind the vertex buffer
   SDL_GPUBufferBinding vertexBufferBindings[1];
   vertexBufferBindings[0].buffer =
-      vertexBuffer;                   // index 0 is slot 0 in this example
+      vertex_buffer;                  // index 0 is slot 0 in this example
   vertexBufferBindings[0].offset = 0; // start from the first byte
 
   SDL_BindGPUVertexBuffers(renderPass, 0, vertexBufferBindings,
@@ -403,7 +404,7 @@ void loop() {
 
   SDL_GPUBufferBinding indexBufferBindings[1];
   indexBufferBindings[0].buffer =
-      indexBuffer;                   // index 0 is slot 0 in this example
+      index_buffer;                  // index 0 is slot 0 in this example
   indexBufferBindings[0].offset = 0; // start from the first byte
 
   SDL_BindGPUIndexBuffer(renderPass, indexBufferBindings,
@@ -422,7 +423,7 @@ void loop() {
   //                                     .sampler =
   //                                     Samplers[CurrentSamplerIndex]},
   //     1);
-  SDL_DrawGPUIndexedPrimitives(renderPass, 3, 1, 0, 0, 0);
+  SDL_DrawGPUIndexedPrimitives(renderPass, std::size(indices), 1, 0, 0, 0);
 
   // issue a draw call
   // SDL_DrawGPUPrimitives(renderPass, 3, 1, 0, 0);
@@ -433,11 +434,11 @@ void loop() {
 }
 
 void cleanup() {
-  SDL_ReleaseGPUBuffer(device, vertexBuffer);
-  SDL_ReleaseGPUBuffer(device, indexBuffer);
-  SDL_ReleaseGPUTransferBuffer(device, transferBuffer);
+  SDL_ReleaseGPUBuffer(device, vertex_buffer);
+  SDL_ReleaseGPUBuffer(device, index_buffer);
+  SDL_ReleaseGPUTransferBuffer(device, transfer_buffer);
 
-  SDL_ReleaseGPUGraphicsPipeline(device, graphicsPipeline);
+  SDL_ReleaseGPUGraphicsPipeline(device, graphics_pipeline);
 
   SDL_DestroyGPUDevice(device);
 
