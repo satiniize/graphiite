@@ -70,7 +70,7 @@ int init() {
     return 1;
   }
 
-  // SDL_GPU
+  // Create GPU device
   device = SDL_CreateGPUDevice(SDL_GPU_SHADERFORMAT_SPIRV, true, NULL);
   SDL_ClaimWindowForGPUDevice(device, window);
   SDL_SetGPUSwapchainParameters(device, window,
@@ -149,7 +149,8 @@ int init() {
   // a_color
   vertexAttributes[1].buffer_slot = 0;
   vertexAttributes[1].location = 1;
-  vertexAttributes[1].format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT4;
+  vertexAttributes[1].format =
+      SDL_GPU_VERTEXELEMENTFORMAT_FLOAT4; // TODO, add UV data
   vertexAttributes[1].offset = sizeof(float) * 3;
 
   pipelineInfo.vertex_input_state.num_vertex_attributes = 2;
@@ -178,6 +179,12 @@ int init() {
   // create the pipeline
   graphicsPipeline = SDL_CreateGPUGraphicsPipeline(device, &pipelineInfo);
 
+  if (graphicsPipeline == NULL) {
+    SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
+                 "Failed to create graphics pipeline");
+    return -1;
+  }
+
   // we don't need to store the shaders after creating the pipeline
   SDL_ReleaseGPUShader(device, vertexShader);
   SDL_ReleaseGPUShader(device, fragmentShader);
@@ -188,9 +195,31 @@ int init() {
   bufferInfo.usage = SDL_GPU_BUFFERUSAGE_VERTEX;
   vertexBuffer = SDL_CreateGPUBuffer(device, &bufferInfo);
 
+  SDL_SetGPUBufferName(device, vertexBuffer, "Vertex Buffer");
+
+  // Uncomment when vertices modified
+  // // create the index buffer
+  // SDL_GPUBufferCreateInfo bufferInfo{};
+  // bufferInfo.size = sizeof(indices);
+  // bufferInfo.usage = SDL_GPU_BUFFERUSAGE_INDEX;
+  // indexBuffer = SDL_CreateGPUBuffer(device, &bufferInfo);
+
+  // SDL_SetGPUBufferName(device, indexBuffer, "Index Buffer");
+
+  // Texture = SDL_CreateGPUTexture(
+  //     context->Device, &(SDL_GPUTextureCreateInfo){
+  //                          .type = SDL_GPU_TEXTURETYPE_2D,
+  //                          .format = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM,
+  //                          .width = imageData->w,
+  //                          .height = imageData->h,
+  //                          .layer_count_or_depth = 1,
+  //                          .num_levels = 1,
+  //                          .usage = SDL_GPU_TEXTUREUSAGE_SAMPLER});
+  // SDL_SetGPUTextureName(context->Device, Texture, "Ravioli Texture 🖼️");
+
   // create a transfer buffer to upload to the vertex buffer
   SDL_GPUTransferBufferCreateInfo transferInfo{};
-  transferInfo.size = sizeof(vertices);
+  transferInfo.size = sizeof(vertices); // Add indices size
   transferInfo.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD;
   transferBuffer = SDL_CreateGPUTransferBuffer(device, &transferInfo);
 
@@ -205,6 +234,20 @@ int init() {
 
   // unmap the pointer when you are done updating the transfer buffer
   SDL_UnmapGPUTransferBuffer(device, transferBuffer);
+
+  // // Set up texture data
+  // SDL_GPUTransferBuffer *textureTransferBuffer = SDL_CreateGPUTransferBuffer(
+  //     context->Device, &(SDL_GPUTransferBufferCreateInfo){
+  //                          .usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD,
+  //                          .size = imageData->w * imageData->h * 4}); // RGBA
+  //                          8888
+
+  // Uint8 *textureTransferPtr =
+  //     SDL_MapGPUTransferBuffer(context->Device, textureTransferBuffer,
+  //     false);
+  // SDL_memcpy(textureTransferPtr, imageData->pixels,
+  //            imageData->w * imageData->h * 4);
+  // SDL_UnmapGPUTransferBuffer(context->Device, textureTransferBuffer);
 
   // start a copy pass
   SDL_GPUCommandBuffer *commandBuffer = SDL_AcquireGPUCommandBuffer(device);
@@ -223,6 +266,41 @@ int init() {
 
   // upload the data
   SDL_UploadToGPUBuffer(copyPass, &location, &region, true);
+
+  // Upload vertex data
+
+  // SDL_UploadToGPUBuffer(
+  //     copyPass,
+  //     &(SDL_GPUTransferBufferLocation){.transfer_buffer =
+  //     bufferTransferBuffer,
+  //                                      .offset = 0},
+  //     &(SDL_GPUBufferRegion){.buffer = VertexBuffer,
+  //                            .offset = 0,
+  //                            .size = sizeof(PositionTextureVertex) * 4},
+  //     false);
+
+  // Upload index data
+
+  // SDL_UploadToGPUBuffer(copyPass,
+  //                       &(SDL_GPUTransferBufferLocation){
+  //                           .transfer_buffer = bufferTransferBuffer,
+  //                           .offset = sizeof(PositionTextureVertex) * 4},
+  //                       &(SDL_GPUBufferRegion){.buffer = IndexBuffer,
+  //                                              .offset = 0,
+  //                                              .size = sizeof(Uint16) * 6},
+  //                       false);
+
+  // Upload texture
+
+  // SDL_UploadToGPUTexture(
+  //     copyPass,
+  //     &(SDL_GPUTextureTransferInfo){
+  //         .transfer_buffer = textureTransferBuffer,
+  //         .offset = 0, /* Zeros out the rest */
+  //     },
+  //     &(SDL_GPUTextureRegion){
+  //         .texture = Texture, .w = imageData->w, .h = imageData->h, .d = 1},
+  //     false);
 
   // end the copy pass
   SDL_EndGPUCopyPass(copyPass);
@@ -267,6 +345,10 @@ void loop() {
   // SDL_GPU
   SDL_GPUCommandBuffer *commandBuffer = SDL_AcquireGPUCommandBuffer(device);
 
+  if (commandBuffer == NULL) {
+    return;
+  }
+
   SDL_GPUTexture *swapchainTexture;
   Uint32 width, height;
   SDL_WaitAndAcquireGPUSwapchainTexture(commandBuffer, window,
@@ -279,11 +361,10 @@ void loop() {
   }
 
   SDL_GPUColorTargetInfo colorTargetInfo{};
-  colorTargetInfo.clear_color = {240 / 255.0f, 240 / 255.0f, 240 / 255.0f,
-                                 255 / 255.0f};
+  colorTargetInfo.texture = swapchainTexture;
+  colorTargetInfo.clear_color = (SDL_FColor){0.0f, 0.0f, 0.0f, 1.0f};
   colorTargetInfo.load_op = SDL_GPU_LOADOP_CLEAR;
   colorTargetInfo.store_op = SDL_GPU_STOREOP_STORE;
-  colorTargetInfo.texture = swapchainTexture;
 
   SDL_GPURenderPass *renderPass =
       SDL_BeginGPURenderPass(commandBuffer, &colorTargetInfo, 1, NULL);
@@ -298,6 +379,21 @@ void loop() {
   SDL_BindGPUVertexBuffers(renderPass, 0, bufferBindings,
                            1); // bind one buffer starting from slot 0
 
+  // SDL_BindGPUGraphicsPipeline(renderPass, Pipeline);
+  // SDL_BindGPUVertexBuffers(
+  //     renderPass, 0,
+  //     &(SDL_GPUBufferBinding){.buffer = VertexBuffer, .offset = 0}, 1);
+  // SDL_BindGPUIndexBuffer(
+  //     renderPass, &(SDL_GPUBufferBinding){.buffer = IndexBuffer, .offset =
+  //     0}, SDL_GPU_INDEXELEMENTSIZE_16BIT);
+  // SDL_BindGPUFragmentSamplers(
+  //     renderPass, 0,
+  //     &(SDL_GPUTextureSamplerBinding){.texture = Texture,
+  //                                     .sampler =
+  //                                     Samplers[CurrentSamplerIndex]},
+  //     1);
+  // SDL_DrawGPUIndexedPrimitives(renderPass, 6, 1, 0, 0, 0);
+
   // issue a draw call
   SDL_DrawGPUPrimitives(renderPass, 3, 1, 0, 0);
 
@@ -308,7 +404,7 @@ void loop() {
 
 void cleanup() {
   SDL_ReleaseGPUBuffer(device, vertexBuffer);
-  SDL_UnmapGPUTransferBuffer(device, transferBuffer);
+  SDL_ReleaseGPUTransferBuffer(device, transferBuffer);
 
   SDL_ReleaseGPUGraphicsPipeline(device, graphicsPipeline);
 
