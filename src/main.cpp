@@ -35,8 +35,6 @@ SDL_GPUBuffer *vertex_buffer;
 SDL_GPUBuffer *index_buffer;
 SDL_GPUTransferBuffer *transfer_buffer;
 SDL_GPUGraphicsPipeline *graphics_pipeline;
-// SDL_Renderer *renderer;
-// SDL_Texture *texture;
 
 const int scale = 4;
 
@@ -48,16 +46,16 @@ struct Vertex {
   float x, y, z;    // vec3 position
   float r, g, b, a; // vec4 color
 };
-
 // a list of vertices
 static Vertex vertices[]{
-    {0.0f, 0.5f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f},   // top vertex
-    {-0.5f, -0.5f, 0.0f, 1.0f, 1.0f, 0.0f, 1.0f}, // bottom left vertex
-    {0.5f, -0.5f, 0.0f, 1.0f, 0.0f, 1.0f, 1.0f}   // bottom right vertex
+    {-0.5f, 0.5f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f},  // top left vertex
+    {0.5f, 0.5f, 0.0f, 1.0f, 1.0f, 0.0f, 1.0f},   // top right vertex
+    {-0.5f, -0.5f, 0.0f, 1.0f, 0.0f, 1.0f, 1.0f}, // bottom left vertex
+    {0.5f, -0.5f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f}   // bottom right vertex
 };
 
 // the index buffer
-static uint16_t indices[]{0, 1, 2};
+static uint16_t indices[]{0, 1, 2, 2, 1, 3};
 
 int init() {
   // SDL setup
@@ -232,15 +230,16 @@ int init() {
   Vertex *data =
       (Vertex *)SDL_MapGPUTransferBuffer(device, transfer_buffer, false);
 
-  // SDL_memcpy(data, (void *)vertices, sizeof(vertices));
-  data[0] = vertices[0];
-  data[1] = vertices[1];
-  data[2] = vertices[2];
+  SDL_memcpy(data, (void *)vertices, sizeof(vertices));
+  // data[0] = vertices[0];
+  // data[1] = vertices[1];
+  // data[2] = vertices[2];
 
-  Uint16 *indexData = (Uint16 *)&data[3];
-  indexData[0] = indices[0];
-  indexData[1] = indices[1];
-  indexData[2] = indices[2];
+  Uint16 *indexData = (Uint16 *)&data[std::size(vertices)];
+  SDL_memcpy(indexData, (void *)indices, sizeof(indices));
+  // indexData[0] = indices[0];
+  // indexData[1] = indices[1];
+  // indexData[2] = indices[2];
 
   // unmap the pointer when you are done updating the transfer buffer
   SDL_UnmapGPUTransferBuffer(device, transfer_buffer);
