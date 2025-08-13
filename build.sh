@@ -1,6 +1,8 @@
 #!/bin/bash
 set -e
 
+./spv_shader.sh
+
 # Configure the project with CMake
 cmake -S . -B build
 

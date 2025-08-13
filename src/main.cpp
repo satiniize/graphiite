@@ -45,13 +45,16 @@ uint32_t back_buffer[WIDTH * HEIGHT];
 struct Vertex {
   float x, y, z;    // vec3 position
   float r, g, b, a; // vec4 color
+  float u, v;       // vec2 texture coordinates
 };
 // a list of vertices
 static Vertex vertices[]{
-    {-0.5f, 0.5f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f},  // top left vertex
-    {0.5f, 0.5f, 0.0f, 1.0f, 1.0f, 0.0f, 1.0f},   // top right vertex
-    {-0.5f, -0.5f, 0.0f, 1.0f, 0.0f, 1.0f, 1.0f}, // bottom left vertex
-    {0.5f, -0.5f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f}   // bottom right vertex
+    {-0.5f, 0.5f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f}, // top left vertex
+    {0.5f, 0.5f, 0.0f, 1.0f, 1.0f, 0.0f, 1.0f, 1.0f, 0.0f},  // top right vertex
+    {-0.5f, -0.5f, 0.0f, 1.0f, 0.0f, 1.0f, 1.0f, 0.0f,
+     1.0f}, // bottom left vertex
+    {0.5f, -0.5f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f}
+    // bottom right vertex
 };
 
 // the index buffer
@@ -141,7 +144,9 @@ int init() {
       vertexBufferDesctiptions;
 
   // describe the vertex attribute
-  SDL_GPUVertexAttribute vertexAttributes[2];
+  uint32_t vertexAttributesCount = 3;
+
+  SDL_GPUVertexAttribute vertexAttributes[vertexAttributesCount];
 
   // a_position
   vertexAttributes[0].buffer_slot = 0;
@@ -152,11 +157,16 @@ int init() {
   // a_color
   vertexAttributes[1].buffer_slot = 0;
   vertexAttributes[1].location = 1;
-  vertexAttributes[1].format =
-      SDL_GPU_VERTEXELEMENTFORMAT_FLOAT4; // TODO, add UV data
+  vertexAttributes[1].format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT4;
   vertexAttributes[1].offset = sizeof(float) * 3;
 
-  pipelineInfo.vertex_input_state.num_vertex_attributes = 2;
+  // a_texcoord
+  vertexAttributes[2].buffer_slot = 0;
+  vertexAttributes[2].location = 2;
+  vertexAttributes[2].format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2;
+  vertexAttributes[2].offset = sizeof(float) * 7;
+
+  pipelineInfo.vertex_input_state.num_vertex_attributes = vertexAttributesCount;
   pipelineInfo.vertex_input_state.vertex_attributes = vertexAttributes;
 
   // describe the color target
@@ -194,17 +204,20 @@ int init() {
 
   // create the vertex buffer
   SDL_GPUBufferCreateInfo vertex_bufferInfo{};
-  vertex_bufferInfo.size = sizeof(vertices);
   vertex_bufferInfo.usage = SDL_GPU_BUFFERUSAGE_VERTEX;
+  vertex_bufferInfo.size = sizeof(vertices);
+  // TODO
+  // vertex_bufferInfo.props =
   vertex_buffer = SDL_CreateGPUBuffer(device, &vertex_bufferInfo);
 
   SDL_SetGPUBufferName(device, vertex_buffer, "Vertex Buffer");
 
-  // Uncomment when vertices modified
   // create the index buffer
   SDL_GPUBufferCreateInfo index_bufferInfo{};
-  index_bufferInfo.size = sizeof(indices);
   index_bufferInfo.usage = SDL_GPU_BUFFERUSAGE_INDEX;
+  index_bufferInfo.size = sizeof(indices);
+  // TODO
+  // vertex_bufferInfo.props =
   index_buffer = SDL_CreateGPUBuffer(device, &index_bufferInfo);
 
   SDL_SetGPUBufferName(device, index_buffer, "Index Buffer");
@@ -229,17 +242,10 @@ int init() {
   // fill the transfer buffer
   Vertex *data =
       (Vertex *)SDL_MapGPUTransferBuffer(device, transfer_buffer, false);
-
   SDL_memcpy(data, (void *)vertices, sizeof(vertices));
-  // data[0] = vertices[0];
-  // data[1] = vertices[1];
-  // data[2] = vertices[2];
 
   Uint16 *indexData = (Uint16 *)&data[std::size(vertices)];
   SDL_memcpy(indexData, (void *)indices, sizeof(indices));
-  // indexData[0] = indices[0];
-  // indexData[1] = indices[1];
-  // indexData[2] = indices[2];
 
   // unmap the pointer when you are done updating the transfer buffer
   SDL_UnmapGPUTransferBuffer(device, transfer_buffer);
@@ -274,19 +280,7 @@ int init() {
   vertex_region.offset = 0;
 
   // upload the data
-  // SDL_UploadToGPUBuffer(copyPass, &location, &region, true);
   SDL_UploadToGPUBuffer(copyPass, &vertex_location, &vertex_region, false);
-
-  // Upload vertex data
-  // SDL_UploadToGPUBuffer(
-  //     copyPass,
-  //     &(SDL_GPUTransferBufferLocation){.transfer_buffer =
-  //     bufferTransferBuffer,
-  //                                      .offset = 0},
-  //     &(SDL_GPUBufferRegion){.buffer = VertexBuffer,
-  //                            .offset = 0,
-  //                            .size = sizeof(PositionTextureVertex) * 4},
-  //     false);
 
   // where is the data
   SDL_GPUTransferBufferLocation index_location{};
@@ -300,16 +294,6 @@ int init() {
   index_region.offset = 0;
 
   SDL_UploadToGPUBuffer(copyPass, &index_location, &index_region, false);
-
-  // Upload index data
-  // SDL_UploadToGPUBuffer(copyPass,
-  //                       &(SDL_GPUTransferBufferLocation){
-  //                           .transfer_buffer = bufferTransferBuffer,
-  //                           .offset = sizeof(PositionTextureVertex) * 4},
-  //                       &(SDL_GPUBufferRegion){.buffer = IndexBuffer,
-  //                                              .offset = 0,
-  //                                              .size = sizeof(Uint16) * 6},
-  //                       false);
 
   // Upload texture
 
@@ -328,41 +312,10 @@ int init() {
   SDL_SubmitGPUCommandBuffer(commandBuffer);
   // END SDL_GPU
 
-  // renderer = SDL_CreateRenderer(window, NULL);
-  // if (!renderer) {
-  //   SDL_Log("Couldn't create renderer: %s", SDL_GetError());
-  //   SDL_DestroyWindow(window);
-  //   SDL_Quit();
-  //   return 1;
-  // }
-
-  // texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA8888,
-  //                             SDL_TEXTUREACCESS_STREAMING, WIDTH, HEIGHT);
-  // SDL_SetTextureScaleMode(texture, SDL_SCALEMODE_NEAREST);
-  // if (!texture) {
-  //   SDL_Log("Couldn't create texture: %s", SDL_GetError());
-  //   SDL_DestroyRenderer(renderer);
-  //   SDL_DestroyWindow(window);
-  //   SDL_Quit();
-  //   return 1;
-  // }
   return 0;
 }
 
 void loop() {
-  // Upload pixel buffer to texture
-  // void *front_buffer;
-  // int pitch;
-  // SDL_LockTexture(texture, NULL, &front_buffer, &pitch);
-  // memcpy(front_buffer, back_buffer, WIDTH * HEIGHT * sizeof(uint32_t));
-  // SDL_UnlockTexture(texture);
-
-  // // --- Render the texture to the window ---
-  // SDL_RenderClear(renderer);
-  // SDL_FRect dst = {0, 0, WIDTH * scale, HEIGHT * scale};
-  // SDL_RenderTexture(renderer, texture, NULL, &dst);
-  // SDL_RenderPresent(renderer);
-
   // SDL_GPU
   SDL_GPUCommandBuffer *commandBuffer = SDL_AcquireGPUCommandBuffer(device);
 
@@ -394,38 +347,26 @@ void loop() {
 
   // bind the vertex buffer
   SDL_GPUBufferBinding vertexBufferBindings[1];
-  vertexBufferBindings[0].buffer =
-      vertex_buffer;                  // index 0 is slot 0 in this example
-  vertexBufferBindings[0].offset = 0; // start from the first byte
+  vertexBufferBindings[0].buffer = vertex_buffer;
+  vertexBufferBindings[0].offset = 0;
 
-  SDL_BindGPUVertexBuffers(renderPass, 0, vertexBufferBindings,
-                           1); // bind one buffer starting from slot 0
+  SDL_BindGPUVertexBuffers(renderPass, 0, vertexBufferBindings, 1);
 
   SDL_GPUBufferBinding indexBufferBindings[1];
-  indexBufferBindings[0].buffer =
-      index_buffer;                  // index 0 is slot 0 in this example
-  indexBufferBindings[0].offset = 0; // start from the first byte
+  indexBufferBindings[0].buffer = index_buffer;
+  indexBufferBindings[0].offset = 0;
 
   SDL_BindGPUIndexBuffer(renderPass, indexBufferBindings,
                          SDL_GPU_INDEXELEMENTSIZE_16BIT);
 
-  // SDL_BindGPUGraphicsPipeline(renderPass, Pipeline);
-  // SDL_BindGPUVertexBuffers(
-  //     renderPass, 0,
-  //     &(SDL_GPUBufferBinding){.buffer = VertexBuffer, .offset = 0}, 1);
-  // SDL_BindGPUIndexBuffer(
-  //     renderPass, &(SDL_GPUBufferBinding){.buffer = IndexBuffer, .offset =
-  //     0}, SDL_GPU_INDEXELEMENTSIZE_16BIT);
   // SDL_BindGPUFragmentSamplers(
   //     renderPass, 0,
   //     &(SDL_GPUTextureSamplerBinding){.texture = Texture,
   //                                     .sampler =
   //                                     Samplers[CurrentSamplerIndex]},
   //     1);
-  SDL_DrawGPUIndexedPrimitives(renderPass, std::size(indices), 1, 0, 0, 0);
 
-  // issue a draw call
-  // SDL_DrawGPUPrimitives(renderPass, 3, 1, 0, 0);
+  SDL_DrawGPUIndexedPrimitives(renderPass, std::size(indices), 1, 0, 0, 0);
 
   SDL_EndGPURenderPass(renderPass);
 
@@ -441,8 +382,6 @@ void cleanup() {
 
   SDL_DestroyGPUDevice(device);
 
-  // SDL_DestroyTexture(texture);
-  // SDL_DestroyRenderer(renderer);
   SDL_DestroyWindow(window);
   SDL_Quit();
 }
