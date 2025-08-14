@@ -1,6 +1,6 @@
 #!/bin/bash
 set -e
 
-glslc -fshader-stage=vertex src/shaders/vertex.glsl -o src/shaders/vertex.spv
+glslc --target-env=vulkan1.2 -O -g -fshader-stage=frag -o src/shaders/fragment.spv src/shaders/fragment.glsl
 
-glslc -fshader-stage=fragment src/shaders/fragment.glsl -o src/shaders/fragment.spv
+glslc --target-env=vulkan1.2 -O -g -fshader-stage=vert -o src/shaders/vertex.spv src/shaders/vertex.glsl

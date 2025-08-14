@@ -23,26 +23,27 @@
 
 // Systems
 #include "physics_system.hpp"
-#include "rendering_system.hpp"
+// #include "rendering_system.hpp"
 
 // Components
 #include "rigidbody_component.hpp"
-#include "sprite_component.hpp"
+// #include "sprite_component.hpp"
 #include "transform_component.hpp"
+
+const char *title = "Software Renderer";
 
 SDL_Window *window;
 SDL_GPUDevice *device;
+
+SDL_GPUGraphicsPipeline *graphics_pipeline;
+
 SDL_GPUBuffer *vertex_buffer;
 SDL_GPUBuffer *index_buffer;
 
 SDL_GPUTexture *quad_texture;
 SDL_GPUSampler *quad_sampler;
 
-// SDL_Surface* for image loading via SDL_image
-SDL_Surface *loaded_surface = nullptr;
-
 SDL_GPUTransferBuffer *transfer_buffer;
-SDL_GPUGraphicsPipeline *graphics_pipeline;
 
 const int scale = 4;
 
@@ -78,160 +79,119 @@ int init() {
 
   // Create GPU device
   device = SDL_CreateGPUDevice(SDL_GPU_SHADERFORMAT_SPIRV, true, NULL);
-  if (!device) {
-    SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
-                 "Failed to create GPU device: %s", SDL_GetError());
-    SDL_Quit();
+  if (device == NULL) {
+    SDL_Log("GPUCreateDevice failed");
     return 1;
   }
+
   // Scale up for visibility
-  window = SDL_CreateWindow("Checkerboard", WIDTH * scale, HEIGHT * scale, 0);
+  window = SDL_CreateWindow(title, WIDTH * scale, HEIGHT * scale, 0);
   if (!window) {
     SDL_Log("Couldn't create window: %s", SDL_GetError());
-    SDL_Quit();
     return 1;
   }
 
-  SDL_ClaimWindowForGPUDevice(device, window);
-  // SDL_SetGPUSwapchainParameters(device, window,
-  //                               SDL_GPU_SWAPCHAINCOMPOSITION_SDR,
-  //                               SDL_GPU_PRESENTMODE_IMMEDIATE);
-
-  // load test image using SDL_image
-  std::string bitmap_read_name = "./res/ravioli.bmp";
-  // loaded_surface = SDL_LoadBMP(bitmap_read_name.c_str());
-
-  loaded_surface =
-      SDL_CreateSurface(32, // width (e.g., 32x32 for a small test)
-                        32, // height
-                        SDL_PIXELFORMAT_RGBA8888 // The desired pixel format
-      );
-  if (!loaded_surface) {
-    SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
-                 "Failed to create test surface: %s", SDL_GetError());
-    return 1;
+  if (!SDL_ClaimWindowForGPUDevice(device, window)) {
+    SDL_Log("GPUClaimWindow failed");
+    return -1;
   }
 
-  // Fill with a distinct color, e.g., solid red
-  // Make sure your texture_info.format later is also
-  // SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM
-  uint32_t red_pixel =
-      0xFF0000FF; // RGBA (Red: FF, Green: 00, Blue: 00, Alpha: FF)
-
-  // Make sure the surface is locked if necessary for direct pixel access
-  // (though usually not for RGBA8888) SDL_LockSurface(loaded_surface); //
-  // Uncomment if having issues
-
-  for (int y = 0; y < loaded_surface->h; ++y) {
-    for (int x = 0; x < loaded_surface->w; ++x) {
-      ((uint32_t *)loaded_surface->pixels)[y * loaded_surface->w + x] =
-          red_pixel;
-    }
-  }
-  // SDL_UnlockSurface(loaded_surface); // Uncomment if locked
-
-  SDL_Log("Created and filled test surface with red.");
-  if (!loaded_surface) {
-    SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to load BMP: %s",
-                 SDL_GetError());
-    return 1;
-  }
-
-  if (loaded_surface->format != SDL_PIXELFORMAT_RGBA8888) {
-    SDL_Surface *converted = SDL_ConvertSurface(
-        loaded_surface,
-        SDL_PIXELFORMAT_RGBA8888); // Use SDL_ConvertSurfaceFormat
-    SDL_DestroySurface(loaded_surface);
-    loaded_surface = converted;
-    if (!loaded_surface) {
-      SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
-                   "Failed to convert surface format to RGBA8888: %s",
-                   SDL_GetError());
-      return 1;
-    }
-  }
-
-  // Now it's safe to assume loaded_surface is valid and in RGBA8888
-  if (!loaded_surface->pixels) {
-    SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
-                 "Loaded surface has NULL pixels after conversion.");
-    SDL_DestroySurface(loaded_surface);
-    return 1;
-  }
+  SDL_SetGPUSwapchainParameters(device, window,
+                                SDL_GPU_SWAPCHAINCOMPOSITION_SDR,
+                                SDL_GPU_PRESENTMODE_IMMEDIATE);
 
   // load the vertex shader code
-  size_t vertexCodeSize;
-  void *vertexCode = SDL_LoadFile("src/shaders/vertex.spv", &vertexCodeSize);
-  if (vertexCode == NULL) {
+  size_t vertex_code_size;
+  void *vertex_code = SDL_LoadFile("src/shaders/vertex.spv", &vertex_code_size);
+  if (vertex_code == NULL) {
     SDL_Log("Failed to load shader from disk! %s");
     return NULL;
   }
   // create the vertex shader
-  SDL_GPUShaderCreateInfo vertexInfo{};
-  vertexInfo.code = (Uint8 *)vertexCode;
-  vertexInfo.code_size = vertexCodeSize;
-  vertexInfo.entrypoint = "main";
-  vertexInfo.format = SDL_GPU_SHADERFORMAT_SPIRV;
-  vertexInfo.stage = SDL_GPU_SHADERSTAGE_VERTEX;
-  vertexInfo.num_samplers = 0;
-  vertexInfo.num_storage_buffers = 0;
-  vertexInfo.num_storage_textures = 0;
-  vertexInfo.num_uniform_buffers = 0;
+  SDL_GPUShaderCreateInfo vertex_info{};
+  vertex_info.code = (Uint8 *)vertex_code;
+  vertex_info.code_size = vertex_code_size;
+  vertex_info.entrypoint = "main";
+  vertex_info.format = SDL_GPU_SHADERFORMAT_SPIRV;
+  vertex_info.stage = SDL_GPU_SHADERSTAGE_VERTEX;
+  vertex_info.num_samplers = 0;
+  vertex_info.num_storage_buffers = 0;
+  vertex_info.num_storage_textures = 0;
+  vertex_info.num_uniform_buffers = 0;
 
-  SDL_GPUShader *vertexShader = SDL_CreateGPUShader(device, &vertexInfo);
-  if (!vertexShader) {
-    SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
-                 "Failed to create vertex shader: %s", SDL_GetError());
-    SDL_free(vertexCode);
-    SDL_Quit();
+  SDL_GPUShader *vertex_shader = SDL_CreateGPUShader(device, &vertex_info);
+  if (vertex_shader == NULL) {
+    SDL_Log("Failed to create shader!");
+    SDL_free(vertex_code);
     return 1;
-  } else {
-    SDL_Log("Vertex shader created successfully");
   }
 
   // free the file
-  SDL_free(vertexCode);
+  SDL_free(vertex_code);
 
   // load the fragment shader code
-  size_t fragmentCodeSize;
-  void *fragmentCode =
-      SDL_LoadFile("src/shaders/fragment.spv", &fragmentCodeSize);
-  if (fragmentCode == NULL) {
+  size_t fragment_code_size;
+  void *fragment_code =
+      SDL_LoadFile("src/shaders/fragment.spv", &fragment_code_size);
+  if (fragment_code == NULL) {
     SDL_Log("Failed to load shader from disk! %s");
     return NULL;
   }
   // create the fragment shader
-  SDL_GPUShaderCreateInfo fragmentInfo{};
-  fragmentInfo.code = (Uint8 *)fragmentCode;
-  fragmentInfo.code_size = fragmentCodeSize;
-  fragmentInfo.entrypoint = "main";
-  fragmentInfo.format = SDL_GPU_SHADERFORMAT_SPIRV;
-  fragmentInfo.stage = SDL_GPU_SHADERSTAGE_FRAGMENT;
-  fragmentInfo.num_samplers = 1;
-  fragmentInfo.num_storage_buffers = 0;
-  fragmentInfo.num_storage_textures = 0;
-  fragmentInfo.num_uniform_buffers = 0;
+  SDL_GPUShaderCreateInfo fragment_info{};
+  fragment_info.code = (Uint8 *)fragment_code;
+  fragment_info.code_size = fragment_code_size;
+  fragment_info.entrypoint = "main";
+  fragment_info.format = SDL_GPU_SHADERFORMAT_SPIRV;
+  fragment_info.stage = SDL_GPU_SHADERSTAGE_FRAGMENT;
+  fragment_info.num_samplers = 1;
+  fragment_info.num_storage_buffers = 0;
+  fragment_info.num_storage_textures = 0;
+  fragment_info.num_uniform_buffers = 0;
 
   SDL_Log("Loading fragment shader");
 
-  SDL_GPUShader *fragmentShader = SDL_CreateGPUShader(device, &fragmentInfo);
-  if (!fragmentShader) {
-    SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
-                 "Failed to create fragment shader: %s", SDL_GetError());
-    SDL_free(fragmentCode);
-    SDL_ReleaseGPUShader(device, vertexShader);
-    SDL_Quit();
+  SDL_GPUShader *fragment_shader = SDL_CreateGPUShader(device, &fragment_info);
+  if (fragment_shader == NULL) {
+    SDL_Log("Failed to create shader!");
+    SDL_free(vertex_code);
     return 1;
   }
   SDL_Log("Fragment shader created successfully");
 
   // free the file
-  SDL_free(fragmentCode);
+  SDL_free(fragment_code);
+
+  // load test image using SDL_image
+  std::string bitmap_read_name = "res/test_image_read.bmp";
+
+  SDL_Surface *image_data = SDL_LoadBMP(bitmap_read_name.c_str());
+
+  if (image_data == NULL) {
+    SDL_Log("Could not load image data!");
+    return -1;
+  }
+
+  if (image_data->format != SDL_PIXELFORMAT_ABGR8888) {
+    SDL_Surface *next = SDL_ConvertSurface(
+        image_data,
+        SDL_PIXELFORMAT_ABGR8888); // Use SDL_ConvertSurfaceFormat
+    SDL_DestroySurface(image_data);
+    image_data = next;
+  }
+
+  // Now it's safe to assume image_data is valid and in RGBA8888
+  if (!image_data->pixels) {
+    SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
+                 "Loaded surface has NULL pixels after conversion.");
+    SDL_DestroySurface(image_data);
+    return 1;
+  }
 
   // create the graphics pipeline
   SDL_GPUGraphicsPipelineCreateInfo pipelineInfo{};
-  pipelineInfo.vertex_shader = vertexShader;
-  pipelineInfo.fragment_shader = fragmentShader;
+  pipelineInfo.vertex_shader = vertex_shader;
+  pipelineInfo.fragment_shader = fragment_shader;
   pipelineInfo.primitive_type = SDL_GPU_PRIMITIVETYPE_TRIANGLELIST;
 
   // describe the vertex buffers
@@ -297,11 +257,11 @@ int init() {
     SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
                  "Device is NULL before pipeline creation!");
   }
-  if (!vertexShader) {
+  if (!vertex_shader) {
     SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
                  "Vertex shader is NULL before pipeline creation!");
   }
-  if (!fragmentShader) {
+  if (!fragment_shader) {
     SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
                  "Fragment shader is NULL before pipeline creation!");
   }
@@ -329,76 +289,8 @@ int init() {
   }
 
   // we don't need to store the shaders after creating the pipeline
-  SDL_ReleaseGPUShader(device, vertexShader);
-  SDL_ReleaseGPUShader(device, fragmentShader);
-
-  // create the vertex buffer
-  SDL_GPUBufferCreateInfo vertex_bufferInfo{};
-  vertex_bufferInfo.usage = SDL_GPU_BUFFERUSAGE_VERTEX;
-  vertex_bufferInfo.size = sizeof(vertices);
-  // TODO
-  // vertex_bufferInfo.props =
-  vertex_buffer = SDL_CreateGPUBuffer(device, &vertex_bufferInfo);
-  if (!vertex_buffer) {
-    SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
-                 "Failed to create vertex buffer: %s", SDL_GetError());
-    SDL_Quit();
-    return 1;
-  }
-
-  SDL_SetGPUBufferName(device, vertex_buffer, "Vertex Buffer");
-
-  // create the index buffer
-  SDL_GPUBufferCreateInfo index_bufferInfo{};
-  index_bufferInfo.usage = SDL_GPU_BUFFERUSAGE_INDEX;
-  index_bufferInfo.size = sizeof(indices);
-  // TODO
-  // vertex_bufferInfo.props =
-  index_buffer = SDL_CreateGPUBuffer(device, &index_bufferInfo);
-  if (!index_buffer) {
-    SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
-                 "Failed to create index buffer: %s", SDL_GetError());
-    SDL_Quit();
-    return 1;
-  }
-
-  SDL_SetGPUBufferName(device, index_buffer, "Index Buffer");
-
-  // Texture = SDL_CreateGPUTexture(
-  //     context->Device, &(SDL_GPUTextureCreateInfo){
-  //                          .type = SDL_GPU_TEXTURETYPE_2D,
-  //                          .format = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM,
-  //                          .width = imageData->w,
-  //                          .height = imageData->h,
-  //                          .layer_count_or_depth = 1,
-  //                          .num_levels = 1,
-  //                          .usage = SDL_GPU_TEXTUREUSAGE_SAMPLER});
-  // SDL_SetGPUTextureName(context->Device, Texture, "Ravioli Texture");
-
-  SDL_GPUTextureCreateInfo texture_info{};
-  texture_info.type = SDL_GPU_TEXTURETYPE_2D;
-  texture_info.format =
-      SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM; // Assuming your Bitmap outputs RGBA
-                                            // 8888
-  texture_info.width = loaded_surface->w;
-  texture_info.height = loaded_surface->h;
-  texture_info.layer_count_or_depth = 1;
-  texture_info.num_levels =
-      1; // Mipmapping would require more levels, but 1 is fine for now
-  texture_info.usage = SDL_GPU_TEXTUREUSAGE_SAMPLER; // Needs to be sampled
-  // destination
-
-  SDL_Log("Creating GPU texture: %dx%d, Format: R8G8B8A8_UNORM",
-          texture_info.width, texture_info.height); // ADD THIS LINE
-  quad_texture = SDL_CreateGPUTexture(device, &texture_info);
-  if (!quad_texture) {
-    SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
-                 "Failed to create GPU texture: %s", SDL_GetError());
-    return -1; // Make sure this returns!
-  } else {
-    SDL_Log("Successfully created GPU texture.");
-  }
-  SDL_SetGPUTextureName(device, quad_texture, "Amogus Texture");
+  SDL_ReleaseGPUShader(device, vertex_shader);
+  SDL_ReleaseGPUShader(device, fragment_shader);
 
   // create gpu sampler
   SDL_GPUSamplerCreateInfo sampler_info{};
@@ -412,23 +304,73 @@ int init() {
       SDL_GPU_SAMPLERADDRESSMODE_REPEAT; // Prevents repeating at edges
   sampler_info.address_mode_v = SDL_GPU_SAMPLERADDRESSMODE_REPEAT;
   sampler_info.address_mode_w = SDL_GPU_SAMPLERADDRESSMODE_REPEAT;
-  // Add other sampler settings if needed (anisotropy, LOD bias, etc.)
 
   quad_sampler = SDL_CreateGPUSampler(device, &sampler_info);
   if (!quad_sampler) {
     SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
                  "Failed to create GPU sampler: %s", SDL_GetError());
-    SDL_ReleaseGPUTexture(device, quad_texture);
     return -1; // Make sure this returns!
-  } else {
-    SDL_Log("Successfully created GPU sampler.");
-  } // SDL_SetGPUSamplerName(device, quad_sampler, "Amogus Sampler");
+  }
+
+  // create the vertex buffer
+  SDL_GPUBufferCreateInfo vertex_buffer_info{};
+  vertex_buffer_info.usage = SDL_GPU_BUFFERUSAGE_VERTEX;
+  vertex_buffer_info.size = std::size(vertices) * sizeof(Vertex);
+  // vertex_buffer_info.props =
+
+  vertex_buffer = SDL_CreateGPUBuffer(device, &vertex_buffer_info);
+  if (!vertex_buffer) {
+    SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
+                 "Failed to create vertex buffer: %s", SDL_GetError());
+    SDL_Quit();
+    return 1;
+  }
+
+  SDL_SetGPUBufferName(device, vertex_buffer, "Vertex Buffer");
+
+  // create the index buffer
+  SDL_GPUBufferCreateInfo index_buffer_info{};
+  index_buffer_info.usage = SDL_GPU_BUFFERUSAGE_INDEX;
+  index_buffer_info.size = std::size(indices) * sizeof(uint16_t);
+  // vertex_buffer_info.props =
+
+  index_buffer = SDL_CreateGPUBuffer(device, &index_buffer_info);
+  if (!index_buffer) {
+    SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
+                 "Failed to create index buffer: %s", SDL_GetError());
+    SDL_Quit();
+    return 1;
+  }
+
+  // SDL_SetGPUBufferName(device, index_buffer, "Index Buffer");
+
+  SDL_GPUTextureCreateInfo texture_info{};
+  texture_info.type = SDL_GPU_TEXTURETYPE_2D;
+  texture_info.format = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM;
+  texture_info.width = image_data->w;
+  texture_info.height = image_data->h;
+  texture_info.layer_count_or_depth = 1;
+  texture_info.num_levels = 1;
+  texture_info.usage = SDL_GPU_TEXTUREUSAGE_SAMPLER;
+
+  SDL_Log("Creating GPU texture: %dx%d, Format: R8G8B8A8_UNORM",
+          texture_info.width, texture_info.height); // ADD THIS LINE
+  quad_texture = SDL_CreateGPUTexture(device, &texture_info);
+  if (!quad_texture) {
+    SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
+                 "Failed to create GPU texture: %s", SDL_GetError());
+    return -1; // Make sure this returns!
+  }
+  SDL_SetGPUTextureName(device, quad_texture, "Amogus Texture");
 
   // create a transfer buffer to upload to the vertex buffer
   SDL_GPUTransferBufferCreateInfo transferInfo{};
-  transferInfo.size = sizeof(vertices) + sizeof(indices); // Add indices size
+  transferInfo.size =
+      std::size(vertices) * sizeof(Vertex) +
+      std::size(indices) * sizeof(u_int16_t); // Add indices size
   transferInfo.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD;
   transfer_buffer = SDL_CreateGPUTransferBuffer(device, &transferInfo);
+
   if (!transfer_buffer) {
     SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
                  "Failed to create transfer buffer: %s", SDL_GetError());
@@ -439,10 +381,11 @@ int init() {
   // fill the transfer buffer
   Vertex *data =
       (Vertex *)SDL_MapGPUTransferBuffer(device, transfer_buffer, false);
-  SDL_memcpy(data, (void *)vertices, sizeof(vertices));
+  SDL_memcpy(data, (void *)vertices, std::size(vertices) * sizeof(Vertex));
 
   Uint16 *indexData = (Uint16 *)&data[std::size(vertices)];
-  SDL_memcpy(indexData, (void *)indices, sizeof(indices));
+  SDL_memcpy(indexData, (void *)indices,
+             std::size(indices) * sizeof(u_int16_t));
 
   // unmap the pointer when you are done updating the transfer buffer
   SDL_UnmapGPUTransferBuffer(device, transfer_buffer);
@@ -451,9 +394,10 @@ int init() {
   SDL_GPUTransferBufferCreateInfo textureTransferInfo{};
   textureTransferInfo.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD;
   // textureTransferInfo.size = bmp_read.get_width() * bmp_read.get_height();
-  textureTransferInfo.size = loaded_surface->w * loaded_surface->h * 4;
+  textureTransferInfo.size = image_data->w * image_data->h * 4;
   SDL_Log("Texture transfer buffer size: %u bytes",
           textureTransferInfo.size); // ADD THIS LINE
+
   SDL_GPUTransferBuffer *textureTransferBuffer =
       SDL_CreateGPUTransferBuffer(device, &textureTransferInfo);
   if (!textureTransferBuffer) {
@@ -464,18 +408,8 @@ int init() {
     SDL_ReleaseGPUTexture(device, quad_texture);
     SDL_ReleaseGPUSampler(device, quad_sampler);
     return -1; // Make sure this returns!
-  } else {
-    SDL_Log("Successfully created texture transfer buffer.");
   }
   // 4 bytes per pixel (RGBA)
-
-  if (!textureTransferBuffer) {
-    SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
-                 "Failed to create texture transfer buffer: %s",
-                 SDL_GetError());
-    // ... release quad_texture, quad_sampler ...
-    return -1;
-  }
 
   void *texture_data_ptr =
       SDL_MapGPUTransferBuffer(device, textureTransferBuffer, false);
@@ -487,12 +421,10 @@ int init() {
     SDL_ReleaseGPUSampler(device, quad_sampler);
     SDL_ReleaseGPUTransferBuffer(device, textureTransferBuffer);
     return -1;
-  } else {
-    SDL_Log("Successfully mapped texture transfer buffer.");
   }
 
-  SDL_memcpy(texture_data_ptr, loaded_surface->pixels,
-             loaded_surface->w * loaded_surface->h * 4);
+  SDL_memcpy(texture_data_ptr, (void *)image_data->pixels,
+             image_data->w * image_data->h * 4);
   SDL_UnmapGPUTransferBuffer(device, textureTransferBuffer);
 
   // start a copy pass
@@ -540,12 +472,12 @@ int init() {
   // where is the data
   SDL_GPUTransferBufferLocation index_location{};
   index_location.transfer_buffer = transfer_buffer;
-  index_location.offset = sizeof(vertices);
+  index_location.offset = std::size(vertices) * sizeof(Vertex);
 
   // where to upload the data
   SDL_GPUBufferRegion index_region{};
   index_region.buffer = index_buffer;
-  index_region.size = sizeof(indices);
+  index_region.size = std::size(indices) * sizeof(uint16_t);
   index_region.offset = 0;
 
   SDL_UploadToGPUBuffer(copyPass, &index_location, &index_region, false);
@@ -558,8 +490,8 @@ int init() {
 
   SDL_GPUTextureRegion texture_region{};
   texture_region.texture = quad_texture;
-  texture_region.w = loaded_surface->w;
-  texture_region.h = loaded_surface->h;
+  texture_region.w = image_data->w;
+  texture_region.h = image_data->h;
   texture_region.d = 1; // Depth for 2D texture is 1
   // texture_region.x = 0;
   // texture_region.y = 0;
@@ -585,9 +517,9 @@ int init() {
   SDL_Log("Successfully ended copy pass.");
   SDL_SubmitGPUCommandBuffer(commandBuffer);
   SDL_Log("Successfully submitted command buffer.");
+  SDL_DestroySurface(image_data);
   SDL_ReleaseGPUTransferBuffer(device, transfer_buffer);
   SDL_ReleaseGPUTransferBuffer(device, textureTransferBuffer);
-  SDL_DestroySurface(loaded_surface);
   SDL_Log("Released transfer buffers and surface.");
   // END SDL_GPU
 
@@ -617,7 +549,7 @@ void loop() {
 
   SDL_GPUColorTargetInfo colorTargetInfo{};
   colorTargetInfo.texture = swapchainTexture;
-  colorTargetInfo.clear_color = (SDL_FColor){0.0f, 1.0f, 0.0f, 1.0f};
+  colorTargetInfo.clear_color = (SDL_FColor){0.5f, 0.5f, 0.5f, 1.0f};
   colorTargetInfo.load_op = SDL_GPU_LOADOP_CLEAR;
   colorTargetInfo.store_op = SDL_GPU_STOREOP_STORE;
 
@@ -658,17 +590,18 @@ void loop() {
 }
 
 void cleanup() {
+  SDL_ReleaseGPUGraphicsPipeline(device, graphics_pipeline);
+
   SDL_ReleaseGPUBuffer(device, vertex_buffer);
   SDL_ReleaseGPUBuffer(device, index_buffer);
 
   SDL_ReleaseGPUTexture(device, quad_texture); // <--- ADD THIS
   SDL_ReleaseGPUSampler(device, quad_sampler); // <--- ADD THIS
 
-  SDL_ReleaseGPUGraphicsPipeline(device, graphics_pipeline);
-
+  SDL_ReleaseWindowFromGPUDevice(device, window);
   SDL_DestroyGPUDevice(device);
-
   SDL_DestroyWindow(window);
+
   SDL_Quit();
 }
 
