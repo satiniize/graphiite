@@ -6,13 +6,14 @@
 #include <iterator>
 #include <random>
 #include <string>
+#include <sys/types.h>
 #include <vector>
 
 #define WIDTH 320
 #define HEIGHT 180
 
-#include "bitmap.hpp"
 #include "vec2.hpp"
+#include <SDL3_image/SDL_image.h>
 
 #include "config.hpp"
 
@@ -37,7 +38,8 @@ SDL_GPUBuffer *index_buffer;
 SDL_GPUTexture *quad_texture;
 SDL_GPUSampler *quad_sampler;
 
-Bitmap bmp_sdl;
+// SDL_Surface* for image loading via SDL_image
+SDL_Surface *loaded_surface = nullptr;
 
 SDL_GPUTransferBuffer *transfer_buffer;
 SDL_GPUGraphicsPipeline *graphics_pipeline;
@@ -95,14 +97,26 @@ int init() {
                                 SDL_GPU_SWAPCHAINCOMPOSITION_SDR,
                                 SDL_GPU_PRESENTMODE_IMMEDIATE);
 
-  // load test image
+  // load test image using SDL_image
   std::string bitmap_read_name = "./res/test_image_read.bmp";
-  bmp_sdl = Bitmap(bitmap_read_name);
+  loaded_surface = IMG_Load(bitmap_read_name.c_str());
+  if (!loaded_surface) {
+    // SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to load image: %s",
+    //              IMG_GetError());
+    return 1;
+  }
 
-  if (bmp_sdl.get_width() == 0 || bmp_sdl.get_height() == 0) {
-    SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
-                 "Failed to load bitmap_read.bmp or it's empty!");
-    return -1; // Or handle error appropriately
+  // Ensure the surface is in RGBA8888 format
+  if (loaded_surface->format != SDL_PIXELFORMAT_RGBA32) {
+    SDL_Surface *converted =
+        SDL_ConvertSurface(loaded_surface, SDL_PIXELFORMAT_RGBA32);
+    SDL_DestroySurface(loaded_surface);
+    loaded_surface = converted;
+    if (!loaded_surface) {
+      SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
+                   "Failed to convert surface format: %s", SDL_GetError());
+      return 1;
+    }
   }
 
   // load the vertex shader code
@@ -209,17 +223,18 @@ int init() {
   // describe the color target
   SDL_GPUColorTargetDescription colorTargetDescriptions[1];
   colorTargetDescriptions[0] = {};
-  colorTargetDescriptions[0].blend_state.enable_blend = true;
-  colorTargetDescriptions[0].blend_state.color_blend_op = SDL_GPU_BLENDOP_ADD;
-  colorTargetDescriptions[0].blend_state.alpha_blend_op = SDL_GPU_BLENDOP_ADD;
-  colorTargetDescriptions[0].blend_state.src_color_blendfactor =
-      SDL_GPU_BLENDFACTOR_SRC_ALPHA;
-  colorTargetDescriptions[0].blend_state.dst_color_blendfactor =
-      SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA;
-  colorTargetDescriptions[0].blend_state.src_alpha_blendfactor =
-      SDL_GPU_BLENDFACTOR_SRC_ALPHA;
-  colorTargetDescriptions[0].blend_state.dst_alpha_blendfactor =
-      SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA;
+  colorTargetDescriptions[0].blend_state.enable_blend = false;
+  // colorTargetDescriptions[0].blend_state.color_blend_op =
+  // SDL_GPU_BLENDOP_ADD; colorTargetDescriptions[0].blend_state.alpha_blend_op
+  // = SDL_GPU_BLENDOP_ADD;
+  // colorTargetDescriptions[0].blend_state.src_color_blendfactor =
+  //     SDL_GPU_BLENDFACTOR_SRC_ALPHA;
+  // colorTargetDescriptions[0].blend_state.dst_color_blendfactor =
+  //     SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA;
+  // colorTargetDescriptions[0].blend_state.src_alpha_blendfactor =
+  //     SDL_GPU_BLENDFACTOR_SRC_ALPHA;
+  // colorTargetDescriptions[0].blend_state.dst_alpha_blendfactor =
+  //     SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA;
   colorTargetDescriptions[0].format =
       SDL_GetGPUSwapchainTextureFormat(device, window);
 
@@ -287,8 +302,8 @@ int init() {
   texture_info.format =
       SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM; // Assuming your Bitmap outputs RGBA
                                             // 8888
-  texture_info.width = (Uint32)bmp_sdl.get_width();
-  texture_info.height = (Uint32)bmp_sdl.get_height();
+  texture_info.width = (u_int32_t)loaded_surface->w;
+  texture_info.height = (u_int32_t)loaded_surface->h;
   texture_info.layer_count_or_depth = 1;
   texture_info.num_levels =
       1; // Mipmapping would require more levels, but 1 is fine for now
@@ -353,7 +368,8 @@ int init() {
   SDL_GPUTransferBufferCreateInfo textureTransferInfo{};
   textureTransferInfo.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD;
   // textureTransferInfo.size = bmp_read.get_width() * bmp_read.get_height();
-  textureTransferInfo.size = sizeof(bmp_sdl.get_pixels().data());
+  textureTransferInfo.size =
+      loaded_surface->w * loaded_surface->h * sizeof(Uint32);
   SDL_GPUTransferBuffer *textureTransferBuffer =
       SDL_CreateGPUTransferBuffer(device, &textureTransferInfo);
   if (!textureTransferBuffer) {
@@ -382,8 +398,8 @@ int init() {
     return -1;
   }
 
-  SDL_memcpy(texture_data_ptr, bmp_sdl.get_pixels().data(),
-             sizeof(bmp_sdl.get_pixels().data()));
+  SDL_memcpy(texture_data_ptr, loaded_surface->pixels,
+             loaded_surface->w * loaded_surface->h * sizeof(Uint32));
   SDL_UnmapGPUTransferBuffer(device, textureTransferBuffer);
 
   // start a copy pass
@@ -425,12 +441,12 @@ int init() {
 
   SDL_GPUTextureRegion texture_region{};
   texture_region.texture = quad_texture;
-  texture_region.w = bmp_sdl.get_width();
-  texture_region.h = bmp_sdl.get_height();
+  texture_region.w = loaded_surface->w;
+  texture_region.h = loaded_surface->h;
   texture_region.d = 1; // Depth for 2D texture is 1
-  texture_region.x = 0;
-  texture_region.y = 0;
-  texture_region.z = 0; // Destination offset
+  // texture_region.x = 0;
+  // texture_region.y = 0;
+  // texture_region.z = 0; // Destination offset
 
   SDL_UploadToGPUTexture(copyPass, &texture_transfer_info, &texture_region,
                          false);

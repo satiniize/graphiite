@@ -12,6 +12,9 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/$<CONFIGURATION>")
 # This assumes the SDL source is available in lib/SDL (as a submodule)
 add_subdirectory(lib/SDL EXCLUDE_FROM_ALL)
 
+# Add SDL_image as a submodule
+add_subdirectory(lib/SDL_image EXCLUDE_FROM_ALL)
+
 # Source files for the project
 set(SR_SOURCES
 	src/bitmap.cpp
@@ -28,3 +31,5 @@ target_include_directories(software-renderer PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}
 
 # Link to the actual SDL3 library.
 target_link_libraries(software-renderer PRIVATE SDL3::SDL3)
+# Link to SDL_image
+target_link_libraries(software-renderer PRIVATE SDL3_image::SDL3_image)
