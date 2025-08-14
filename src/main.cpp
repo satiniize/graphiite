@@ -76,14 +76,6 @@ int init() {
   }
   SDL_Log("SDL video driver: %s", SDL_GetCurrentVideoDriver());
 
-  // Scale up for visibility
-  window = SDL_CreateWindow("Checkerboard", WIDTH * scale, HEIGHT * scale, 0);
-  if (!window) {
-    SDL_Log("Couldn't create window: %s", SDL_GetError());
-    SDL_Quit();
-    return 1;
-  }
-
   // Create GPU device
   device = SDL_CreateGPUDevice(SDL_GPU_SHADERFORMAT_SPIRV, true, NULL);
   if (!device) {
@@ -92,37 +84,57 @@ int init() {
     SDL_Quit();
     return 1;
   }
-  SDL_ClaimWindowForGPUDevice(device, window);
-  SDL_SetGPUSwapchainParameters(device, window,
-                                SDL_GPU_SWAPCHAINCOMPOSITION_SDR,
-                                SDL_GPU_PRESENTMODE_IMMEDIATE);
-
-  // load test image using SDL_image
-  std::string bitmap_read_name = "./res/test_image_read.bmp";
-  loaded_surface = IMG_Load(bitmap_read_name.c_str());
-  if (!loaded_surface) {
-    // SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to load image: %s",
-    //              IMG_GetError());
+  // Scale up for visibility
+  window = SDL_CreateWindow("Checkerboard", WIDTH * scale, HEIGHT * scale, 0);
+  if (!window) {
+    SDL_Log("Couldn't create window: %s", SDL_GetError());
+    SDL_Quit();
     return 1;
   }
 
-  // Ensure the surface is in RGBA8888 format
-  if (loaded_surface->format != SDL_PIXELFORMAT_RGBA32) {
-    SDL_Surface *converted =
-        SDL_ConvertSurface(loaded_surface, SDL_PIXELFORMAT_RGBA32);
+  SDL_ClaimWindowForGPUDevice(device, window);
+  // SDL_SetGPUSwapchainParameters(device, window,
+  //                               SDL_GPU_SWAPCHAINCOMPOSITION_SDR,
+  //                               SDL_GPU_PRESENTMODE_IMMEDIATE);
+
+  // load test image using SDL_image
+  std::string bitmap_read_name = "./res/test_image_read.bmp";
+  loaded_surface = SDL_LoadBMP(bitmap_read_name.c_str());
+  if (!loaded_surface) {
+    SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to load BMP: %s",
+                 SDL_GetError());
+    return 1;
+  }
+
+  if (loaded_surface->format != SDL_PIXELFORMAT_RGBA8888) {
+    SDL_Surface *converted = SDL_ConvertSurface(
+        loaded_surface,
+        SDL_PIXELFORMAT_RGBA8888); // Use SDL_ConvertSurfaceFormat
     SDL_DestroySurface(loaded_surface);
     loaded_surface = converted;
     if (!loaded_surface) {
       SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
-                   "Failed to convert surface format: %s", SDL_GetError());
+                   "Failed to convert surface format to RGBA8888: %s",
+                   SDL_GetError());
       return 1;
     }
+  }
+
+  // Now it's safe to assume loaded_surface is valid and in RGBA8888
+  if (!loaded_surface->pixels) {
+    SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
+                 "Loaded surface has NULL pixels after conversion.");
+    SDL_DestroySurface(loaded_surface);
+    return 1;
   }
 
   // load the vertex shader code
   size_t vertexCodeSize;
   void *vertexCode = SDL_LoadFile("src/shaders/vertex.spv", &vertexCodeSize);
-
+  if (vertexCode == NULL) {
+    SDL_Log("Failed to load shader from disk! %s");
+    return NULL;
+  }
   // create the vertex shader
   SDL_GPUShaderCreateInfo vertexInfo{};
   vertexInfo.code = (Uint8 *)vertexCode;
@@ -142,6 +154,8 @@ int init() {
     SDL_free(vertexCode);
     SDL_Quit();
     return 1;
+  } else {
+    SDL_Log("Vertex shader created successfully");
   }
 
   // free the file
@@ -151,7 +165,10 @@ int init() {
   size_t fragmentCodeSize;
   void *fragmentCode =
       SDL_LoadFile("src/shaders/fragment.spv", &fragmentCodeSize);
-
+  if (fragmentCode == NULL) {
+    SDL_Log("Failed to load shader from disk! %s");
+    return NULL;
+  }
   // create the fragment shader
   SDL_GPUShaderCreateInfo fragmentInfo{};
   fragmentInfo.code = (Uint8 *)fragmentCode;
@@ -159,10 +176,12 @@ int init() {
   fragmentInfo.entrypoint = "main";
   fragmentInfo.format = SDL_GPU_SHADERFORMAT_SPIRV;
   fragmentInfo.stage = SDL_GPU_SHADERSTAGE_FRAGMENT;
-  fragmentInfo.num_samplers = 0;
+  fragmentInfo.num_samplers = 1;
   fragmentInfo.num_storage_buffers = 0;
   fragmentInfo.num_storage_textures = 0;
   fragmentInfo.num_uniform_buffers = 0;
+
+  SDL_Log("Loading fragment shader");
 
   SDL_GPUShader *fragmentShader = SDL_CreateGPUShader(device, &fragmentInfo);
   if (!fragmentShader) {
@@ -173,6 +192,7 @@ int init() {
     SDL_Quit();
     return 1;
   }
+  SDL_Log("Fragment shader created successfully");
 
   // free the file
   SDL_free(fragmentCode);
@@ -184,7 +204,7 @@ int init() {
   pipelineInfo.primitive_type = SDL_GPU_PRIMITIVETYPE_TRIANGLELIST;
 
   // describe the vertex buffers
-  SDL_GPUVertexBufferDescription vertexBufferDesctiptions[1];
+  SDL_GPUVertexBufferDescription vertexBufferDesctiptions[1] = {};
   vertexBufferDesctiptions[0].slot = 0;
   vertexBufferDesctiptions[0].input_rate = SDL_GPU_VERTEXINPUTRATE_VERTEX;
   vertexBufferDesctiptions[0].instance_step_rate = 0;
@@ -197,7 +217,7 @@ int init() {
   // describe the vertex attribute
   uint32_t vertexAttributesCount = 3;
 
-  SDL_GPUVertexAttribute vertexAttributes[vertexAttributesCount];
+  SDL_GPUVertexAttribute vertexAttributes[vertexAttributesCount] = {};
 
   // a_position
   vertexAttributes[0].buffer_slot = 0;
@@ -221,9 +241,9 @@ int init() {
   pipelineInfo.vertex_input_state.vertex_attributes = vertexAttributes;
 
   // describe the color target
-  SDL_GPUColorTargetDescription colorTargetDescriptions[1];
+  SDL_GPUColorTargetDescription colorTargetDescriptions[1] = {};
   colorTargetDescriptions[0] = {};
-  colorTargetDescriptions[0].blend_state.enable_blend = false;
+  // colorTargetDescriptions[0].blend_state.enable_blend = true;
   // colorTargetDescriptions[0].blend_state.color_blend_op =
   // SDL_GPU_BLENDOP_ADD; colorTargetDescriptions[0].blend_state.alpha_blend_op
   // = SDL_GPU_BLENDOP_ADD;
@@ -241,8 +261,35 @@ int init() {
   pipelineInfo.target_info.num_color_targets = 1;
   pipelineInfo.target_info.color_target_descriptions = colorTargetDescriptions;
 
-  // create the pipeline
+  // Debug: Check device and shaders before creating the pipeline
+  if (!device) {
+    SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
+                 "Device is NULL before pipeline creation!");
+  }
+  if (!vertexShader) {
+    SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
+                 "Vertex shader is NULL before pipeline creation!");
+  }
+  if (!fragmentShader) {
+    SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
+                 "Fragment shader is NULL before pipeline creation!");
+  }
+  if (!pipelineInfo.vertex_input_state.vertex_buffer_descriptions) {
+    SDL_LogError(
+        SDL_LOG_CATEGORY_APPLICATION,
+        "Vertex buffer descriptions is NULL before pipeline creation!");
+  }
+  if (!pipelineInfo.vertex_input_state.vertex_attributes) {
+    SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
+                 "Vertex attributes is NULL before pipeline creation!");
+  }
+  if (!pipelineInfo.target_info.color_target_descriptions) {
+    SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
+                 "Color target descriptions is NULL before pipeline creation!");
+  }
+  SDL_Log("here");
   graphics_pipeline = SDL_CreateGPUGraphicsPipeline(device, &pipelineInfo);
+  SDL_Log("here2");
 
   if (graphics_pipeline == NULL) {
     SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
@@ -302,44 +349,49 @@ int init() {
   texture_info.format =
       SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM; // Assuming your Bitmap outputs RGBA
                                             // 8888
-  texture_info.width = (u_int32_t)loaded_surface->w;
-  texture_info.height = (u_int32_t)loaded_surface->h;
+  texture_info.width = loaded_surface->w;
+  texture_info.height = loaded_surface->h;
   texture_info.layer_count_or_depth = 1;
   texture_info.num_levels =
       1; // Mipmapping would require more levels, but 1 is fine for now
   texture_info.usage = SDL_GPU_TEXTUREUSAGE_SAMPLER; // Needs to be sampled
-                                                     // destination
+  // destination
 
+  SDL_Log("Creating GPU texture: %dx%d, Format: R8G8B8A8_UNORM",
+          texture_info.width, texture_info.height); // ADD THIS LINE
   quad_texture = SDL_CreateGPUTexture(device, &texture_info);
   if (!quad_texture) {
     SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
                  "Failed to create GPU texture: %s", SDL_GetError());
-    return -1;
+    return -1; // Make sure this returns!
+  } else {
+    SDL_Log("Successfully created GPU texture.");
   }
   SDL_SetGPUTextureName(device, quad_texture, "Amogus Texture");
 
   // create gpu sampler
   SDL_GPUSamplerCreateInfo sampler_info{};
   sampler_info.mag_filter =
-      SDL_GPU_FILTER_LINEAR; // Smooths pixels when magnified
+      SDL_GPU_FILTER_NEAREST; // Smooths pixels when magnified
   sampler_info.min_filter =
-      SDL_GPU_FILTER_LINEAR; // Smooths pixels when minified
+      SDL_GPU_FILTER_NEAREST; // Smooths pixels when minified
   sampler_info.mipmap_mode =
       SDL_GPU_SAMPLERMIPMAPMODE_NEAREST; // No mipmaps, so nearest is fine
   sampler_info.address_mode_u =
-      SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE; // Prevents repeating at edges
-  sampler_info.address_mode_v = SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE;
-  sampler_info.address_mode_w = SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE;
+      SDL_GPU_SAMPLERADDRESSMODE_REPEAT; // Prevents repeating at edges
+  sampler_info.address_mode_v = SDL_GPU_SAMPLERADDRESSMODE_REPEAT;
+  sampler_info.address_mode_w = SDL_GPU_SAMPLERADDRESSMODE_REPEAT;
   // Add other sampler settings if needed (anisotropy, LOD bias, etc.)
 
   quad_sampler = SDL_CreateGPUSampler(device, &sampler_info);
   if (!quad_sampler) {
     SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
                  "Failed to create GPU sampler: %s", SDL_GetError());
-    SDL_ReleaseGPUTexture(device, quad_texture); // Clean up if sampler fails
-    return -1;
-  }
-  // SDL_SetGPUSamplerName(device, quad_sampler, "Amogus Sampler");
+    SDL_ReleaseGPUTexture(device, quad_texture);
+    return -1; // Make sure this returns!
+  } else {
+    SDL_Log("Successfully created GPU sampler.");
+  } // SDL_SetGPUSamplerName(device, quad_sampler, "Amogus Sampler");
 
   // create a transfer buffer to upload to the vertex buffer
   SDL_GPUTransferBufferCreateInfo transferInfo{};
@@ -368,16 +420,21 @@ int init() {
   SDL_GPUTransferBufferCreateInfo textureTransferInfo{};
   textureTransferInfo.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD;
   // textureTransferInfo.size = bmp_read.get_width() * bmp_read.get_height();
-  textureTransferInfo.size =
-      loaded_surface->w * loaded_surface->h * sizeof(Uint32);
+  textureTransferInfo.size = loaded_surface->w * loaded_surface->h * 4;
+  SDL_Log("Texture transfer buffer size: %u bytes",
+          textureTransferInfo.size); // ADD THIS LINE
   SDL_GPUTransferBuffer *textureTransferBuffer =
       SDL_CreateGPUTransferBuffer(device, &textureTransferInfo);
   if (!textureTransferBuffer) {
     SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
                  "Failed to create texture transfer buffer: %s",
                  SDL_GetError());
-    SDL_Quit();
-    return 1;
+    // Add cleanup for texture/sampler here
+    SDL_ReleaseGPUTexture(device, quad_texture);
+    SDL_ReleaseGPUSampler(device, quad_sampler);
+    return -1; // Make sure this returns!
+  } else {
+    SDL_Log("Successfully created texture transfer buffer.");
   }
   // 4 bytes per pixel (RGBA)
 
@@ -394,18 +451,47 @@ int init() {
   if (!texture_data_ptr) {
     SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
                  "Failed to map texture transfer buffer: %s", SDL_GetError());
-    // ... release ...
+    // Add cleanup
+    SDL_ReleaseGPUTexture(device, quad_texture);
+    SDL_ReleaseGPUSampler(device, quad_sampler);
+    SDL_ReleaseGPUTransferBuffer(device, textureTransferBuffer);
     return -1;
+  } else {
+    SDL_Log("Successfully mapped texture transfer buffer.");
   }
 
   SDL_memcpy(texture_data_ptr, loaded_surface->pixels,
-             loaded_surface->w * loaded_surface->h * sizeof(Uint32));
+             loaded_surface->w * loaded_surface->h * 4);
   SDL_UnmapGPUTransferBuffer(device, textureTransferBuffer);
 
   // start a copy pass
   SDL_GPUCommandBuffer *commandBuffer = SDL_AcquireGPUCommandBuffer(device);
+  if (!commandBuffer) {
+    SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
+                 "Failed to acquire command buffer for upload: %s",
+                 SDL_GetError());
+    // Add cleanup
+    SDL_ReleaseGPUTexture(device, quad_texture);
+    SDL_ReleaseGPUSampler(device, quad_sampler);
+    SDL_ReleaseGPUTransferBuffer(device, textureTransferBuffer);
+    return -1;
+  } else {
+    SDL_Log("Successfully acquired command buffer for upload.");
+  }
   SDL_GPUCopyPass *copyPass = SDL_BeginGPUCopyPass(commandBuffer);
-
+  if (!copyPass) {
+    SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to begin copy pass: %s",
+                 SDL_GetError());
+    SDL_SubmitGPUCommandBuffer(
+        commandBuffer); // IMPORTANT: release if beginning fails
+    // Add cleanup
+    SDL_ReleaseGPUTexture(device, quad_texture);
+    SDL_ReleaseGPUSampler(device, quad_sampler);
+    SDL_ReleaseGPUTransferBuffer(device, textureTransferBuffer);
+    return -1;
+  } else {
+    SDL_Log("Successfully began copy pass.");
+  }
   // where is the data
   SDL_GPUTransferBufferLocation vertex_location{};
   vertex_location.transfer_buffer = transfer_buffer;
@@ -414,7 +500,7 @@ int init() {
   // where to upload the data
   SDL_GPUBufferRegion vertex_region{};
   vertex_region.buffer = vertex_buffer;
-  vertex_region.size = sizeof(vertices);
+  vertex_region.size = sizeof(vertices); // TODO: make more robust
   vertex_region.offset = 0;
 
   // upload the data
@@ -450,7 +536,7 @@ int init() {
 
   SDL_UploadToGPUTexture(copyPass, &texture_transfer_info, &texture_region,
                          false);
-
+  SDL_Log("Called SDL_UploadToGPUTexture.");
   // // Upload texture
   // SDL_UploadToGPUTexture(
   //     copyPass,
@@ -459,14 +545,22 @@ int init() {
   //         .offset = 0, /* Zeros out the rest */
   //     },
   //     &(SDL_GPUTextureRegion){
-  //         .texture = Texture, .w = imageData->w, .h = imageData->h, .d = 1},
+  //         .texture = Texture, .w = imageData->w, .h = imageData->h, .d =
+  //         1},
   //     false);
 
   // end the copy pass
   SDL_EndGPUCopyPass(copyPass);
+  SDL_Log("Successfully ended copy pass.");
   SDL_SubmitGPUCommandBuffer(commandBuffer);
+  SDL_Log("Successfully submitted command buffer.");
+  SDL_ReleaseGPUTransferBuffer(device, transfer_buffer);
   SDL_ReleaseGPUTransferBuffer(device, textureTransferBuffer);
+  SDL_DestroySurface(loaded_surface);
+  SDL_Log("Released transfer buffers and surface.");
   // END SDL_GPU
+
+  SDL_Log("Texture uploaded successfully");
 
   return 0;
 }
@@ -535,7 +629,6 @@ void loop() {
 void cleanup() {
   SDL_ReleaseGPUBuffer(device, vertex_buffer);
   SDL_ReleaseGPUBuffer(device, index_buffer);
-  SDL_ReleaseGPUTransferBuffer(device, transfer_buffer);
 
   SDL_ReleaseGPUTexture(device, quad_texture); // <--- ADD THIS
   SDL_ReleaseGPUSampler(device, quad_sampler); // <--- ADD THIS
@@ -562,78 +655,80 @@ std::string strip_lr(const std::string &str) {
 }
 
 int main(int argc, char *argv[]) {
-  std::string toml_file_name = "./res/test.toml";
-  std::string bitmap_write_name = "./res/test_image_write.bmp";
-  std::string bitmap_read_name = "./res/test_image_read.bmp";
+  // std::string toml_file_name = "./res/test.toml";
+  // std::string bitmap_write_name = "./res/test_image_write.bmp";
+  // std::string bitmap_read_name = "./res/test_image_read.bmp";
 
-  std::ifstream toml_file(toml_file_name);
-  if (!toml_file) {
-    SDL_Log("Could not open toml");
-    return 1;
-  }
-  std::string line;
+  // std::ifstream toml_file(toml_file_name);
+  // if (!toml_file) {
+  //   SDL_Log("Could not open toml");
+  //   return 1;
+  // }
+  // std::string line;
 
-  while (std::getline(toml_file, line)) {
-    // Handle comments
-    int comment_pos = line.find("#");
-    if (comment_pos != std::string::npos) {
-      line = line.substr(0, comment_pos);
-    }
-    // Handle tables
-    // Handle key-value pairs
-    int equal_sign_pos = line.find("=");
-    if (equal_sign_pos == std::string::npos) {
-      continue;
-    }
-    std::string key = strip_lr(line.substr(0, equal_sign_pos));
-    std::string raw_value =
-        strip_lr(line.substr(equal_sign_pos + 1, line.length()));
-    // Boolean true
-    if (raw_value == "true") {
-    }
-    // Boolean false
-    if (raw_value == "false") {
-    }
-    // Float
-    if (raw_value.find(".") != std::string::npos) {
-    }
-    // vec2
-    if (raw_value.starts_with("vec2")) {
-    }
-    std::cout << key << ":" << raw_value << std::endl;
-  }
+  // while (std::getline(toml_file, line)) {
+  //   // Handle comments
+  //   int comment_pos = line.find("#");
+  //   if (comment_pos != std::string::npos) {
+  //     line = line.substr(0, comment_pos);
+  //   }
+  //   // Handle tables
+  //   // Handle key-value pairs
+  //   int equal_sign_pos = line.find("=");
+  //   if (equal_sign_pos == std::string::npos) {
+  //     continue;
+  //   }
+  //   std::string key = strip_lr(line.substr(0, equal_sign_pos));
+  //   std::string raw_value =
+  //       strip_lr(line.substr(equal_sign_pos + 1, line.length()));
+  //   // Boolean true
+  //   if (raw_value == "true") {
+  //   }
+  //   // Boolean false
+  //   if (raw_value == "false") {
+  //   }
+  //   // Float
+  //   if (raw_value.find(".") != std::string::npos) {
+  //   }
+  //   // vec2
+  //   if (raw_value.starts_with("vec2")) {
+  //   }
+  //   std::cout << key << ":" << raw_value << std::endl;
+  // }
 
-  int bitmap_write_width = 16;
-  int bitmap_write_height = 16;
+  // int bitmap_write_width = 16;
+  // int bitmap_write_height = 16;
 
   // Create a test image (gradient)
-  Bitmap bmp_write(bitmap_write_width, bitmap_write_height);
+  // Bitmap bmp_write(bitmap_write_width, bitmap_write_height);
 
-  for (int y = 0; y < bitmap_write_height; ++y) {
-    for (int x = 0; x < bitmap_write_width; ++x) {
-      uint8_t r =
-          static_cast<int>(static_cast<float>(x) / bitmap_write_width * 255.0f);
-      uint8_t g = static_cast<int>(static_cast<float>(y) / bitmap_write_height *
-                                   255.0f);
-      uint8_t b = 0;
-      bmp_write.set_pixel(x, y, (r << 24) | (g << 16) | (b << 8) | 0xFF);
-    }
-  }
+  // for (int y = 0; y < bitmap_write_height; ++y) {
+  //   for (int x = 0; x < bitmap_write_width; ++x) {
+  //     uint8_t r =
+  //         static_cast<int>(static_cast<float>(x) / bitmap_write_width *
+  //         255.0f);
+  //     uint8_t g = static_cast<int>(static_cast<float>(y) /
+  //     bitmap_write_height *
+  //                                  255.0f);
+  //     uint8_t b = 0;
+  //     bmp_write.set_pixel(x, y, (r << 24) | (g << 16) | (b << 8) | 0xFF);
+  //   }
+  // }
 
   // Dump BMP file
-  if (!bmp_write.dump(bitmap_write_name)) {
-    std::cerr << "Failed to write BMP file.\n";
-    return 1;
-  }
+  // if (!bmp_write.dump(bitmap_write_name)) {
+  //   std::cerr << "Failed to write BMP file.\n";
+  //   return 1;
+  // }
 
   // Read BMP file using constructor
-  Bitmap bmp_read(bitmap_read_name);
+  // Bitmap bmp_read(bitmap_read_name);
 
-  int bitmap_read_width = bmp_read.get_width();
-  int bitmap_read_height = bmp_read.get_height();
+  // int bitmap_read_width = bmp_read.get_width();
+  // int bitmap_read_height = bmp_read.get_height();
 
-  std::cout << "Width: " << bitmap_read_width << std::endl;
-  std::cout << "Height: " << bitmap_read_height << std::endl;
+  // std::cout << "Width: " << bitmap_read_width << std::endl;
+  // std::cout << "Height: " << bitmap_read_height << std::endl;
 
   int success = init();
 
@@ -641,94 +736,94 @@ int main(int argc, char *argv[]) {
     return success;
   }
 
-  EntityManager entity_manager;
+  // EntityManager entity_manager;
 
   // Cursor
-  EntityID cursor = entity_manager.create();
-  SpriteComponent cursor_sprite = {
-      .bitmap = bmp_write,
-      .size = vec2(bmp_write.get_width(), bmp_write.get_height())};
-  sprite_components[cursor] = cursor_sprite;
-  TransformComponent cursor_transform;
-  transform_components[cursor] = cursor_transform;
+  // EntityID cursor = entity_manager.create();
+  // SpriteComponent cursor_sprite = {
+  //     .bitmap = bmp_write,
+  //     .size = vec2(bmp_write.get_width(), bmp_write.get_height())};
+  // sprite_components[cursor] = cursor_sprite;
+  // TransformComponent cursor_transform;
+  // transform_components[cursor] = cursor_transform;
 
   // Player Amogus
-  EntityID amogus = entity_manager.create();
-  SpriteComponent sprite_component = {
-      .bitmap = bmp_read,
-      .size = vec2(bitmap_read_width, bitmap_read_height),
-  };
-  sprite_components[amogus] = sprite_component;
-  TransformComponent transform_component = {
-      .position = vec2(64.0f, 64.0f),
-  };
-  transform_components[amogus] = transform_component;
-  RigidBodyComponent rigidbody_component = {
-      .collision_aabb = AABB(vec2(-8.0f, -8.0f), vec2(8.0f, 8.0f)),
-  };
-  rigidbody_components[amogus] = rigidbody_component;
+  // EntityID amogus = entity_manager.create();
+  // SpriteComponent sprite_component = {
+  //     .bitmap = bmp_read,
+  //     .size = vec2(bitmap_read_width, bitmap_read_height),
+  // };
+  // sprite_components[amogus] = sprite_component;
+  // TransformComponent transform_component = {
+  //     .position = vec2(64.0f, 64.0f),
+  // };
+  // transform_components[amogus] = transform_component;
+  // RigidBodyComponent rigidbody_component = {
+  //     .collision_aabb = AABB(vec2(-8.0f, -8.0f), vec2(8.0f, 8.0f)),
+  // };
+  // rigidbody_components[amogus] = rigidbody_component;
 
-  std::mt19937 random_engine;
-  std::uniform_real_distribution<float> velocity_distribution(-1.0f, 1.0f);
-  std::uniform_real_distribution<float> position_distribution(0.0f, 1.0f);
-  float velocity_magnitude = 512.0f;
-  int friends = 16;
-  for (int i = 0; i < friends; ++i) {
-    EntityID amogus2 = entity_manager.create();
-    SpriteComponent sprite_component2 = {
-        .bitmap = bmp_read,
-        .size = vec2(bitmap_read_width, bitmap_read_height)};
-    sprite_components[amogus2] = sprite_component2;
-    TransformComponent transform_component2;
-    transform_component2.position =
-        vec2(16.0f + (static_cast<float>(WIDTH) - 32.0f) *
-                         position_distribution(random_engine),
-             16.0f + (static_cast<float>(HEIGHT) - 32.0f) *
-                         position_distribution(random_engine));
-    transform_components[amogus2] = transform_component2;
-    RigidBodyComponent rigidbody_component2;
-    rigidbody_component2.collision_aabb =
-        AABB(vec2(-8.0f, -8.0f), vec2(8.0f, 8.0f));
-    rigidbody_component2.velocity =
-        vec2(velocity_magnitude * velocity_distribution(random_engine),
-             velocity_magnitude * velocity_distribution(random_engine));
-    rigidbody_components[amogus2] = rigidbody_component2;
-  }
-  EntityID top_wall = entity_manager.create();
-  StaticBodyComponent top_wall_staticbody_component;
-  TransformComponent top_wall_transform_component;
-  top_wall_transform_component.position = vec2(WIDTH / 2.0f, -8.0f);
-  top_wall_staticbody_component.collision_aabb =
-      AABB(vec2(-WIDTH / 2.0f, -8.0f), vec2(WIDTH / 2.0f, 8.0f));
-  staticbody_components[top_wall] = top_wall_staticbody_component;
-  transform_components[top_wall] = top_wall_transform_component;
+  // std::mt19937 random_engine;
+  // std::uniform_real_distribution<float> velocity_distribution(-1.0f, 1.0f);
+  // std::uniform_real_distribution<float> position_distribution(0.0f, 1.0f);
+  // float velocity_magnitude = 512.0f;
+  // int friends = 16;
+  // for (int i = 0; i < friends; ++i) {
+  //   EntityID amogus2 = entity_manager.create();
+  //   SpriteComponent sprite_component2 = {
+  //       .bitmap = bmp_read,
+  //       .size = vec2(bitmap_read_width, bitmap_read_height)};
+  //   sprite_components[amogus2] = sprite_component2;
+  //   TransformComponent transform_component2;
+  //   transform_component2.position =
+  //       vec2(16.0f + (static_cast<float>(WIDTH) - 32.0f) *
+  //                        position_distribution(random_engine),
+  //            16.0f + (static_cast<float>(HEIGHT) - 32.0f) *
+  //                        position_distribution(random_engine));
+  //   transform_components[amogus2] = transform_component2;
+  //   RigidBodyComponent rigidbody_component2;
+  //   rigidbody_component2.collision_aabb =
+  //       AABB(vec2(-8.0f, -8.0f), vec2(8.0f, 8.0f));
+  //   rigidbody_component2.velocity =
+  //       vec2(velocity_magnitude * velocity_distribution(random_engine),
+  //            velocity_magnitude * velocity_distribution(random_engine));
+  //   rigidbody_components[amogus2] = rigidbody_component2;
+  // }
+  // EntityID top_wall = entity_manager.create();
+  // StaticBodyComponent top_wall_staticbody_component;
+  // TransformComponent top_wall_transform_component;
+  // top_wall_transform_component.position = vec2(WIDTH / 2.0f, -8.0f);
+  // top_wall_staticbody_component.collision_aabb =
+  //     AABB(vec2(-WIDTH / 2.0f, -8.0f), vec2(WIDTH / 2.0f, 8.0f));
+  // staticbody_components[top_wall] = top_wall_staticbody_component;
+  // transform_components[top_wall] = top_wall_transform_component;
 
-  EntityID bottom_wall = entity_manager.create();
-  StaticBodyComponent bottom_wall_staticbody_component;
-  TransformComponent bottom_wall_transform_component;
-  bottom_wall_transform_component.position = vec2(WIDTH / 2.0f, HEIGHT + 8.0f);
-  bottom_wall_staticbody_component.collision_aabb =
-      AABB(vec2(-WIDTH / 2.0f, -8.0f), vec2(WIDTH / 2.0f, 8.0f));
-  staticbody_components[bottom_wall] = bottom_wall_staticbody_component;
-  transform_components[bottom_wall] = bottom_wall_transform_component;
+  // EntityID bottom_wall = entity_manager.create();
+  // StaticBodyComponent bottom_wall_staticbody_component;
+  // TransformComponent bottom_wall_transform_component;
+  // bottom_wall_transform_component.position = vec2(WIDTH / 2.0f, HEIGHT
+  // + 8.0f); bottom_wall_staticbody_component.collision_aabb =
+  //     AABB(vec2(-WIDTH / 2.0f, -8.0f), vec2(WIDTH / 2.0f, 8.0f));
+  // staticbody_components[bottom_wall] = bottom_wall_staticbody_component;
+  // transform_components[bottom_wall] = bottom_wall_transform_component;
 
-  EntityID left_wall = entity_manager.create();
-  StaticBodyComponent left_wall_staticbody_component;
-  TransformComponent left_wall_transform_component;
-  left_wall_transform_component.position = vec2(-8.0f, HEIGHT / 2.0f);
-  left_wall_staticbody_component.collision_aabb =
-      AABB(vec2(-8.0f, -HEIGHT / 2.0f), vec2(8.0f, HEIGHT / 2.0f));
-  staticbody_components[left_wall] = left_wall_staticbody_component;
-  transform_components[left_wall] = left_wall_transform_component;
+  // EntityID left_wall = entity_manager.create();
+  // StaticBodyComponent left_wall_staticbody_component;
+  // TransformComponent left_wall_transform_component;
+  // left_wall_transform_component.position = vec2(-8.0f, HEIGHT / 2.0f);
+  // left_wall_staticbody_component.collision_aabb =
+  //     AABB(vec2(-8.0f, -HEIGHT / 2.0f), vec2(8.0f, HEIGHT / 2.0f));
+  // staticbody_components[left_wall] = left_wall_staticbody_component;
+  // transform_components[left_wall] = left_wall_transform_component;
 
-  EntityID right_wall = entity_manager.create();
-  StaticBodyComponent right_wall_staticbody_component;
-  TransformComponent right_wall_transform_component;
-  right_wall_transform_component.position = vec2(WIDTH + 8.0f, HEIGHT / 2.0f);
-  right_wall_staticbody_component.collision_aabb =
-      AABB(vec2(-8.0f, -HEIGHT / 2.0f), vec2(8.0f, HEIGHT / 2.0f));
-  staticbody_components[right_wall] = right_wall_staticbody_component;
-  transform_components[right_wall] = right_wall_transform_component;
+  // EntityID right_wall = entity_manager.create();
+  // StaticBodyComponent right_wall_staticbody_component;
+  // TransformComponent right_wall_transform_component;
+  // right_wall_transform_component.position = vec2(WIDTH + 8.0f, HEIGHT
+  // / 2.0f); right_wall_staticbody_component.collision_aabb =
+  //     AABB(vec2(-8.0f, -HEIGHT / 2.0f), vec2(8.0f, HEIGHT / 2.0f));
+  // staticbody_components[right_wall] = right_wall_staticbody_component;
+  // transform_components[right_wall] = right_wall_transform_component;
 
   // float physics_frame_rate = 60.0f;
 
@@ -769,54 +864,54 @@ int main(int argc, char *argv[]) {
         process_frame_count = 0;
       }
       // Get entity transform and rigidbody
-      TransformComponent &amogus_transform = transform_components[amogus];
-      RigidBodyComponent &amogus_rigidbody = rigidbody_components[amogus];
+      // TransformComponent &amogus_transform = transform_components[amogus];
+      // RigidBodyComponent &amogus_rigidbody = rigidbody_components[amogus];
 
       // Player specific code
       // WASD Movement
-      float accel = 512.0f;
-      vec2 move_dir = vec2(0.0f, 0.0f);
-      if (keystate[SDL_SCANCODE_W]) {
-        move_dir.y -= 1.0f;
-      }
-      if (keystate[SDL_SCANCODE_A]) {
-        move_dir.x -= 1.0f;
-      }
-      if (keystate[SDL_SCANCODE_S]) {
-        move_dir.y += 1.0f;
-      }
-      if (keystate[SDL_SCANCODE_D]) {
-        move_dir.x += 1.0f;
-      }
-      amogus_rigidbody.velocity += move_dir * accel * physics_delta_time;
+      // float accel = 512.0f;
+      // vec2 move_dir = vec2(0.0f, 0.0f);
+      // if (keystate[SDL_SCANCODE_W]) {
+      //   move_dir.y -= 1.0f;
+      // }
+      // if (keystate[SDL_SCANCODE_A]) {
+      //   move_dir.x -= 1.0f;
+      // }
+      // if (keystate[SDL_SCANCODE_S]) {
+      //   move_dir.y += 1.0f;
+      // }
+      // if (keystate[SDL_SCANCODE_D]) {
+      //   move_dir.x += 1.0f;
+      // }
+      // amogus_rigidbody.velocity += move_dir * accel * physics_delta_time;
 
       // Showcase rotation
-      amogus_transform.rotation += 2.0f * physics_delta_time;
+      // amogus_transform.rotation += 2.0f * physics_delta_time;
 
       // Physics tick-rate ECS system
-      PhysicsSystem::Update(physics_delta_time);
+      // PhysicsSystem::Update(physics_delta_time);
     }
-    float cursor_x;
-    float cursor_y;
+    // float cursor_x;
+    // float cursor_y;
 
-    SDL_GetMouseState(&cursor_x, &cursor_y);
+    // SDL_GetMouseState(&cursor_x, &cursor_y);
 
-    TransformComponent &cursorTransform = transform_components[cursor];
-    cursorTransform.position = vec2(cursor_x, cursor_y) / scale;
+    // TransformComponent &cursorTransform = transform_components[cursor];
+    // cursorTransform.position = vec2(cursor_x, cursor_y) / scale;
 
     // --- Software rendering: fill the pixel buffer (checkerboard) ---
-    int checker_size = 1;
-    for (int y = 0; y < HEIGHT; ++y) {
-      for (int x = 0; x < WIDTH; ++x) {
-        int checker = ((x / checker_size) + (y / checker_size)) % 2;
-        uint8_t v = checker ? 192 : 128;
-        back_buffer[y * WIDTH + x] = (v << 24) | (v << 16) | (v << 8) | 0xFF;
-      }
-    }
+    // int checker_size = 1;
+    // for (int y = 0; y < HEIGHT; ++y) {
+    //   for (int x = 0; x < WIDTH; ++x) {
+    //     int checker = ((x / checker_size) + (y / checker_size)) % 2;
+    //     uint8_t v = checker ? 192 : 128;
+    //     back_buffer[y * WIDTH + x] = (v << 24) | (v << 16) | (v << 8) | 0xFF;
+    //   }
+    // }
 
     // Process tick-rate ECS sytems
-    SpriteSystem::update_aabbs();
-    SpriteSystem::draw_all(back_buffer, WIDTH, HEIGHT);
+    // SpriteSystem::update_aabbs();
+    // SpriteSystem::draw_all(back_buffer, WIDTH, HEIGHT);
 
     loop();
   }

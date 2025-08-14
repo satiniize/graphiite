@@ -10,6 +10,7 @@ layout(binding = 0) uniform sampler2D myTextureSampler;
 void main()
 {
     // FragColor = v_color;
-    // FragColor = vec4(v_texcoord.x, v_texcoord.y, 0.0, 1.0);
-    FragColor = texture(myTextureSampler, v_texcoord);
+    FragColor = vec4(v_texcoord.x, v_texcoord.y, 0.0, 1.0);
+    // FragColor = texture(myTextureSampler, v_texcoord);
+    // FragColor = texture(myTextureSampler, v_texcoord) * vec4(1.0, 0.0, 0.0, 1.0); // Multiply by red
 }
