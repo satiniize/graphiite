@@ -1,16 +1,12 @@
-// Project-local debug tasks
-//
-// For more documentation on how to configure debug tasks,
-// see: https://zed.dev/docs/debugger
 [
 	{
-		"label": "Debug software-renderer (with build.sh)",
+		"label": "Debug native binary",
 		"build": {
-			"command": "./build.sh",
-			"args": [], // No arguments needed for a simple script
-			"cwd": "$ZED_WORKTREE_ROOT" // Assuming build.sh is in the project root
+			"command": "bash",
+			"args": ["$ZED_WORKTREE_ROOT/build.sh", "Debug"],
+			"cwd": "$ZED_WORKTREE_ROOT"
 		},
-		"program": "$ZED_WORKTREE_ROOT/build/Debug/software-renderer", // Adjust if your script outputs elsewhere
+		"program": "$ZED_WORKTREE_ROOT/build/Debug/software-renderer",
 		"request": "launch",
 		"adapter": "CodeLLDB"
 	}
