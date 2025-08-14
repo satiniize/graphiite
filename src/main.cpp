@@ -170,15 +170,16 @@ int init() {
   SDL_free(fragment_code);
 
   // load test image using SDL_image
-  std::string bitmap_read_name = "res/test_image_read.bmp";
+  std::string bitmap_read_name = "res/test.png";
 
-  SDL_Surface *image_data = SDL_LoadBMP(bitmap_read_name.c_str());
+  SDL_Surface *image_data = IMG_Load(bitmap_read_name.c_str());
 
   if (image_data == NULL) {
     SDL_Log("Could not load image data!");
     return -1;
   }
 
+  // Some weird fuckass convention of opengl,
   if (image_data->format != SDL_PIXELFORMAT_ABGR8888) {
     SDL_Surface *next = SDL_ConvertSurface(
         image_data,
