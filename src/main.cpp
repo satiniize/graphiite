@@ -241,18 +241,17 @@ int init() {
   // describe the color target
   SDL_GPUColorTargetDescription colorTargetDescriptions[1] = {};
   colorTargetDescriptions[0] = {};
-  // colorTargetDescriptions[0].blend_state.enable_blend = true;
-  // colorTargetDescriptions[0].blend_state.color_blend_op =
-  // SDL_GPU_BLENDOP_ADD; colorTargetDescriptions[0].blend_state.alpha_blend_op
-  // = SDL_GPU_BLENDOP_ADD;
-  // colorTargetDescriptions[0].blend_state.src_color_blendfactor =
-  //     SDL_GPU_BLENDFACTOR_SRC_ALPHA;
-  // colorTargetDescriptions[0].blend_state.dst_color_blendfactor =
-  //     SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA;
-  // colorTargetDescriptions[0].blend_state.src_alpha_blendfactor =
-  //     SDL_GPU_BLENDFACTOR_SRC_ALPHA;
-  // colorTargetDescriptions[0].blend_state.dst_alpha_blendfactor =
-  //     SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA;
+  colorTargetDescriptions[0].blend_state.enable_blend = true;
+  colorTargetDescriptions[0].blend_state.color_blend_op = SDL_GPU_BLENDOP_ADD;
+  colorTargetDescriptions[0].blend_state.alpha_blend_op = SDL_GPU_BLENDOP_ADD;
+  colorTargetDescriptions[0].blend_state.src_color_blendfactor =
+      SDL_GPU_BLENDFACTOR_SRC_ALPHA;
+  colorTargetDescriptions[0].blend_state.dst_color_blendfactor =
+      SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA;
+  colorTargetDescriptions[0].blend_state.src_alpha_blendfactor =
+      SDL_GPU_BLENDFACTOR_SRC_ALPHA;
+  colorTargetDescriptions[0].blend_state.dst_alpha_blendfactor =
+      SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA;
   colorTargetDescriptions[0].format =
       SDL_GetGPUSwapchainTextureFormat(device, window);
 
