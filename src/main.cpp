@@ -98,8 +98,39 @@ int init() {
   //                               SDL_GPU_PRESENTMODE_IMMEDIATE);
 
   // load test image using SDL_image
-  std::string bitmap_read_name = "./res/test_image_read.bmp";
-  loaded_surface = SDL_LoadBMP(bitmap_read_name.c_str());
+  std::string bitmap_read_name = "./res/ravioli.bmp";
+  // loaded_surface = SDL_LoadBMP(bitmap_read_name.c_str());
+
+  loaded_surface =
+      SDL_CreateSurface(32, // width (e.g., 32x32 for a small test)
+                        32, // height
+                        SDL_PIXELFORMAT_RGBA8888 // The desired pixel format
+      );
+  if (!loaded_surface) {
+    SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
+                 "Failed to create test surface: %s", SDL_GetError());
+    return 1;
+  }
+
+  // Fill with a distinct color, e.g., solid red
+  // Make sure your texture_info.format later is also
+  // SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM
+  uint32_t red_pixel =
+      0xFF0000FF; // RGBA (Red: FF, Green: 00, Blue: 00, Alpha: FF)
+
+  // Make sure the surface is locked if necessary for direct pixel access
+  // (though usually not for RGBA8888) SDL_LockSurface(loaded_surface); //
+  // Uncomment if having issues
+
+  for (int y = 0; y < loaded_surface->h; ++y) {
+    for (int x = 0; x < loaded_surface->w; ++x) {
+      ((uint32_t *)loaded_surface->pixels)[y * loaded_surface->w + x] =
+          red_pixel;
+    }
+  }
+  // SDL_UnlockSurface(loaded_surface); // Uncomment if locked
+
+  SDL_Log("Created and filled test surface with red.");
   if (!loaded_surface) {
     SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to load BMP: %s",
                  SDL_GetError());
@@ -586,7 +617,7 @@ void loop() {
 
   SDL_GPUColorTargetInfo colorTargetInfo{};
   colorTargetInfo.texture = swapchainTexture;
-  colorTargetInfo.clear_color = (SDL_FColor){0.0f, 0.0f, 0.0f, 1.0f};
+  colorTargetInfo.clear_color = (SDL_FColor){0.0f, 1.0f, 0.0f, 1.0f};
   colorTargetInfo.load_op = SDL_GPU_LOADOP_CLEAR;
   colorTargetInfo.store_op = SDL_GPU_STOREOP_STORE;
 
