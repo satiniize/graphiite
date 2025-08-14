@@ -5,6 +5,12 @@ layout(location = 0) out vec4 FragColor;
 
 layout(set = 2, binding = 0) uniform sampler2D myTextureSampler;
 
+layout(std140, set = 3, binding = 0) uniform UniformBlock {
+    float time;
+};
+
 void main() {
-    FragColor = texture(myTextureSampler, v_texcoord);
+    float pulse = sin(time * 2.0) * 0.5 + 0.5; // range [0, 1]
+    vec4 albedo = texture(myTextureSampler, v_texcoord);
+    FragColor = vec4(albedo.rgb * v_color.rgb * pulse, albedo.a * v_color.a);
 }

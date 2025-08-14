@@ -69,6 +69,13 @@ static Vertex vertices[]{
 // the index buffer
 static uint16_t indices[]{0, 1, 2, 2, 1, 3};
 
+struct UniformBuffer {
+  float time;
+  // you can add other properties here
+};
+
+static UniformBuffer timeUniform{};
+
 int init() {
   // SDL setup
   if (SDL_Init(SDL_INIT_VIDEO) < 0) {
@@ -147,7 +154,7 @@ int init() {
   fragment_info.num_samplers = 1;
   fragment_info.num_storage_buffers = 0;
   fragment_info.num_storage_textures = 0;
-  fragment_info.num_uniform_buffers = 0;
+  fragment_info.num_uniform_buffers = 1;
 
   SDL_Log("Loading fragment shader");
 
@@ -581,6 +588,11 @@ void loop() {
                               &fragmentSamplerBinding,
                               1 // Number of textures/samplers to bind
   );
+
+  timeUniform.time =
+      SDL_GetTicksNS() / 1e9f; // the time since the app started in seconds
+  SDL_PushGPUFragmentUniformData(commandBuffer, 0, &timeUniform,
+                                 sizeof(UniformBuffer));
 
   SDL_DrawGPUIndexedPrimitives(renderPass, std::size(indices), 1, 0, 0, 0);
 
