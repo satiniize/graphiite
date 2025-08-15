@@ -40,7 +40,7 @@ struct UniformBuffer {
   float time;
 };
 
-static UniformBuffer timeUniform{};
+static UniformBuffer built_in_uniforms{};
 
 class Renderer {
 public:

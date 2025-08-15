@@ -340,10 +340,10 @@ bool Renderer::init() {
   SDL_UnmapGPUTransferBuffer(context.device, textureTransferBuffer);
 
   // Start a copy pass
-  SDL_GPUCommandBuffer *commandBuffer =
+  SDL_GPUCommandBuffer *command_buffer =
       SDL_AcquireGPUCommandBuffer(context.device);
 
-  SDL_GPUCopyPass *copyPass = SDL_BeginGPUCopyPass(commandBuffer);
+  SDL_GPUCopyPass *copyPass = SDL_BeginGPUCopyPass(command_buffer);
 
   // where is the data
   SDL_GPUTransferBufferLocation vertex_location{};
@@ -390,7 +390,7 @@ bool Renderer::init() {
 
   // end the copy pass
   SDL_EndGPUCopyPass(copyPass);
-  SDL_SubmitGPUCommandBuffer(commandBuffer);
+  SDL_SubmitGPUCommandBuffer(command_buffer);
   SDL_DestroySurface(image_data);
   SDL_ReleaseGPUTransferBuffer(context.device, transfer_buffer);
   SDL_ReleaseGPUTransferBuffer(context.device, textureTransferBuffer);
@@ -407,59 +407,58 @@ bool Renderer::end_frame() { return true; }
 
 bool Renderer::loop() {
   // SDL_GPU
-  SDL_GPUCommandBuffer *commandBuffer =
+  SDL_GPUCommandBuffer *command_buffer =
       SDL_AcquireGPUCommandBuffer(context.device);
 
-  SDL_GPUTexture *swapchainTexture;
+  SDL_GPUTexture *swapchain_texture;
   Uint32 width, height;
-  SDL_WaitAndAcquireGPUSwapchainTexture(commandBuffer, context.window,
-                                        &swapchainTexture, &width, &height);
+  SDL_WaitAndAcquireGPUSwapchainTexture(command_buffer, context.window,
+                                        &swapchain_texture, &width, &height);
 
-  SDL_GPUColorTargetInfo colorTargetInfo{};
-  colorTargetInfo.texture = swapchainTexture;
-  colorTargetInfo.clear_color = (SDL_FColor){0.5f, 0.5f, 0.5f, 1.0f};
-  colorTargetInfo.load_op = SDL_GPU_LOADOP_CLEAR;
-  colorTargetInfo.store_op = SDL_GPU_STOREOP_STORE;
+  SDL_GPUColorTargetInfo color_target_info{};
+  color_target_info.texture = swapchain_texture;
+  color_target_info.clear_color = (SDL_FColor){0.5f, 0.5f, 0.5f, 1.0f};
+  color_target_info.load_op = SDL_GPU_LOADOP_CLEAR;
+  color_target_info.store_op = SDL_GPU_STOREOP_STORE;
 
-  SDL_GPURenderPass *renderPass =
-      SDL_BeginGPURenderPass(commandBuffer, &colorTargetInfo, 1, NULL);
+  SDL_GPURenderPass *render_pass =
+      SDL_BeginGPURenderPass(command_buffer, &color_target_info, 1, NULL);
 
-  SDL_BindGPUGraphicsPipeline(renderPass, graphics_pipeline);
+  SDL_BindGPUGraphicsPipeline(render_pass, graphics_pipeline);
 
   // bind the vertex buffer
-  SDL_GPUBufferBinding vertexBufferBindings[1];
-  vertexBufferBindings[0].buffer = vertex_buffer;
-  vertexBufferBindings[0].offset = 0;
+  SDL_GPUBufferBinding vertex_buffer_bindings[1];
+  vertex_buffer_bindings[0].buffer = vertex_buffer;
+  vertex_buffer_bindings[0].offset = 0;
 
-  SDL_BindGPUVertexBuffers(renderPass, 0, vertexBufferBindings, 1);
+  SDL_BindGPUVertexBuffers(render_pass, 0, vertex_buffer_bindings, 1);
 
-  SDL_GPUBufferBinding indexBufferBindings[1];
-  indexBufferBindings[0].buffer = index_buffer;
-  indexBufferBindings[0].offset = 0;
+  SDL_GPUBufferBinding index_buffer_bindings[1];
+  index_buffer_bindings[0].buffer = index_buffer;
+  index_buffer_bindings[0].offset = 0;
 
-  SDL_BindGPUIndexBuffer(renderPass, indexBufferBindings,
+  SDL_BindGPUIndexBuffer(render_pass, index_buffer_bindings,
                          SDL_GPU_INDEXELEMENTSIZE_16BIT);
 
-  SDL_GPUTextureSamplerBinding fragmentSamplerBinding{};
-  fragmentSamplerBinding.texture = quad_texture;
-  fragmentSamplerBinding.sampler = quad_sampler;
-  SDL_BindGPUFragmentSamplers(renderPass,
+  SDL_GPUTextureSamplerBinding fragment_sampler_bindings{};
+  fragment_sampler_bindings.texture = quad_texture;
+  fragment_sampler_bindings.sampler = quad_sampler;
+  SDL_BindGPUFragmentSamplers(render_pass,
                               0, // The binding point/set for the sampler
                                  // (corresponds to layout(binding=0) in shader)
-                              &fragmentSamplerBinding,
+                              &fragment_sampler_bindings,
                               1 // Number of textures/samplers to bind
   );
 
-  timeUniform.time =
-      SDL_GetTicksNS() / 1e9f; // the time since the app started in seconds
-  SDL_PushGPUFragmentUniformData(commandBuffer, 0, &timeUniform,
+  built_in_uniforms.time = SDL_GetTicksNS() / 1e9f;
+  SDL_PushGPUFragmentUniformData(command_buffer, 0, &built_in_uniforms,
                                  sizeof(UniformBuffer));
 
-  SDL_DrawGPUIndexedPrimitives(renderPass, std::size(indices), 1, 0, 0, 0);
+  SDL_DrawGPUIndexedPrimitives(render_pass, std::size(indices), 1, 0, 0, 0);
 
-  SDL_EndGPURenderPass(renderPass);
+  SDL_EndGPURenderPass(render_pass);
 
-  SDL_SubmitGPUCommandBuffer(commandBuffer);
+  SDL_SubmitGPUCommandBuffer(command_buffer);
 
   return true;
 }
