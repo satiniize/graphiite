@@ -15,7 +15,7 @@ BUILD_TYPE=$(echo "$BUILD_TYPE" | awk '{print toupper(substr($0,1,1))tolower(sub
 echo "Building with configuration: $BUILD_TYPE"
 
 # Run your shader script (if it's independent of build type)
-./spv_shader.sh
+./compile_spv.sh
 
 # Configure the project with CMake
 # The -D flag sets a CMake variable, overriding the default
