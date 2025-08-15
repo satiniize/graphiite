@@ -3,6 +3,7 @@
 #include "aabb.hpp"
 #include "bitmap.hpp"
 #include "vec2.hpp"
+#include <SDL3/SDL.h>
 
 // Pure ECS data-only component for sprite rendering
 struct SpriteComponent {

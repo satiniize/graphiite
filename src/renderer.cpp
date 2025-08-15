@@ -286,7 +286,7 @@ bool Renderer::init() {
   SDL_GPUTransferBufferCreateInfo transferInfo{};
   transferInfo.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD;
   transferInfo.size = std::size(vertices) * sizeof(Vertex) +
-                      std::size(indices) * sizeof(u_int16_t);
+                      std::size(indices) * sizeof(uint16_t);
   transfer_buffer = SDL_CreateGPUTransferBuffer(context.device, &transferInfo);
 
   if (!transfer_buffer) {
@@ -302,8 +302,7 @@ bool Renderer::init() {
   SDL_memcpy(data, (void *)vertices, std::size(vertices) * sizeof(Vertex));
 
   Uint16 *indexData = (Uint16 *)&data[std::size(vertices)];
-  SDL_memcpy(indexData, (void *)indices,
-             std::size(indices) * sizeof(u_int16_t));
+  SDL_memcpy(indexData, (void *)indices, std::size(indices) * sizeof(uint16_t));
 
   // unmap the pointer when you are done updating the transfer buffer
   SDL_UnmapGPUTransferBuffer(context.device, transfer_buffer);
@@ -401,6 +400,10 @@ bool Renderer::init() {
 
   return true;
 }
+
+bool Renderer::begin_frame() { return true; }
+
+bool Renderer::end_frame() { return true; }
 
 bool Renderer::loop() {
   // SDL_GPU
