@@ -87,7 +87,7 @@ SDL_GPUShader *load_shader(SDL_GPUDevice *device, const char *path,
   size_t code_size;
   void *code = SDL_LoadFile(path, &code_size);
   if (code == NULL) {
-    SDL_Log("Failed to load shader from disk! %s");
+    SDL_Log("Failed to load shader from disk! %s", path);
     return NULL;
   }
   // Determine shader stage
@@ -161,16 +161,17 @@ int init() {
                                 SDL_GPU_PRESENTMODE_IMMEDIATE);
 
   // Create shaders
+  // TODO: make sampler and uniform nums more readable
   SDL_GPUShader *vertex_shader =
       load_shader(context.device, "src/shaders/basic.vert.spv", 0, 0, 0, 0);
 
   SDL_GPUShader *fragment_shader =
       load_shader(context.device, "src/shaders/basic.frag.spv", 1, 0, 0, 1);
 
-  // load test image using SDL_image
-  std::string bitmap_read_name = "res/test.png";
+  // Load test image using SDL_image
+  const char *image_path = "res/test.png";
 
-  SDL_Surface *image_data = IMG_Load(bitmap_read_name.c_str());
+  SDL_Surface *image_data = IMG_Load(image_path);
 
   if (image_data == NULL) {
     SDL_Log("Could not load image data!");
@@ -180,86 +181,90 @@ int init() {
   // Some weird fuckass convention of opengl,
   // Apparently its read backwards so ABGR -> RGBA
   if (image_data->format != SDL_PIXELFORMAT_ABGR8888) {
-    SDL_Surface *next = SDL_ConvertSurface(
-        image_data,
-        SDL_PIXELFORMAT_ABGR8888); // Use SDL_ConvertSurfaceFormat
+    SDL_Surface *converted =
+        SDL_ConvertSurface(image_data, SDL_PIXELFORMAT_ABGR8888);
     SDL_DestroySurface(image_data);
-    image_data = next;
+    image_data = converted;
   }
 
-  // Now it's safe to assume image_data is valid and in RGBA8888
-  if (!image_data->pixels) {
-    SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
-                 "Loaded surface has NULL pixels after conversion.");
-    SDL_DestroySurface(image_data);
-    return 1;
-  }
+  // Create the graphics pipeline
+  SDL_GPUGraphicsPipelineCreateInfo pipeline_info{};
+  pipeline_info.vertex_shader = vertex_shader;
+  pipeline_info.fragment_shader = fragment_shader;
+  // Vertex input state
+  u_int32_t num_vertex_buffers = 1;
 
-  // create the graphics pipeline
-  SDL_GPUGraphicsPipelineCreateInfo pipelineInfo{};
-  pipelineInfo.vertex_shader = vertex_shader;
-  pipelineInfo.fragment_shader = fragment_shader;
-  pipelineInfo.primitive_type = SDL_GPU_PRIMITIVETYPE_TRIANGLELIST;
+  SDL_GPUVertexBufferDescription
+      vertex_buffer_descriptions[num_vertex_buffers] = {};
+  vertex_buffer_descriptions[0].slot = 0;
+  vertex_buffer_descriptions[0].pitch = sizeof(Vertex);
+  vertex_buffer_descriptions[0].input_rate = SDL_GPU_VERTEXINPUTRATE_VERTEX;
+  vertex_buffer_descriptions[0].instance_step_rate = 0;
 
-  // describe the vertex buffers
-  SDL_GPUVertexBufferDescription vertexBufferDesctiptions[1] = {};
-  vertexBufferDesctiptions[0].slot = 0;
-  vertexBufferDesctiptions[0].input_rate = SDL_GPU_VERTEXINPUTRATE_VERTEX;
-  vertexBufferDesctiptions[0].instance_step_rate = 0;
-  vertexBufferDesctiptions[0].pitch = sizeof(Vertex);
+  pipeline_info.vertex_input_state.vertex_buffer_descriptions =
+      vertex_buffer_descriptions;
 
-  pipelineInfo.vertex_input_state.num_vertex_buffers = 1;
-  pipelineInfo.vertex_input_state.vertex_buffer_descriptions =
-      vertexBufferDesctiptions;
+  pipeline_info.vertex_input_state.num_vertex_buffers = num_vertex_buffers;
 
-  // describe the vertex attribute
-  uint32_t vertexAttributesCount = 3;
+  // Vertex attributes
+  uint32_t vertex_attributes_count = 3;
 
-  SDL_GPUVertexAttribute vertexAttributes[vertexAttributesCount] = {};
+  SDL_GPUVertexAttribute vertex_attributes[vertex_attributes_count] = {};
 
   // a_position
-  vertexAttributes[0].buffer_slot = 0;
-  vertexAttributes[0].location = 0;
-  vertexAttributes[0].format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3;
-  vertexAttributes[0].offset = 0;
+  vertex_attributes[0].location = 0;
+  vertex_attributes[0].buffer_slot = 0;
+  vertex_attributes[0].format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3;
+  vertex_attributes[0].offset = 0;
 
   // a_color
-  vertexAttributes[1].buffer_slot = 0;
-  vertexAttributes[1].location = 1;
-  vertexAttributes[1].format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT4;
-  vertexAttributes[1].offset = sizeof(float) * 3;
+  vertex_attributes[1].location = 1;
+  vertex_attributes[1].buffer_slot = 0;
+  vertex_attributes[1].format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT4;
+  vertex_attributes[1].offset = sizeof(float) * 3;
 
   // a_texcoord
-  vertexAttributes[2].buffer_slot = 0;
-  vertexAttributes[2].location = 2;
-  vertexAttributes[2].format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2;
-  vertexAttributes[2].offset = sizeof(float) * 7;
+  vertex_attributes[2].location = 2;
+  vertex_attributes[2].buffer_slot = 0;
+  vertex_attributes[2].format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2;
+  vertex_attributes[2].offset = sizeof(float) * 7;
 
-  pipelineInfo.vertex_input_state.num_vertex_attributes = vertexAttributesCount;
-  pipelineInfo.vertex_input_state.vertex_attributes = vertexAttributes;
+  pipeline_info.vertex_input_state.num_vertex_attributes =
+      vertex_attributes_count;
 
-  // describe the color target
-  SDL_GPUColorTargetDescription colorTargetDescriptions[1] = {};
-  colorTargetDescriptions[0] = {};
-  colorTargetDescriptions[0].blend_state.enable_blend = true;
-  colorTargetDescriptions[0].blend_state.color_blend_op = SDL_GPU_BLENDOP_ADD;
-  colorTargetDescriptions[0].blend_state.alpha_blend_op = SDL_GPU_BLENDOP_ADD;
-  colorTargetDescriptions[0].blend_state.src_color_blendfactor =
-      SDL_GPU_BLENDFACTOR_SRC_ALPHA;
-  colorTargetDescriptions[0].blend_state.dst_color_blendfactor =
-      SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA;
-  colorTargetDescriptions[0].blend_state.src_alpha_blendfactor =
-      SDL_GPU_BLENDFACTOR_SRC_ALPHA;
-  colorTargetDescriptions[0].blend_state.dst_alpha_blendfactor =
-      SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA;
-  colorTargetDescriptions[0].format =
+  pipeline_info.vertex_input_state.vertex_attributes = vertex_attributes;
+
+  pipeline_info.primitive_type = SDL_GPU_PRIMITIVETYPE_TRIANGLELIST;
+  // Rasterizer state (Unimplemented)
+  // Multisample state (Unimplemented)
+  // Depth stencil state (Unimplemented)
+  // Describe the color target
+  u_int32_t num_color_targets = 1;
+
+  SDL_GPUColorTargetDescription color_target_descriptions[num_color_targets];
+  color_target_descriptions[0] = {};
+  color_target_descriptions[0].format =
       SDL_GetGPUSwapchainTextureFormat(context.device, context.window);
+  color_target_descriptions[0].blend_state.src_color_blendfactor =
+      SDL_GPU_BLENDFACTOR_SRC_ALPHA;
+  color_target_descriptions[0].blend_state.dst_color_blendfactor =
+      SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA;
+  color_target_descriptions[0].blend_state.color_blend_op = SDL_GPU_BLENDOP_ADD;
+  color_target_descriptions[0].blend_state.src_alpha_blendfactor =
+      SDL_GPU_BLENDFACTOR_SRC_ALPHA;
+  color_target_descriptions[0].blend_state.dst_alpha_blendfactor =
+      SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA;
+  color_target_descriptions[0].blend_state.alpha_blend_op = SDL_GPU_BLENDOP_ADD;
+  // color_write_mask
+  color_target_descriptions[0].blend_state.enable_blend = true;
+  // enable_color_write_mask
 
-  pipelineInfo.target_info.num_color_targets = 1;
-  pipelineInfo.target_info.color_target_descriptions = colorTargetDescriptions;
+  pipeline_info.target_info.color_target_descriptions =
+      color_target_descriptions;
+  pipeline_info.target_info.num_color_targets = num_color_targets;
 
   graphics_pipeline =
-      SDL_CreateGPUGraphicsPipeline(context.device, &pipelineInfo);
+      SDL_CreateGPUGraphicsPipeline(context.device, &pipeline_info);
 
   if (graphics_pipeline == NULL) {
     SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
@@ -267,11 +272,11 @@ int init() {
     return -1;
   }
 
-  // we don't need to store the shaders after creating the pipeline
+  // We don't need to store the shaders after creating the pipeline
   SDL_ReleaseGPUShader(context.device, vertex_shader);
   SDL_ReleaseGPUShader(context.device, fragment_shader);
 
-  // create gpu sampler
+  // Create gpu sampler
   SDL_GPUSamplerCreateInfo sampler_info{};
   sampler_info.mag_filter =
       SDL_GPU_FILTER_NEAREST; // Smooths pixels when magnified
@@ -291,11 +296,11 @@ int init() {
     return -1; // Make sure this returns!
   }
 
-  // create the vertex buffer
+  // Create the vertex buffer
   SDL_GPUBufferCreateInfo vertex_buffer_info{};
   vertex_buffer_info.usage = SDL_GPU_BUFFERUSAGE_VERTEX;
   vertex_buffer_info.size = std::size(vertices) * sizeof(Vertex);
-  // vertex_buffer_info.props =
+  // vertex_buffer_info.props (Unimplemented)
 
   vertex_buffer = SDL_CreateGPUBuffer(context.device, &vertex_buffer_info);
   if (!vertex_buffer) {
@@ -307,11 +312,11 @@ int init() {
 
   SDL_SetGPUBufferName(context.device, vertex_buffer, "Vertex Buffer");
 
-  // create the index buffer
+  // Create the index buffer
   SDL_GPUBufferCreateInfo index_buffer_info{};
   index_buffer_info.usage = SDL_GPU_BUFFERUSAGE_INDEX;
   index_buffer_info.size = std::size(indices) * sizeof(uint16_t);
-  // vertex_buffer_info.props =
+  // vertex_buffer_info.props (Unimplemented)
 
   index_buffer = SDL_CreateGPUBuffer(context.device, &index_buffer_info);
   if (!index_buffer) {
@@ -321,33 +326,37 @@ int init() {
     return 1;
   }
 
-  // SDL_SetGPUBufferName(device, index_buffer, "Index Buffer");
+  SDL_SetGPUBufferName(context.device, index_buffer, "Index Buffer");
 
   SDL_GPUTextureCreateInfo texture_info{};
   texture_info.type = SDL_GPU_TEXTURETYPE_2D;
   texture_info.format = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM;
+  texture_info.usage = SDL_GPU_TEXTUREUSAGE_SAMPLER;
   texture_info.width = image_data->w;
   texture_info.height = image_data->h;
   texture_info.layer_count_or_depth = 1;
   texture_info.num_levels = 1;
-  texture_info.usage = SDL_GPU_TEXTUREUSAGE_SAMPLER;
+  // sample_count
+  // TODO: GPUTexture should be able to be used as a render target
+  // Make use for pixel perfect scaling and post processing
 
   SDL_Log("Creating GPU texture: %dx%d, Format: R8G8B8A8_UNORM",
           texture_info.width, texture_info.height); // ADD THIS LINE
   quad_texture = SDL_CreateGPUTexture(context.device, &texture_info);
+
   if (!quad_texture) {
     SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
                  "Failed to create GPU texture: %s", SDL_GetError());
     return -1; // Make sure this returns!
   }
+
   SDL_SetGPUTextureName(context.device, quad_texture, "Amogus Texture");
 
   // create a transfer buffer to upload to the vertex buffer
   SDL_GPUTransferBufferCreateInfo transferInfo{};
-  transferInfo.size =
-      std::size(vertices) * sizeof(Vertex) +
-      std::size(indices) * sizeof(u_int16_t); // Add indices size
   transferInfo.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD;
+  transferInfo.size = std::size(vertices) * sizeof(Vertex) +
+                      std::size(indices) * sizeof(u_int16_t);
   transfer_buffer = SDL_CreateGPUTransferBuffer(context.device, &transferInfo);
 
   if (!transfer_buffer) {
@@ -372,10 +381,7 @@ int init() {
   // Set up texture data
   SDL_GPUTransferBufferCreateInfo textureTransferInfo{};
   textureTransferInfo.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD;
-  // textureTransferInfo.size = bmp_read.get_width() * bmp_read.get_height();
-  textureTransferInfo.size = image_data->w * image_data->h * 4;
-  SDL_Log("Texture transfer buffer size: %u bytes",
-          textureTransferInfo.size); // ADD THIS LINE
+  textureTransferInfo.size = image_data->w * image_data->h * 4; // 4 is RGBA8888
 
   SDL_GPUTransferBuffer *textureTransferBuffer =
       SDL_CreateGPUTransferBuffer(context.device, &textureTransferInfo);
@@ -383,15 +389,12 @@ int init() {
     SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
                  "Failed to create texture transfer buffer: %s",
                  SDL_GetError());
-    // Add cleanup for texture/sampler here
-    SDL_ReleaseGPUTexture(context.device, quad_texture);
-    SDL_ReleaseGPUSampler(context.device, quad_sampler);
-    return -1; // Make sure this returns!
+    return -1;
   }
-  // 4 bytes per pixel (RGBA)
 
   void *texture_data_ptr =
       SDL_MapGPUTransferBuffer(context.device, textureTransferBuffer, false);
+
   if (!texture_data_ptr) {
     SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
                  "Failed to map texture transfer buffer: %s", SDL_GetError());
@@ -404,37 +407,15 @@ int init() {
 
   SDL_memcpy(texture_data_ptr, (void *)image_data->pixels,
              image_data->w * image_data->h * 4);
+
   SDL_UnmapGPUTransferBuffer(context.device, textureTransferBuffer);
 
-  // start a copy pass
+  // Start a copy pass
   SDL_GPUCommandBuffer *commandBuffer =
       SDL_AcquireGPUCommandBuffer(context.device);
-  if (!commandBuffer) {
-    SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
-                 "Failed to acquire command buffer for upload: %s",
-                 SDL_GetError());
-    // Add cleanup
-    SDL_ReleaseGPUTexture(context.device, quad_texture);
-    SDL_ReleaseGPUSampler(context.device, quad_sampler);
-    SDL_ReleaseGPUTransferBuffer(context.device, textureTransferBuffer);
-    return -1;
-  } else {
-    SDL_Log("Successfully acquired command buffer for upload.");
-  }
+
   SDL_GPUCopyPass *copyPass = SDL_BeginGPUCopyPass(commandBuffer);
-  if (!copyPass) {
-    SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to begin copy pass: %s",
-                 SDL_GetError());
-    SDL_SubmitGPUCommandBuffer(
-        commandBuffer); // IMPORTANT: release if beginning fails
-    // Add cleanup
-    SDL_ReleaseGPUTexture(context.device, quad_texture);
-    SDL_ReleaseGPUSampler(context.device, quad_sampler);
-    SDL_ReleaseGPUTransferBuffer(context.device, textureTransferBuffer);
-    return -1;
-  } else {
-    SDL_Log("Successfully began copy pass.");
-  }
+
   // where is the data
   SDL_GPUTransferBufferLocation vertex_location{};
   vertex_location.transfer_buffer = transfer_buffer;
@@ -473,34 +454,17 @@ int init() {
   texture_region.w = image_data->w;
   texture_region.h = image_data->h;
   texture_region.d = 1; // Depth for 2D texture is 1
-  // texture_region.x = 0;
-  // texture_region.y = 0;
-  // texture_region.z = 0; // Destination offset
 
   SDL_UploadToGPUTexture(copyPass, &texture_transfer_info, &texture_region,
                          false);
   SDL_Log("Called SDL_UploadToGPUTexture.");
-  // // Upload texture
-  // SDL_UploadToGPUTexture(
-  //     copyPass,
-  //     &(SDL_GPUTextureTransferInfo){
-  //         .transfer_buffer = textureTransferBuffer,
-  //         .offset = 0, /* Zeros out the rest */
-  //     },
-  //     &(SDL_GPUTextureRegion){
-  //         .texture = Texture, .w = imageData->w, .h = imageData->h, .d =
-  //         1},
-  //     false);
 
   // end the copy pass
   SDL_EndGPUCopyPass(copyPass);
-  SDL_Log("Successfully ended copy pass.");
   SDL_SubmitGPUCommandBuffer(commandBuffer);
-  SDL_Log("Successfully submitted command buffer.");
   SDL_DestroySurface(image_data);
   SDL_ReleaseGPUTransferBuffer(context.device, transfer_buffer);
   SDL_ReleaseGPUTransferBuffer(context.device, textureTransferBuffer);
-  SDL_Log("Released transfer buffers and surface.");
   // END SDL_GPU
 
   SDL_Log("Texture uploaded successfully");
