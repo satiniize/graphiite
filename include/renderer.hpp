@@ -8,6 +8,8 @@
 
 #include <SDL3/SDL.h>
 #include <SDL3_image/SDL_image.h>
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
 
 struct Context {
   SDL_Window *window;
@@ -36,11 +38,17 @@ static Vertex vertices[]{
 
 static uint16_t indices[]{0, 1, 2, 2, 1, 3};
 
-struct UniformBuffer {
+struct FragmentUniformBuffer {
   float time;
 };
 
-static UniformBuffer built_in_uniforms{};
+static FragmentUniformBuffer fragment_uniform_buffer{};
+
+struct VertexUniformBuffer {
+  glm::mat4 mvp_matrix;
+};
+
+static VertexUniformBuffer vertex_uniform_buffer{};
 
 class Renderer {
 public:

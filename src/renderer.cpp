@@ -93,7 +93,7 @@ bool Renderer::init() {
   // Create shaders
   // TODO: make sampler and uniform nums more readable
   SDL_GPUShader *vertex_shader = load_shader(
-      this->context.device, "src/shaders/basic.vert.spv", 0, 0, 0, 0);
+      this->context.device, "src/shaders/basic.vert.spv", 0, 0, 0, 1);
 
   SDL_GPUShader *fragment_shader = load_shader(
       this->context.device, "src/shaders/basic.frag.spv", 1, 0, 0, 1);
@@ -440,19 +440,30 @@ bool Renderer::loop() {
   SDL_BindGPUIndexBuffer(render_pass, index_buffer_bindings,
                          SDL_GPU_INDEXELEMENTSIZE_16BIT);
 
+  // Uniforms and samplers
   SDL_GPUTextureSamplerBinding fragment_sampler_bindings{};
   fragment_sampler_bindings.texture = quad_texture;
   fragment_sampler_bindings.sampler = quad_sampler;
   SDL_BindGPUFragmentSamplers(render_pass,
-                              0, // The binding point/set for the sampler
-                                 // (corresponds to layout(binding=0) in shader)
+                              0, // The binding point for the sampler
                               &fragment_sampler_bindings,
                               1 // Number of textures/samplers to bind
   );
 
-  built_in_uniforms.time = SDL_GetTicksNS() / 1e9f;
-  SDL_PushGPUFragmentUniformData(command_buffer, 0, &built_in_uniforms,
-                                 sizeof(UniformBuffer));
+  fragment_uniform_buffer.time = SDL_GetTicksNS() / 1e9f;
+  SDL_PushGPUFragmentUniformData(command_buffer, 0, &fragment_uniform_buffer,
+                                 sizeof(FragmentUniformBuffer));
+
+  glm::mat4 model_matrix = glm::mat4(1.0f);
+  model_matrix = glm::translate(model_matrix, glm::vec3(96.0f, 96.0f, 0.0f));
+  model_matrix = glm::scale(model_matrix, glm::vec3(128.0f));
+  glm::mat4 view_matrix = glm::mat4(1.0f);
+  glm::mat4 projection_matrix =
+      glm::ortho(0.0f, (float)WIDTH, (float)HEIGHT, 0.0f);
+  vertex_uniform_buffer.mvp_matrix =
+      projection_matrix * view_matrix * model_matrix;
+  SDL_PushGPUVertexUniformData(command_buffer, 0, &vertex_uniform_buffer,
+                               sizeof(VertexUniformBuffer));
 
   SDL_DrawGPUIndexedPrimitives(render_pass, std::size(indices), 1, 0, 0, 0);
 
