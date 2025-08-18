@@ -38,6 +38,10 @@ static Vertex vertices[]{
 
 static uint16_t indices[]{0, 1, 2, 2, 1, 3};
 
+// struct Mesh {
+
+// }
+
 struct FragmentUniformBuffer {
   float time;
 };
@@ -58,6 +62,8 @@ public:
   bool begin_frame(); // Init things
   // Collect draw calls here
   bool end_frame(); // Submit draw calls and clean up
+  // bool draw_mesh(const Mesh &mesh);
+  bool draw_sprite(const SDL_GPUTexture *texture);
   bool loop();
   bool cleanup();
 

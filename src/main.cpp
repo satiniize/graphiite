@@ -27,6 +27,8 @@
 Renderer renderer;
 
 bool init() {
+  // For every sprite, add their paths to an array
+  // Send this array to renderer to load data and transfer to gpu
   renderer.init();
   return true;
 }
