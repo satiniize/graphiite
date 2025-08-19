@@ -12,7 +12,6 @@ void update_aabbs();
 
 // Draw all sprites with SpriteComponent and TransformComponent to the
 // framebuffer
-void draw_all(uint32_t *framebuffer, int framebuffer_width,
-              int framebuffer_height);
+void draw_all();
 
 } // namespace SpriteSystem
