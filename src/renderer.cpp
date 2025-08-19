@@ -46,6 +46,13 @@ SDL_GPUShader *load_shader(SDL_GPUDevice *device, const char *path,
   return shader;
 }
 
+bool Renderer::load_textures(std::vector<std::string> &textures) {
+  for (auto &texture : textures) {
+    SDL_Log("Loading texture %s", texture.c_str());
+  }
+  return true;
+};
+
 Renderer::Renderer() {}
 
 Renderer::~Renderer() {}
@@ -283,11 +290,12 @@ bool Renderer::init() {
   SDL_SetGPUTextureName(context.device, quad_texture, "Amogus Texture");
 
   // create a transfer buffer to upload to the vertex buffer
-  SDL_GPUTransferBufferCreateInfo transferInfo{};
-  transferInfo.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD;
-  transferInfo.size = std::size(vertices) * sizeof(Vertex) +
-                      std::size(indices) * sizeof(uint16_t);
-  transfer_buffer = SDL_CreateGPUTransferBuffer(context.device, &transferInfo);
+  SDL_GPUTransferBufferCreateInfo vertex_transfer_create_info{};
+  vertex_transfer_create_info.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD;
+  vertex_transfer_create_info.size = std::size(vertices) * sizeof(Vertex) +
+                                     std::size(indices) * sizeof(uint16_t);
+  transfer_buffer =
+      SDL_CreateGPUTransferBuffer(context.device, &vertex_transfer_create_info);
 
   if (!transfer_buffer) {
     SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
@@ -308,13 +316,14 @@ bool Renderer::init() {
   SDL_UnmapGPUTransferBuffer(context.device, transfer_buffer);
 
   // Set up texture data
-  SDL_GPUTransferBufferCreateInfo textureTransferInfo{};
-  textureTransferInfo.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD;
-  textureTransferInfo.size = image_data->w * image_data->h * 4; // 4 is RGBA8888
+  SDL_GPUTransferBufferCreateInfo texture_transfer_create_info{};
+  texture_transfer_create_info.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD;
+  texture_transfer_create_info.size =
+      image_data->w * image_data->h * 4; // 4 is RGBA8888
 
-  SDL_GPUTransferBuffer *textureTransferBuffer =
-      SDL_CreateGPUTransferBuffer(context.device, &textureTransferInfo);
-  if (!textureTransferBuffer) {
+  SDL_GPUTransferBuffer *texture_transfer_buffer = SDL_CreateGPUTransferBuffer(
+      context.device, &texture_transfer_create_info);
+  if (!texture_transfer_buffer) {
     SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
                  "Failed to create texture transfer buffer: %s",
                  SDL_GetError());
@@ -322,7 +331,7 @@ bool Renderer::init() {
   }
 
   void *texture_data_ptr =
-      SDL_MapGPUTransferBuffer(context.device, textureTransferBuffer, false);
+      SDL_MapGPUTransferBuffer(context.device, texture_transfer_buffer, false);
 
   if (!texture_data_ptr) {
     SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
@@ -330,14 +339,14 @@ bool Renderer::init() {
     // Add cleanup
     SDL_ReleaseGPUTexture(context.device, quad_texture);
     SDL_ReleaseGPUSampler(context.device, quad_sampler);
-    SDL_ReleaseGPUTransferBuffer(context.device, textureTransferBuffer);
+    SDL_ReleaseGPUTransferBuffer(context.device, texture_transfer_buffer);
     return false;
   }
 
   SDL_memcpy(texture_data_ptr, (void *)image_data->pixels,
              image_data->w * image_data->h * 4);
 
-  SDL_UnmapGPUTransferBuffer(context.device, textureTransferBuffer);
+  SDL_UnmapGPUTransferBuffer(context.device, texture_transfer_buffer);
 
   // Start a copy pass
   SDL_GPUCommandBuffer *command_buffer =
@@ -374,7 +383,7 @@ bool Renderer::init() {
 
   // Upload texture data to the GPU texture
   SDL_GPUTextureTransferInfo texture_transfer_info{};
-  texture_transfer_info.transfer_buffer = textureTransferBuffer;
+  texture_transfer_info.transfer_buffer = texture_transfer_buffer;
   texture_transfer_info.offset =
       0; // Start at the beginning of the transfer buffer
 
@@ -393,7 +402,7 @@ bool Renderer::init() {
   SDL_SubmitGPUCommandBuffer(command_buffer);
   SDL_DestroySurface(image_data);
   SDL_ReleaseGPUTransferBuffer(context.device, transfer_buffer);
-  SDL_ReleaseGPUTransferBuffer(context.device, textureTransferBuffer);
+  SDL_ReleaseGPUTransferBuffer(context.device, texture_transfer_buffer);
   // END SDL_GPU
 
   SDL_Log("Texture uploaded successfully");

@@ -4,6 +4,7 @@
 #define HEIGHT 180
 
 #include <iterator>
+#include <string>
 #include <vector>
 
 #include <SDL3/SDL.h>
@@ -58,6 +59,7 @@ class Renderer {
 public:
   Renderer();
   ~Renderer();
+  bool load_textures(std::vector<std::string> &textures);
   bool init();
   bool begin_frame(); // Init things
   // Collect draw calls here
@@ -75,7 +77,7 @@ private:
   SDL_GPUBuffer *vertex_buffer;
   SDL_GPUBuffer *index_buffer;
 
-  // std::vector<SDL_GPUTexture *> gpu_textures;
+  std::vector<SDL_GPUTexture *> gpu_textures;
 
   SDL_GPUTexture *quad_texture;
   SDL_GPUSampler *quad_sampler;

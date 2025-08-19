@@ -63,6 +63,24 @@ int main(int argc, char *argv[]) {
     return success;
   }
 
+  EntityManager entity_manager;
+
+  EntityID amogus = entity_manager.create();
+  SpriteComponent sprite_component = {
+      .path = "./res/amogus.bmp",
+  };
+  sprite_components[amogus] = sprite_component;
+  TransformComponent transform_component = {
+      .position = vec2(64.0f, 64.0f),
+  };
+  transform_components[amogus] = transform_component;
+
+  std::vector<std::string> image_paths = {};
+  for (auto &[entity_id, sprite_component] : sprite_components) {
+    image_paths.push_back(sprite_component.path);
+  }
+  renderer.load_textures(image_paths);
+
   uint32_t prev_frame_tick = SDL_GetTicks();
   float physics_delta_time = 1.0f / physics_tick_rate;
   float process_delta_time = 0.0f;
