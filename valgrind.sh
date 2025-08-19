@@ -1,1 +1,1 @@
-valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes --verbose ./build/Debug/software-renderer
+valgrind --tool=memcheck --leak-check=full --track-origins=yes --show-leak-kinds=all --verbose --suppressions=vulkan.supp ./build/Debug/software-renderer

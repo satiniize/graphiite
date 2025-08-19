@@ -10,7 +10,8 @@ layout(std140, set = 3, binding = 0) uniform UniformBlock {
 };
 
 void main() {
-    float pulse = sin(time * 2.0) * 0.5 + 0.5; // range [0, 1]
+    // float pulse = sin(time * 2.0) * 0.5 + 0.5; // range [0, 1]
     vec4 albedo = texture(myTextureSampler, v_texcoord);
-    FragColor = vec4(albedo.rgb * v_color.rgb * pulse, albedo.a * v_color.a);
+    // FragColor = vec4(albedo.rgb * v_color.rgb * pulse, albedo.a * v_color.a);
+    FragColor = vec4(albedo.rgb * v_color.rgb, albedo.a * v_color.a);
 }
