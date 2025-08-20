@@ -26,7 +26,7 @@ struct Vertex {
   float u, v;       // vec2 texture coordinates
 };
 
-const int scale = 4;
+const int viewport_scale = 4;
 
 // a list of vertices
 static Vertex vertices[]{
@@ -67,7 +67,8 @@ public:
   bool begin_frame(); // Init things
   // Collect draw calls here
   bool end_frame(); // Submit draw calls and clean up
-  bool draw_sprite(std::string path);
+  bool draw_sprite(std::string path, glm::vec2 translation, float rotation,
+                   glm::vec2 scale);
   // bool draw_mesh(const Mesh &mesh);
   bool draw_sprite(const SDL_GPUTexture *texture);
   // bool loop();

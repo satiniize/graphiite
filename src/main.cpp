@@ -10,6 +10,8 @@
 #include "config.hpp"
 #include "renderer.hpp"
 #include "vec2.hpp"
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
 
 // Entities
 #include "component_storage.hpp"
@@ -33,12 +35,7 @@ bool init() {
   return true;
 }
 
-bool loop() {
-  renderer.begin_frame();
-  renderer.draw_sprite("res/test.png");
-  renderer.end_frame();
-  return true;
-}
+bool loop() { return true; }
 
 bool cleanup() {
   renderer.cleanup();
@@ -95,6 +92,8 @@ int main(int argc, char *argv[]) {
 
   bool running = true;
 
+  float rotation = 0.0;
+
   while (running) {
     uint32_t frame_tick = SDL_GetTicks();
     process_delta_time =
@@ -121,6 +120,15 @@ int main(int argc, char *argv[]) {
         process_frame_count = 0;
       }
     }
+
+    renderer.begin_frame();
+
+    rotation += physics_delta_time;
+
+    renderer.draw_sprite("res/test.png", glm::vec2(96.0f, 96.0f), rotation,
+                         glm::vec2(128.0f, 128.0f));
+
+    renderer.end_frame();
 
     loop();
   }

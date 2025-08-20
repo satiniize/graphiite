@@ -154,8 +154,9 @@ bool Renderer::init() {
 
   // Create window
   SDL_WindowFlags flags = SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE;
-  this->context.window = SDL_CreateWindow(this->context.title, WIDTH * scale,
-                                          HEIGHT * scale, flags);
+  this->context.window =
+      SDL_CreateWindow(this->context.title, WIDTH * viewport_scale,
+                       HEIGHT * viewport_scale, flags);
   if (!this->context.window) {
     SDL_Log("Couldn't create window: %s", SDL_GetError());
     return false;
@@ -231,6 +232,14 @@ bool Renderer::init() {
   pipeline_info.primitive_type = SDL_GPU_PRIMITIVETYPE_TRIANGLELIST;
   // Rasterizer state (Unimplemented)
   // Multisample state (Unimplemented)
+  // SDL_GPUMultisampleState multisample_state = {};
+  // multisample_state.sample_count = SDL_GPU_SAMPLECOUNT_4;
+  // multisample_state.sample_mask = 0;
+  // multisample_state.enable_mask = false;
+  // multisample_state.enable_alpha_to_coverage = false;
+
+  // pipeline_info.multisample_state = multisample_state;
+
   // Depth stencil state (Unimplemented)
   // Describe the color target
   u_int32_t num_color_targets = 1;
@@ -422,7 +431,8 @@ bool Renderer::end_frame() {
   return true;
 }
 
-bool Renderer::draw_sprite(std::string path) {
+bool Renderer::draw_sprite(std::string path, glm::vec2 translation,
+                           float rotation, glm::vec2 scale) {
   // Bind graphics pipeline
   SDL_BindGPUGraphicsPipeline(render_pass, graphics_pipeline);
 
@@ -456,15 +466,18 @@ bool Renderer::draw_sprite(std::string path) {
                                  sizeof(FragmentUniformBuffer));
 
   glm::mat4 model_matrix = glm::mat4(1.0f);
-  model_matrix = glm::translate(model_matrix, glm::vec3(96.0f, 96.0f, 0.0f));
-  model_matrix = glm::scale(model_matrix, glm::vec3(128.0f));
+  model_matrix = glm::translate(model_matrix, glm::vec3(translation, 0.0f));
+  model_matrix = glm::rotate(model_matrix, glm::radians(rotation),
+                             glm::vec3(0.0f, 0.0f, 1.0f));
+  model_matrix = glm::scale(model_matrix, glm::vec3(scale, 1.0f));
   glm::mat4 view_matrix = glm::mat4(1.0f);
 
   int new_width, new_height;
   SDL_GetWindowSizeInPixels(context.window, &new_width, &new_height);
 
-  glm::mat4 projection_matrix = glm::ortho(0.0f, (float)new_width / scale,
-                                           (float)new_height / scale, 0.0f);
+  glm::mat4 projection_matrix =
+      glm::ortho(0.0f, (float)new_width / viewport_scale,
+                 (float)new_height / viewport_scale, 0.0f);
   vertex_uniform_buffer.mvp_matrix =
       projection_matrix * view_matrix * model_matrix;
   SDL_PushGPUVertexUniformData(command_buffer, 0, &vertex_uniform_buffer,
