@@ -7,6 +7,9 @@
 #include <sys/types.h>
 #include <vector>
 
+#define CLAY_IMPLEMENTATION
+#include "clay.h"
+
 #include "config.hpp"
 #include "glm/glm.hpp"
 #include "glm/gtc/matrix_transform.hpp"
@@ -23,7 +26,32 @@
 #include "sprite_component.hpp"
 #include "transform_component.hpp"
 
+uint16_t shut_up_data[1];
+
 Renderer renderer;
+
+void handle_clay_errors(Clay_ErrorData errorData) {
+  // See the Clay_ErrorData struct for more information
+  printf("%s", errorData.errorText.chars);
+  switch (errorData.errorType) {
+    // etc
+  }
+}
+
+// Example measure text function
+static inline Clay_Dimensions MeasureText(Clay_StringSlice text,
+                                          Clay_TextElementConfig *config,
+                                          void *userData) {
+  // Clay_TextElementConfig contains members such as fontId, fontSize,
+  // letterSpacing etc Note: Clay_String->chars is not guaranteed to be null
+  // terminated
+  return (Clay_Dimensions){
+      .width = text.length *
+               config->fontSize, // <- this will only work for monospace fonts,
+                                 // see the renderers/ directory for more
+                                 // advanced text measurement
+      .height = config->fontSize};
+}
 
 bool init() {
   // For every sprite, add their paths to an array
@@ -106,6 +134,16 @@ int main(int argc, char *argv[]) {
   bool running = true;
   glm::vec2 velocity = glm::vec2(0.0f, 0.0f);
 
+  uint64_t total_memory_size = Clay_MinMemorySize();
+  Clay_Arena clay_memory = Clay_CreateArenaWithCapacityAndMemory(
+      total_memory_size, malloc(total_memory_size));
+  Clay_Dimensions clay_dimensions = {.width = (float)WIDTH,
+                                     .height = (float)HEIGHT};
+  Clay_Context *clayContextBottom = Clay_Initialize(
+      clay_memory, clay_dimensions, (Clay_ErrorHandler){handle_clay_errors});
+  shut_up_data[1] = 1;
+  Clay_SetMeasureTextFunction(MeasureText, (void *)shut_up_data);
+
   while (running) {
     uint32_t frame_tick = SDL_GetTicks();
     process_delta_time =
@@ -156,12 +194,18 @@ int main(int argc, char *argv[]) {
       // Showcase rotation
       amogus_transform.rotation += 32.0f * physics_delta_time;
     }
+    Clay_BeginLayout();
+
+    Clay_LayoutConfig layoutElement = Clay_LayoutConfig{.padding = {5}};
+    CLAY({.layout = layoutElement, .backgroundColor = {255, 255, 255, 0}}) {
+      CLAY_TEXT(CLAY_STRING(""), CLAY_TEXT_CONFIG({.fontId = 0}));
+    }
+    Clay_RenderCommandArray render_commands = Clay_EndLayout();
 
     renderer.begin_frame();
     SpriteSystem::draw_all(renderer);
+    // Draw clay here
     renderer.end_frame();
-
-    // loop();
   }
   SDL_Log("Exiting...");
   cleanup();
