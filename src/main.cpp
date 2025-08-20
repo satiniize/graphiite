@@ -8,22 +8,19 @@
 #include <vector>
 
 #include "config.hpp"
+#include "glm/glm.hpp"
+#include "glm/gtc/matrix_transform.hpp"
 #include "renderer.hpp"
-#include "vec2.hpp"
-#include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
 
 // Entities
 #include "component_storage.hpp"
 #include "entity_manager.hpp"
 
 // Systems
-// #include "physics_system.hpp"
 #include "sprite_system.hpp"
 
 // Components
-#include "rigidbody_component.hpp"
-// #include "sprite_component.hpp"
+#include "sprite_component.hpp"
 #include "transform_component.hpp"
 
 Renderer renderer;
@@ -135,9 +132,7 @@ int main(int argc, char *argv[]) {
         process_frame_count = 0;
       }
 
-      // Get entity transform and rigidbody
       TransformComponent &amogus_transform = transform_components[amogus];
-      RigidBodyComponent &amogus_rigidbody = rigidbody_components[amogus];
 
       // Player specific code
       // WASD Movement

@@ -8,10 +8,10 @@
 #include <unordered_map>
 #include <vector>
 
-#include <SDL3/SDL.h>
-#include <SDL3_image/SDL_image.h>
-#include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
+#include "SDL3/SDL.h"
+#include "SDL3_image/SDL_image.h"
+#include "glm/glm.hpp"
+#include "glm/gtc/matrix_transform.hpp"
 
 struct Context {
   SDL_Window *window;

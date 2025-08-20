@@ -19,10 +19,7 @@ add_subdirectory(lib/glm EXCLUDE_FROM_ALL)
 
 # Source files for the project
 set(SR_SOURCES
-	src/bitmap.cpp
 	src/main.cpp
-	src/vec2.cpp
-	src/vec2i.cpp
 	src/sprite_system.cpp
 	src/renderer.cpp
 	)
