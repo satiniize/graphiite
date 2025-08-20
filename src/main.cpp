@@ -32,6 +32,21 @@ bool init() {
   // For every sprite, add their paths to an array
   // Send this array to renderer to load data and transfer to gpu
   renderer.init();
+
+  std::vector<std::string> loaded_sprite_paths;
+  for (auto &[entity_id, sprite_component] : sprite_components) {
+    // TODO: Unsure if this is efficient
+    auto it = std::find(loaded_sprite_paths.begin(), loaded_sprite_paths.end(),
+                        sprite_component.path);
+    if (it == loaded_sprite_paths.end()) {
+      renderer.load_texture(sprite_component.path);
+      loaded_sprite_paths.push_back(sprite_component.path);
+    }
+    // else {
+    // sprite_component.texture_id = it - loaded_sprite_paths.begin();
+    // }
+  }
+
   return true;
 }
 
@@ -43,31 +58,15 @@ bool cleanup() {
 }
 
 int main(int argc, char *argv[]) {
-  bool success = init();
-
-  if (!success) {
-    return success;
-  }
-
   EntityManager entity_manager;
-
-  // Cursor
-  EntityID cursor = entity_manager.create();
-  SpriteComponent cursor_sprite = {
-      .path = "res/uv.bmp",
-  };
-  sprite_components[cursor] = cursor_sprite;
-  TransformComponent cursor_transform = {
-      .scale = glm::vec2(16.0f, 16.0f),
-  };
-  transform_components[cursor] = cursor_transform;
 
   // Player Amogus
   EntityID amogus = entity_manager.create();
   SpriteComponent sprite_component = {
-      .path = "res/amogus.bmp",
+      .path = "res/uv.bmp",
   };
   sprite_components[amogus] = sprite_component;
+  // TODO: Get size of image
   TransformComponent transform_component = {
       .position = glm::vec2(64.0f, 64.0f),
       .scale = glm::vec2(16.0f, 16.0f),
@@ -77,8 +76,7 @@ int main(int argc, char *argv[]) {
   std::mt19937 random_engine;
   std::uniform_real_distribution<float> velocity_distribution(-1.0f, 1.0f);
   std::uniform_real_distribution<float> position_distribution(0.0f, 1.0f);
-  float velocity_magnitude = 512.0f;
-  int friends = 16;
+  int friends = 128;
   for (int i = 0; i < friends; ++i) {
     EntityID amogus2 = entity_manager.create();
     SpriteComponent sprite_component2 = {
@@ -95,14 +93,9 @@ int main(int argc, char *argv[]) {
     transform_components[amogus2] = transform_component2;
   }
 
-  std::vector<std::string> image_paths = {};
-  for (auto &[entity_id, sprite_component] : sprite_components) {
-    image_paths.push_back(sprite_component.path);
+  if (!init()) {
+    return 1;
   }
-  // renderer.load_textures(image_paths);
-  renderer.load_texture("res/test.png");
-  renderer.load_texture("res/amogus.bmp");
-  renderer.load_texture("res/uv.bmp");
 
   uint32_t prev_frame_tick = SDL_GetTicks();
   float physics_delta_time = 1.0f / physics_tick_rate;
@@ -114,8 +107,7 @@ int main(int argc, char *argv[]) {
   float time_scale = 1.0f;
 
   bool running = true;
-
-  float rotation = 0.0;
+  glm::vec2 velocity = glm::vec2(0.0f, 0.0f);
 
   while (running) {
     uint32_t frame_tick = SDL_GetTicks();
@@ -150,7 +142,7 @@ int main(int argc, char *argv[]) {
       // Player specific code
       // WASD Movement
       float accel = 512.0f;
-      vec2 move_dir = vec2(0.0f, 0.0f);
+      glm::vec2 move_dir = glm::vec2(0.0f, 0.0f);
       if (keystate[SDL_SCANCODE_W]) {
         move_dir.y -= 1.0f;
       }
@@ -163,25 +155,18 @@ int main(int argc, char *argv[]) {
       if (keystate[SDL_SCANCODE_D]) {
         move_dir.x += 1.0f;
       }
-      amogus_rigidbody.velocity += move_dir * accel * physics_delta_time;
+      velocity += move_dir * accel * physics_delta_time;
+      amogus_transform.position += velocity * physics_delta_time;
 
       // Showcase rotation
-      amogus_transform.rotation += 2.0f * physics_delta_time;
-
-      // Physics tick-rate ECS system
-      // PhysicsSystem::Update(physics_delta_time);
+      amogus_transform.rotation += 32.0f * physics_delta_time;
     }
 
     renderer.begin_frame();
     SpriteSystem::draw_all(renderer);
-    rotation += physics_delta_time;
-
-    // renderer.draw_sprite("res/test.png", glm::vec2(96.0f, 96.0f), rotation,
-    // glm::vec2(128.0f, 128.0f));
-
     renderer.end_frame();
 
-    loop();
+    // loop();
   }
   SDL_Log("Exiting...");
   cleanup();

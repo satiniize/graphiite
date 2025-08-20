@@ -30,15 +30,15 @@ const int viewport_scale = 4;
 
 // a list of vertices
 static Vertex vertices[]{
-    {-0.5f, 0.5f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f}, // top left vertex
-    {0.5f, 0.5f, 0.0f, 1.0f, 1.0f, 0.0f, 1.0f, 1.0f, 0.0f},  // top right vertex
-    {-0.5f, -0.5f, 0.0f, 1.0f, 0.0f, 1.0f, 1.0f, 0.0f,
+    {-0.5f, 0.5f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f}, // top left vertex
+    {0.5f, 0.5f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f},  // top right vertex
+    {-0.5f, -0.5f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f,
      1.0f}, // bottom left vertex
     {0.5f, -0.5f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f}
     // bottom right vertex
 };
 
-static uint16_t indices[]{0, 1, 2, 2, 1, 3};
+static Uint16 indices[]{0, 1, 2, 2, 1, 3};
 
 // struct Mesh {
 //   std::vector<Vertex> vertices;
@@ -64,14 +64,11 @@ public:
   ~Renderer();
   bool load_texture(std::string path);
   bool init();
-  bool begin_frame(); // Init things
-  // Collect draw calls here
-  bool end_frame(); // Submit draw calls and clean up
+  bool begin_frame();
+  bool end_frame();
   bool draw_sprite(std::string path, glm::vec2 translation, float rotation,
                    glm::vec2 scale);
   // bool draw_mesh(const Mesh &mesh);
-  // bool draw_sprite(const SDL_GPUTexture *texture);
-  // bool loop();
   bool cleanup();
 
 private:
@@ -86,11 +83,9 @@ private:
   std::unordered_map<std::string, std::vector<Vertex>> vertex_buffers;
   std::unordered_map<std::string, std::vector<uint16_t>> index_buffers;
 
-  SDL_GPUTexture *quad_texture;
-  SDL_GPUSampler *quad_sampler;
+  // SDL_GPUTexture *quad_texture;
+  SDL_GPUSampler *pixel_sampler;
 
-  SDL_GPUTransferBuffer *transfer_buffer;
-
-  SDL_GPURenderPass *render_pass;
-  SDL_GPUCommandBuffer *command_buffer;
+  SDL_GPURenderPass *_render_pass;
+  SDL_GPUCommandBuffer *_command_buffer;
 };
