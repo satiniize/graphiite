@@ -76,6 +76,7 @@ bool Renderer::load_texture(std::string path) {
   // TODO: GPUTexture should be able to be used as a render target
   // Make use for pixel perfect scaling and post processing
 
+  // TODO: Valgrind error unitialised value create by heap allocation
   SDL_GPUTexture *texture =
       SDL_CreateGPUTexture(this->context.device, &texture_info);
   if (!texture) {
@@ -402,6 +403,7 @@ bool Renderer::init() {
 }
 
 bool Renderer::begin_frame() {
+  // TODO: Value create by heap allocation valgrind error
   command_buffer = SDL_AcquireGPUCommandBuffer(context.device);
 
   SDL_GPUTexture *swapchain_texture;
@@ -452,6 +454,7 @@ bool Renderer::draw_sprite(std::string path, glm::vec2 translation,
                          SDL_GPU_INDEXELEMENTSIZE_16BIT);
 
   // Uniforms and samplers
+  // TODO: conditional jump valgrind error?
   SDL_GPUTextureSamplerBinding fragment_sampler_bindings{};
   fragment_sampler_bindings.texture = gpu_textures[path];
   fragment_sampler_bindings.sampler = quad_sampler;
