@@ -1,6 +1,7 @@
 #pragma once
 
 #include "component_storage.hpp"
+#include "renderer.hpp"
 #include <cstdint>
 
 // SpriteSystem: ECS system for sprite-related logic (AABB update, drawing)
@@ -12,6 +13,6 @@ void update_aabbs();
 
 // Draw all sprites with SpriteComponent and TransformComponent to the
 // framebuffer
-void draw_all();
+void draw_all(Renderer &renderer);
 
 } // namespace SpriteSystem

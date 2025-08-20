@@ -70,7 +70,7 @@ public:
   bool draw_sprite(std::string path, glm::vec2 translation, float rotation,
                    glm::vec2 scale);
   // bool draw_mesh(const Mesh &mesh);
-  bool draw_sprite(const SDL_GPUTexture *texture);
+  // bool draw_sprite(const SDL_GPUTexture *texture);
   // bool loop();
   bool cleanup();
 

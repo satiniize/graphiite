@@ -1,3 +1,4 @@
+#include "sprite_system.hpp"
 #include "component_storage.hpp"
 #include "sprite_component.hpp"
 #include "transform_component.hpp"
@@ -57,12 +58,13 @@ void update_aabbs() {
     }
   }
 }
-void draw_all() {
+void draw_all(Renderer &renderer) {
   for (auto &[entity, sprite] : sprite_components) {
     auto it = transform_components.find(entity);
     if (it != transform_components.end()) {
-      calculate_aabb(it->second, sprite, sprite.rendering_aabb.top_left,
-                     sprite.rendering_aabb.bottom_right);
+      TransformComponent transform = it->second;
+      renderer.draw_sprite(sprite.path, transform.position, transform.rotation,
+                           transform.scale);
     }
   }
 }
