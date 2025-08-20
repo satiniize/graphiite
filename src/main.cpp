@@ -34,7 +34,9 @@ bool init() {
 }
 
 bool loop() {
-  renderer.loop();
+  renderer.begin_frame();
+  renderer.draw_sprite("res/test.png");
+  renderer.end_frame();
   return true;
 }
 
@@ -79,7 +81,8 @@ int main(int argc, char *argv[]) {
   for (auto &[entity_id, sprite_component] : sprite_components) {
     image_paths.push_back(sprite_component.path);
   }
-  renderer.load_textures(image_paths);
+  // renderer.load_textures(image_paths);
+  renderer.load_texture("res/test.png");
 
   uint32_t prev_frame_tick = SDL_GetTicks();
   float physics_delta_time = 1.0f / physics_tick_rate;

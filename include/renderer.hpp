@@ -5,6 +5,7 @@
 
 #include <iterator>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include <SDL3/SDL.h>
@@ -40,8 +41,10 @@ static Vertex vertices[]{
 static uint16_t indices[]{0, 1, 2, 2, 1, 3};
 
 // struct Mesh {
-
+//   std::vector<Vertex> vertices;
+//   std::vector<uint16_t> indices;
 // }
+// enum class
 
 struct FragmentUniformBuffer {
   float time;
@@ -59,14 +62,15 @@ class Renderer {
 public:
   Renderer();
   ~Renderer();
-  bool load_textures(std::vector<std::string> &textures);
+  bool load_texture(std::string path);
   bool init();
   bool begin_frame(); // Init things
   // Collect draw calls here
   bool end_frame(); // Submit draw calls and clean up
+  bool draw_sprite(std::string path);
   // bool draw_mesh(const Mesh &mesh);
   bool draw_sprite(const SDL_GPUTexture *texture);
-  bool loop();
+  // bool loop();
   bool cleanup();
 
 private:
@@ -77,10 +81,15 @@ private:
   SDL_GPUBuffer *vertex_buffer;
   SDL_GPUBuffer *index_buffer;
 
-  std::vector<SDL_GPUTexture *> gpu_textures;
+  std::unordered_map<std::string, SDL_GPUTexture *> gpu_textures;
+  std::unordered_map<std::string, std::vector<Vertex>> vertex_buffers;
+  std::unordered_map<std::string, std::vector<uint16_t>> index_buffers;
 
   SDL_GPUTexture *quad_texture;
   SDL_GPUSampler *quad_sampler;
 
   SDL_GPUTransferBuffer *transfer_buffer;
+
+  SDL_GPURenderPass *render_pass;
+  SDL_GPUCommandBuffer *command_buffer;
 };
