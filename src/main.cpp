@@ -46,11 +46,11 @@ static inline Clay_Dimensions MeasureText(Clay_StringSlice text,
   // letterSpacing etc Note: Clay_String->chars is not guaranteed to be null
   // terminated
   return (Clay_Dimensions){
-      .width = text.length *
+      .width = (float)text.length *
                config->fontSize, // <- this will only work for monospace fonts,
                                  // see the renderers/ directory for more
                                  // advanced text measurement
-      .height = config->fontSize};
+      .height = (float)config->fontSize};
 }
 
 bool init() {
@@ -197,7 +197,9 @@ int main(int argc, char *argv[]) {
     Clay_BeginLayout();
 
     Clay_LayoutConfig layoutElement = Clay_LayoutConfig{.padding = {5}};
-    CLAY({.layout = layoutElement, .backgroundColor = {255, 255, 255, 0}}) {
+    CLAY({.id = CLAY_ID("MainContent"),
+          .layout = layoutElement,
+          .backgroundColor = {255, 255, 255, 0}}) {
       CLAY_TEXT(CLAY_STRING(""), CLAY_TEXT_CONFIG({.fontId = 0}));
     }
     Clay_RenderCommandArray render_commands = Clay_EndLayout();

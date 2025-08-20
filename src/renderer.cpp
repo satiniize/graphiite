@@ -131,6 +131,98 @@ bool Renderer::load_texture(std::string path) {
   return true;
 }
 
+bool Renderer::load_geometry(std::string path, const Vertex *vertices,
+                             size_t vertex_size, const Uint16 *indices,
+                             size_t index_size) {
+
+  // Create the vertex buffer
+  SDL_GPUBufferCreateInfo vertex_buffer_info{};
+  vertex_buffer_info.usage = SDL_GPU_BUFFERUSAGE_VERTEX;
+  vertex_buffer_info.size = vertex_size;
+  SDL_GPUBuffer *vertex_buffer =
+      SDL_CreateGPUBuffer(context.device, &vertex_buffer_info);
+  if (!vertex_buffer) {
+    SDL_Log("Failed to create vertex buffer");
+    return false;
+  }
+  SDL_SetGPUBufferName(context.device, vertex_buffer, "Vertex Buffer");
+
+  // Create the index buffer
+  SDL_GPUBufferCreateInfo index_buffer_info{};
+  index_buffer_info.usage = SDL_GPU_BUFFERUSAGE_INDEX;
+  index_buffer_info.size = index_size;
+  SDL_GPUBuffer *index_buffer =
+      SDL_CreateGPUBuffer(context.device, &index_buffer_info);
+  if (!index_buffer) {
+    SDL_Log("Failed to create index buffer");
+    return false;
+  }
+  SDL_SetGPUBufferName(context.device, index_buffer, "Index Buffer");
+
+  // Create a transfer buffer to upload to the vertex buffer
+  SDL_GPUTransferBufferCreateInfo vertex_transfer_create_info{};
+  vertex_transfer_create_info.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD;
+  vertex_transfer_create_info.size = vertex_size + index_size;
+  SDL_GPUTransferBuffer *transfer_buffer =
+      SDL_CreateGPUTransferBuffer(context.device, &vertex_transfer_create_info);
+  if (!transfer_buffer) {
+    SDL_Log("Failed to create transfer buffer");
+    return false;
+  }
+
+  // Fill the transfer buffer
+  Vertex *data = (Vertex *)SDL_MapGPUTransferBuffer(context.device,
+                                                    transfer_buffer, false);
+  SDL_memcpy(data, (void *)vertices, vertex_size);
+  Uint16 *indexData = (Uint16 *)&data[(vertex_size / sizeof(Vertex))];
+  SDL_memcpy(indexData, (void *)indices, index_size);
+  // Unmap the pointer when you are done updating the transfer buffer
+  SDL_UnmapGPUTransferBuffer(context.device, transfer_buffer);
+
+  // Start a copy pass
+  SDL_GPUCommandBuffer *_command_buffer =
+      SDL_AcquireGPUCommandBuffer(context.device);
+
+  SDL_GPUCopyPass *copyPass = SDL_BeginGPUCopyPass(_command_buffer);
+
+  // Where is the data
+  SDL_GPUTransferBufferLocation vertex_location{};
+  vertex_location.transfer_buffer = transfer_buffer;
+  vertex_location.offset = 0;
+
+  // Where to upload the data
+  SDL_GPUBufferRegion vertex_region{};
+  vertex_region.buffer = vertex_buffer;
+  vertex_region.size = vertex_size;
+  vertex_region.offset = 0;
+
+  // Upload the data
+  SDL_UploadToGPUBuffer(copyPass, &vertex_location, &vertex_region, false);
+
+  // Where is the data
+  SDL_GPUTransferBufferLocation index_location{};
+  index_location.transfer_buffer = transfer_buffer;
+  index_location.offset = vertex_size;
+
+  // Where to upload the data
+  SDL_GPUBufferRegion index_region{};
+  index_region.buffer = index_buffer;
+  index_region.size = index_size;
+  index_region.offset = 0;
+
+  SDL_UploadToGPUBuffer(copyPass, &index_location, &index_region, false);
+
+  // End copy pass
+  SDL_EndGPUCopyPass(copyPass);
+  SDL_SubmitGPUCommandBuffer(_command_buffer);
+  SDL_ReleaseGPUTransferBuffer(context.device, transfer_buffer);
+
+  vertex_buffers[path] = vertex_buffer;
+  index_buffers[path] = index_buffer;
+
+  return true;
+};
+
 bool Renderer::init() {
   this->context = Context{};
   this->context.title = "Software Renderer";
@@ -287,94 +379,18 @@ bool Renderer::init() {
     return false;
   }
 
-  // Create the vertex buffer
-  SDL_GPUBufferCreateInfo vertex_buffer_info{};
-  vertex_buffer_info.usage = SDL_GPU_BUFFERUSAGE_VERTEX;
-  vertex_buffer_info.size = std::size(vertices) * sizeof(Vertex);
+  static Vertex quad_vertices[]{
+      {-0.5f, 0.5f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f},  // top left
+      {0.5f, 0.5f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f},   // top right
+      {-0.5f, -0.5f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f, 1.0f}, // bottom left
+      {0.5f, -0.5f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f}   // bottom right
+  };
 
-  vertex_buffer = SDL_CreateGPUBuffer(context.device, &vertex_buffer_info);
-  if (!vertex_buffer) {
-    SDL_Log("Failed to create vertex buffer");
-    return false;
-  }
+  static Uint16 quad_indices[]{0, 1, 2, 2, 1, 3};
 
-  SDL_SetGPUBufferName(context.device, vertex_buffer, "Vertex Buffer");
-
-  // Create the index buffer
-  SDL_GPUBufferCreateInfo index_buffer_info{};
-  index_buffer_info.usage = SDL_GPU_BUFFERUSAGE_INDEX;
-  index_buffer_info.size = std::size(indices) * sizeof(uint16_t);
-  // vertex_buffer_info.props (Unimplemented)
-
-  index_buffer = SDL_CreateGPUBuffer(context.device, &index_buffer_info);
-  if (!index_buffer) {
-    SDL_Log("Failed to create index buffer");
-    return false;
-  }
-
-  SDL_SetGPUBufferName(context.device, index_buffer, "Index Buffer");
-
-  // create a transfer buffer to upload to the vertex buffer
-  SDL_GPUTransferBufferCreateInfo vertex_transfer_create_info{};
-  vertex_transfer_create_info.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD;
-  vertex_transfer_create_info.size = std::size(vertices) * sizeof(Vertex) +
-                                     std::size(indices) * sizeof(uint16_t);
-  SDL_GPUTransferBuffer *transfer_buffer =
-      SDL_CreateGPUTransferBuffer(context.device, &vertex_transfer_create_info);
-
-  if (!transfer_buffer) {
-    SDL_Log("Failed to create transfer buffer");
-    return false;
-  }
-
-  // Fill the transfer buffer
-  Vertex *data = (Vertex *)SDL_MapGPUTransferBuffer(context.device,
-                                                    transfer_buffer, false);
-  SDL_memcpy(data, (void *)vertices, std::size(vertices) * sizeof(Vertex));
-
-  Uint16 *indexData = (Uint16 *)&data[std::size(vertices)];
-  SDL_memcpy(indexData, (void *)indices, std::size(indices) * sizeof(uint16_t));
-
-  // Unmap the pointer when you are done updating the transfer buffer
-  SDL_UnmapGPUTransferBuffer(context.device, transfer_buffer);
-
-  // Start a copy pass
-  SDL_GPUCommandBuffer *_command_buffer =
-      SDL_AcquireGPUCommandBuffer(context.device);
-
-  SDL_GPUCopyPass *copyPass = SDL_BeginGPUCopyPass(_command_buffer);
-
-  // Where is the data
-  SDL_GPUTransferBufferLocation vertex_location{};
-  vertex_location.transfer_buffer = transfer_buffer;
-  vertex_location.offset = 0;
-
-  // Where to upload the data
-  SDL_GPUBufferRegion vertex_region{};
-  vertex_region.buffer = vertex_buffer;
-  vertex_region.size = sizeof(vertices); // TODO: make more robust
-  vertex_region.offset = 0;
-
-  // Upload the data
-  SDL_UploadToGPUBuffer(copyPass, &vertex_location, &vertex_region, false);
-
-  // Where is the data
-  SDL_GPUTransferBufferLocation index_location{};
-  index_location.transfer_buffer = transfer_buffer;
-  index_location.offset = std::size(vertices) * sizeof(Vertex);
-
-  // Where to upload the data
-  SDL_GPUBufferRegion index_region{};
-  index_region.buffer = index_buffer;
-  index_region.size = std::size(indices) * sizeof(uint16_t);
-  index_region.offset = 0;
-
-  SDL_UploadToGPUBuffer(copyPass, &index_location, &index_region, false);
-
-  // End copy pass
-  SDL_EndGPUCopyPass(copyPass);
-  SDL_SubmitGPUCommandBuffer(_command_buffer);
-  SDL_ReleaseGPUTransferBuffer(context.device, transfer_buffer);
+  load_geometry("QUAD", quad_vertices,
+                std::size(quad_vertices) * sizeof(Vertex), quad_indices,
+                std::size(quad_indices) * sizeof(Uint16));
 
   return true;
 }
@@ -425,14 +441,14 @@ bool Renderer::draw_sprite(std::string path, glm::vec2 translation,
 
   // Bind vertex buffer
   SDL_GPUBufferBinding vertex_buffer_bindings[1];
-  vertex_buffer_bindings[0].buffer = vertex_buffer;
+  vertex_buffer_bindings[0].buffer = vertex_buffers["QUAD"];
   vertex_buffer_bindings[0].offset = 0;
 
   SDL_BindGPUVertexBuffers(_render_pass, 0, vertex_buffer_bindings, 1);
 
   // Bind index buffer
   SDL_GPUBufferBinding index_buffer_bindings[1];
-  index_buffer_bindings[0].buffer = index_buffer;
+  index_buffer_bindings[0].buffer = index_buffers["QUAD"];
   index_buffer_bindings[0].offset = 0;
 
   SDL_BindGPUIndexBuffer(_render_pass, index_buffer_bindings,
@@ -475,7 +491,8 @@ bool Renderer::draw_sprite(std::string path, glm::vec2 translation,
   SDL_PushGPUVertexUniformData(_command_buffer, 0, &vertex_uniform_buffer,
                                sizeof(VertexUniformBuffer));
 
-  SDL_DrawGPUIndexedPrimitives(_render_pass, std::size(indices), 1, 0, 0, 0);
+  SDL_DrawGPUIndexedPrimitives(_render_pass, 6, 1, 0, 0,
+                               0); // TODO: Determine index count
 
   return true;
 }
@@ -483,11 +500,16 @@ bool Renderer::draw_sprite(std::string path, glm::vec2 translation,
 bool Renderer::cleanup() {
   SDL_ReleaseGPUGraphicsPipeline(context.device, graphics_pipeline);
 
-  SDL_ReleaseGPUBuffer(context.device, vertex_buffer);
-  SDL_ReleaseGPUBuffer(context.device, index_buffer);
-
   for (auto &[path, texture] : gpu_textures) {
     SDL_ReleaseGPUTexture(context.device, texture);
+  }
+
+  for (auto &[name, buffer] : vertex_buffers) {
+    SDL_ReleaseGPUBuffer(context.device, buffer);
+  }
+
+  for (auto &[name, buffer] : index_buffers) {
+    SDL_ReleaseGPUBuffer(context.device, buffer);
   }
 
   SDL_ReleaseGPUSampler(context.device, pixel_sampler);

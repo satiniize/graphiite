@@ -29,16 +29,17 @@ struct Vertex {
 const int viewport_scale = 4;
 
 // a list of vertices
-static Vertex vertices[]{
-    {-0.5f, 0.5f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f}, // top left vertex
-    {0.5f, 0.5f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f},  // top right vertex
-    {-0.5f, -0.5f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f,
-     1.0f}, // bottom left vertex
-    {0.5f, -0.5f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f}
-    // bottom right vertex
-};
+// static Vertex vertices[]{
+//     {-0.5f, 0.5f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f}, // top left
+//     vertex {0.5f, 0.5f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f},  // top
+//     right vertex
+//     {-0.5f, -0.5f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f,
+//      1.0f}, // bottom left vertex
+//     {0.5f, -0.5f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f}
+//     // bottom right vertex
+// };
 
-static Uint16 indices[]{0, 1, 2, 2, 1, 3};
+// static Uint16 indices[]{0, 1, 2, 2, 1, 3};
 
 // struct Mesh {
 //   std::vector<Vertex> vertices;
@@ -63,6 +64,9 @@ public:
   Renderer();
   ~Renderer();
   bool load_texture(std::string path);
+  bool load_geometry(std::string path, const Vertex *vertices,
+                     size_t vertex_size, const Uint16 *indices,
+                     size_t index_size);
   bool init();
   bool begin_frame();
   bool end_frame();
@@ -76,12 +80,12 @@ private:
 
   SDL_GPUGraphicsPipeline *graphics_pipeline;
 
-  SDL_GPUBuffer *vertex_buffer;
-  SDL_GPUBuffer *index_buffer;
+  // ;
+  // ;
 
+  std::unordered_map<std::string, SDL_GPUBuffer *> vertex_buffers;
+  std::unordered_map<std::string, SDL_GPUBuffer *> index_buffers;
   std::unordered_map<std::string, SDL_GPUTexture *> gpu_textures;
-  std::unordered_map<std::string, std::vector<Vertex>> vertex_buffers;
-  std::unordered_map<std::string, std::vector<uint16_t>> index_buffers;
 
   // SDL_GPUTexture *quad_texture;
   SDL_GPUSampler *pixel_sampler;
