@@ -47,6 +47,7 @@ struct VertexUniformBuffer {
 
 static VertexUniformBuffer vertex_uniform_buffer{};
 
+// TODO: Interpolate proj matrix for smoother resizing
 class Renderer {
 public:
   Uint32 width;

@@ -24,6 +24,12 @@
 #include "sprite_component.hpp"
 #include "transform_component.hpp"
 
+const Clay_Color COLOR_BG = {24, 24, 24, 255};
+const Clay_Color COLOR_FG1 = {32, 32, 32, 255};
+const Clay_Color COLOR_FG2 = {44, 44, 44, 255};
+const Clay_Color COLOR_BUTTON_NORMAL = {48, 48, 48, 255};
+const Clay_Color COLOR_BUTTON_HOVER = {60, 60, 60, 255};
+
 uint16_t shut_up_data[1];
 
 Renderer renderer;
@@ -31,12 +37,18 @@ Renderer renderer;
 Clay_ElementDeclaration sidebarItemConfig = (Clay_ElementDeclaration){
     .layout = {.sizing = {.width = CLAY_SIZING_GROW(0),
                           .height = CLAY_SIZING_FIXED(32)}},
-    .backgroundColor = {64, 64, 64, 255}};
+    .backgroundColor = COLOR_FG2};
 
 // Re-useable components are just normal functions
 void SidebarItemComponent() {
   CLAY(sidebarItemConfig) {}
 }
+
+// Clay_ElementDeclaration menubar_button_config = (Clay_ElementDeclaration)
+
+// void MenuBarButton() {
+//   CLAY(menubar_button_config) {}
+// }
 
 void handle_clay_errors(Clay_ErrorData errorData) {
   // See the Clay_ErrorData struct for more information
@@ -102,7 +114,7 @@ int main(int argc, char *argv[]) {
   // TODO: Get size of image
   TransformComponent transform_component = {
       .position = glm::vec2(64.0f, 64.0f),
-      .scale = glm::vec2(16.0f, 16.0f),
+      .scale = glm::vec2(4.0f, 4.0f),
   };
   transform_components[amogus] = transform_component;
 
@@ -159,12 +171,23 @@ int main(int argc, char *argv[]) {
     accumulator += process_delta_time;
     prev_frame_tick = frame_tick;
 
+    float cursor_x;
+    float cursor_y;
+
+    SDL_GetMouseState(&cursor_x, &cursor_y);
+
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
       if (event.type == SDL_EVENT_QUIT) {
         running = false;
       }
+      if (event.type == SDL_EVENT_MOUSE_WHEEL) {
+      }
     }
+
+    Clay_Vector2 mouse_position = {cursor_x / viewport_scale,
+                                   cursor_y / viewport_scale};
+    Clay_SetPointerState(mouse_position, false);
 
     const bool *keystate = SDL_GetKeyboardState(NULL);
 
@@ -178,10 +201,6 @@ int main(int argc, char *argv[]) {
         process_frame_count = 0;
       }
     }
-    float cursor_x;
-    float cursor_y;
-
-    SDL_GetMouseState(&cursor_x, &cursor_y);
 
     TransformComponent &cursorTransform = transform_components[amogus];
     cursorTransform.position =
@@ -195,15 +214,32 @@ int main(int argc, char *argv[]) {
     Clay_BeginLayout();
 
     Clay_LayoutConfig layoutElement = Clay_LayoutConfig{.padding = {5}};
-    CLAY({.id = CLAY_ID("MainContent"),
+    CLAY({.id = CLAY_ID("Root"),
           .layout =
               {
                   .sizing = {.width = CLAY_SIZING_GROW(0),
                              .height = CLAY_SIZING_GROW(0)},
-                  .padding = CLAY_PADDING_ALL(4),
+                  .padding = CLAY_PADDING_ALL(0),
+                  .layoutDirection = CLAY_TOP_TO_BOTTOM,
               },
-          .backgroundColor = {24, 24, 24, 255}}) {
-      CLAY({.id = CLAY_ID("Other"),
+          .backgroundColor = COLOR_BG}) {
+      CLAY({
+          .id = CLAY_ID("MenuBar"),
+          .layout =
+              {
+                  .sizing = {.width = CLAY_SIZING_GROW(0), .height = 8},
+                  .childGap = 2,
+              },
+          .backgroundColor = COLOR_FG2,
+      }) {
+        for (int i = 0; i < 5; i++) {
+          CLAY({.layout = {.sizing = {.width = CLAY_SIZING_FIXED(16),
+                                      .height = CLAY_SIZING_FIXED(8)}},
+                .backgroundColor = Clay_Hovered() ? COLOR_BUTTON_HOVER
+                                                  : COLOR_BUTTON_NORMAL}) {}
+        }
+      }
+      CLAY({.id = CLAY_ID("Content"),
             .layout =
                 {
                     .sizing = {.width = 128, .height = CLAY_SIZING_GROW(0)},
@@ -211,7 +247,7 @@ int main(int argc, char *argv[]) {
                     .childGap = 4,
                     .layoutDirection = CLAY_TOP_TO_BOTTOM,
                 },
-            .backgroundColor = {48, 48, 48, 255}}) {
+            .backgroundColor = COLOR_FG1}) {
         for (int i = 0; i < 4; i++) {
           SidebarItemComponent();
         }
