@@ -19,7 +19,6 @@ struct Context {
   const char *title;
 };
 
-// the vertex input layout
 struct Vertex {
   float x, y, z;    // vec3 position
   float r, g, b, a; // vec4 color
@@ -28,27 +27,10 @@ struct Vertex {
 
 const int viewport_scale = 4;
 
-// a list of vertices
-// static Vertex vertices[]{
-//     {-0.5f, 0.5f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f}, // top left
-//     vertex {0.5f, 0.5f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f},  // top
-//     right vertex
-//     {-0.5f, -0.5f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f,
-//      1.0f}, // bottom left vertex
-//     {0.5f, -0.5f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f}
-//     // bottom right vertex
-// };
-
-// static Uint16 indices[]{0, 1, 2, 2, 1, 3};
-
-// struct Mesh {
-//   std::vector<Vertex> vertices;
-//   std::vector<uint16_t> indices;
-// }
-// enum class
-
 struct FragmentUniformBuffer {
+  glm::vec4 modulate;
   float time;
+  bool use_texture;
 };
 
 static FragmentUniformBuffer fragment_uniform_buffer{};
@@ -70,24 +52,23 @@ public:
   bool init();
   bool begin_frame();
   bool end_frame();
+  // Drawing functions
   bool draw_sprite(std::string path, glm::vec2 translation, float rotation,
                    glm::vec2 scale);
-  // bool draw_mesh(const Mesh &mesh);
+  bool draw_rect(glm::vec2 position, glm::vec2 size, glm::vec4 color);
   bool cleanup();
 
 private:
   Context context;
 
+  // TODO: Have support for multiple pipelines
   SDL_GPUGraphicsPipeline *graphics_pipeline;
-
-  // ;
-  // ;
 
   std::unordered_map<std::string, SDL_GPUBuffer *> vertex_buffers;
   std::unordered_map<std::string, SDL_GPUBuffer *> index_buffers;
   std::unordered_map<std::string, SDL_GPUTexture *> gpu_textures;
 
-  // SDL_GPUTexture *quad_texture;
+  // TODO: Have support for multiple samplers
   SDL_GPUSampler *pixel_sampler;
 
   SDL_GPURenderPass *_render_pass;

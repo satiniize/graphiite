@@ -1,7 +1,5 @@
 #include <cmath>
 #include <cstdint>
-#include <fstream>
-#include <iostream>
 #include <random>
 #include <string>
 #include <sys/types.h>
@@ -10,6 +8,7 @@
 #define CLAY_IMPLEMENTATION
 #include "clay.h"
 
+#include "clay_renderer.hpp"
 #include "config.hpp"
 #include "glm/glm.hpp"
 #include "glm/gtc/matrix_transform.hpp"
@@ -29,6 +28,16 @@
 uint16_t shut_up_data[1];
 
 Renderer renderer;
+
+Clay_ElementDeclaration sidebarItemConfig = (Clay_ElementDeclaration){
+    .layout = {.sizing = {.width = CLAY_SIZING_GROW(0),
+                          .height = CLAY_SIZING_FIXED(32)}},
+    .backgroundColor = {0, 255, 0, 64}};
+
+// Re-useable components are just normal functions
+void SidebarItemComponent() {
+  CLAY(sidebarItemConfig) {}
+}
 
 void handle_clay_errors(Clay_ErrorData errorData) {
   // See the Clay_ErrorData struct for more information
@@ -101,7 +110,7 @@ int main(int argc, char *argv[]) {
   std::mt19937 random_engine;
   std::uniform_real_distribution<float> velocity_distribution(-1.0f, 1.0f);
   std::uniform_real_distribution<float> position_distribution(0.0f, 1.0f);
-  int friends = 128;
+  int friends = 0;
   for (int i = 0; i < friends; ++i) {
     EntityID amogus2 = entity_manager.create();
     SpriteComponent sprite_component2 = {
@@ -198,15 +207,32 @@ int main(int argc, char *argv[]) {
 
     Clay_LayoutConfig layoutElement = Clay_LayoutConfig{.padding = {5}};
     CLAY({.id = CLAY_ID("MainContent"),
-          .layout = layoutElement,
-          .backgroundColor = {255, 255, 255, 0}}) {
-      CLAY_TEXT(CLAY_STRING(""), CLAY_TEXT_CONFIG({.fontId = 0}));
+          .layout =
+              {
+                  .sizing = {.width = CLAY_SIZING_GROW(0),
+                             .height = CLAY_SIZING_GROW(0)},
+                  .padding = CLAY_PADDING_ALL(4),
+              },
+          .backgroundColor = {255, 255, 255, 128}}) {
+      CLAY({.id = CLAY_ID("Other"),
+            .layout =
+                {
+                    .sizing = {.width = 256, .height = CLAY_SIZING_GROW(0)},
+                    .padding = CLAY_PADDING_ALL(4),
+                    .childGap = 4,
+                    .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                },
+            .backgroundColor = {255, 0, 0, 128}}) {
+        for (int i = 0; i < 4; i++) {
+          SidebarItemComponent();
+        }
+      }
     }
     Clay_RenderCommandArray render_commands = Clay_EndLayout();
 
     renderer.begin_frame();
     SpriteSystem::draw_all(renderer);
-    // Draw clay here
+    ClayRenderer::render_commands(renderer, render_commands);
     renderer.end_frame();
   }
   SDL_Log("Exiting...");

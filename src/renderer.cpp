@@ -467,6 +467,8 @@ bool Renderer::draw_sprite(std::string path, glm::vec2 translation,
 
   // Calculate uniform values
   fragment_uniform_buffer.time = SDL_GetTicksNS() / 1e9f;
+  fragment_uniform_buffer.use_texture = true;
+  fragment_uniform_buffer.modulate = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
   SDL_PushGPUFragmentUniformData(_command_buffer, 0, &fragment_uniform_buffer,
                                  sizeof(FragmentUniformBuffer));
 
@@ -496,6 +498,68 @@ bool Renderer::draw_sprite(std::string path, glm::vec2 translation,
 
   return true;
 }
+
+bool Renderer::draw_rect(glm::vec2 position, glm::vec2 size, glm::vec4 color) {
+  // Bind graphics pipeline
+  SDL_BindGPUGraphicsPipeline(_render_pass, graphics_pipeline);
+
+  // Bind vertex buffer
+  SDL_GPUBufferBinding vertex_buffer_bindings[1];
+  vertex_buffer_bindings[0].buffer = vertex_buffers["QUAD"];
+  vertex_buffer_bindings[0].offset = 0;
+
+  SDL_BindGPUVertexBuffers(_render_pass, 0, vertex_buffer_bindings, 1);
+
+  // Bind index buffer
+  SDL_GPUBufferBinding index_buffer_bindings[1];
+  index_buffer_bindings[0].buffer = index_buffers["QUAD"];
+  index_buffer_bindings[0].offset = 0;
+
+  SDL_BindGPUIndexBuffer(_render_pass, index_buffer_bindings,
+                         SDL_GPU_INDEXELEMENTSIZE_16BIT);
+
+  // Uniforms and samplers
+  // TODO: conditional jump valgrind error?
+  // SDL_GPUTextureSamplerBinding fragment_sampler_bindings{};
+  // fragment_sampler_bindings.texture = gpu_textures[path];
+  // fragment_sampler_bindings.sampler = pixel_sampler;
+  // SDL_BindGPUFragmentSamplers(_render_pass,
+  //                             0, // The binding point for the sampler
+  //                             &fragment_sampler_bindings,
+  //                             1 // Number of textures/samplers to bind
+  // );
+
+  // Calculate uniform values
+  fragment_uniform_buffer.time = SDL_GetTicksNS() / 1e9f;
+  fragment_uniform_buffer.use_texture = false;
+  fragment_uniform_buffer.modulate = color;
+  SDL_PushGPUFragmentUniformData(_command_buffer, 0, &fragment_uniform_buffer,
+                                 sizeof(FragmentUniformBuffer));
+
+  glm::mat4 model_matrix = glm::mat4(1.0f);
+  model_matrix = glm::translate(model_matrix,
+                                glm::vec3(glm::vec2(position.x + size.x / 2.0f,
+                                                    position.y + size.y / 2.0f),
+                                          0.0f));
+  model_matrix = glm::scale(model_matrix, glm::vec3(size, 1.0f));
+
+  int new_width,
+      new_height; // TODO: Kinda redundant, might make this a private variable
+  SDL_GetWindowSizeInPixels(context.window, &new_width, &new_height);
+  glm::mat4 projection_matrix =
+      glm::ortho(0.0f, (float)new_width / viewport_scale,
+                 (float)new_height / viewport_scale, 0.0f);
+
+  vertex_uniform_buffer.mvp_matrix = projection_matrix * model_matrix;
+
+  SDL_PushGPUVertexUniformData(_command_buffer, 0, &vertex_uniform_buffer,
+                               sizeof(VertexUniformBuffer));
+
+  SDL_DrawGPUIndexedPrimitives(_render_pass, 6, 1, 0, 0,
+                               0); // TODO: Determine index count
+
+  return true;
+};
 
 bool Renderer::cleanup() {
   SDL_ReleaseGPUGraphicsPipeline(context.device, graphics_pipeline);

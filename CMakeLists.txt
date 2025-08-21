@@ -22,6 +22,7 @@ set(SR_SOURCES
 	src/main.cpp
 	src/sprite_system.cpp
 	src/renderer.cpp
+	src/clay_renderer.cpp
 	)
 
 # Create your game executable target as usual

@@ -1,11 +1,8 @@
-#include "SDL3/SDL.h"
-#include "SDL3_image/SDL_image.h"
-#include "clay.h"
-#include "renderer.hpp"
+#include "clay_renderer.hpp"
 
-static void render_filled_rounded_rect(Clay_SDL3RendererData *rendererData,
-                                       const SDL_FRect rect,
-                                       const float corner_radius,
+namespace ClayRenderer {
+static void render_filled_rounded_rect(const SDL_FRect rect,
+                                       const float cornerRadius,
                                        const Clay_Color _color) {
   const SDL_FColor color = {_color.r / 255, _color.g / 255, _color.b / 255,
                             _color.a / 255};
@@ -14,7 +11,7 @@ static void render_filled_rounded_rect(Clay_SDL3RendererData *rendererData,
   int vertex_count = 0;
 
   const float min_radius = SDL_min(rect.w, rect.h) / 2.0f;
-  const float clamped_radius = SDL_min(corner_radius, min_radius);
+  const float clamped_radius = SDL_min(cornerRadius, min_radius);
 
   const int num_circle_segments =
       SDL_max(NUM_CIRCLE_SEGMENTS, (int)clamped_radius * 0.5f);
@@ -278,32 +275,35 @@ static void render_filled_rounded_rect(Clay_SDL3RendererData *rendererData,
   //                    indices, index_count);
 }
 
-void render_clay_commands(Clay_RenderCommandArray renderCommands, Font *fonts) {
+void render_commands(Renderer &renderer,
+                     Clay_RenderCommandArray renderCommands) {
   for (int i = 0; i < renderCommands.length; i++) {
     Clay_RenderCommand *renderCommand =
-        Clay_RenderCommandArray_Get(&renderCommands, j);
-    const Clay_BoundingBox bounding_box = rcmd->boundingBox;
+        Clay_RenderCommandArray_Get(&renderCommands, i);
+    const Clay_BoundingBox bounding_box = renderCommand->boundingBox;
     const SDL_FRect rect = {(int)bounding_box.x, (int)bounding_box.y,
                             (int)bounding_box.width, (int)bounding_box.height};
 
-    switch (rcmd->commandType) {
+    switch (renderCommand->commandType) {
     case CLAY_RENDER_COMMAND_TYPE_RECTANGLE: {
-      Clay_RectangleRenderData *config = &rcmd->renderData.rectangle;
-      SDL_SetRenderDrawBlendMode(rendererData->renderer, SDL_BLENDMODE_BLEND);
-      SDL_SetRenderDrawColor(rendererData->renderer, config->backgroundColor.r,
-                             config->backgroundColor.g,
-                             config->backgroundColor.b,
-                             config->backgroundColor.a);
-      if (config->corner_radius.topLeft > 0) {
-        SDL_Clay_RenderFillRoundedRect(rendererData, rect,
-                                       config->corner_radius.topLeft,
-                                       config->backgroundColor);
+      Clay_RectangleRenderData *config = &renderCommand->renderData.rectangle;
+      glm::vec4 color((float)config->backgroundColor.r / 255.0f,
+                      (float)config->backgroundColor.g / 255.0f,
+                      (float)config->backgroundColor.b / 255.0f,
+                      (float)config->backgroundColor.a / 255.0f);
+      if (config->cornerRadius.topLeft > 0) {
+        // SDL_Log("Tried rounded corners");
+        // SDL_Clay_RenderFillRoundedRect(rendererData, rect,
+        //                                config->cornerRadius.topLeft,
+        //                                config->backgroundColor);
       } else {
-        SDL_RenderFillRect(rendererData->renderer, &rect);
+        renderer.draw_rect(glm::vec2(rect.x, rect.y), glm::vec2(rect.w, rect.h),
+                           color);
       }
     } break;
     default:
-      SDL_Log("Unknown render command type: %d", rcmd->commandType);
+      SDL_Log("Unknown render command type: %d", renderCommand->commandType);
     }
   }
 }
+} // namespace ClayRenderer
