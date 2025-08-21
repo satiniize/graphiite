@@ -27,13 +27,19 @@ struct Vertex {
 
 const int viewport_scale = 4;
 
-struct FragmentUniformBuffer {
+struct SpriteFragmentUniformBuffer {
   glm::vec4 modulate;
   float time;
-  bool use_texture;
 };
 
-static FragmentUniformBuffer fragment_uniform_buffer{};
+static SpriteFragmentUniformBuffer sprite_fragment_uniform_buffer{};
+
+struct UIRectFragmentUniformBuffer {
+  glm::vec4 modulate;
+  float time;
+};
+
+static UIRectFragmentUniformBuffer ui_rect_fragment_uniform_buffer{};
 
 struct VertexUniformBuffer {
   glm::mat4 mvp_matrix;
@@ -43,12 +49,17 @@ static VertexUniformBuffer vertex_uniform_buffer{};
 
 class Renderer {
 public:
+  Uint32 width;
+  Uint32 height;
+
   Renderer();
   ~Renderer();
   bool load_texture(std::string path);
   bool load_geometry(std::string path, const Vertex *vertices,
                      size_t vertex_size, const Uint16 *indices,
                      size_t index_size);
+  bool create_graphics_pipeline(std::string path, SDL_GPUShader *vertex_shader,
+                                SDL_GPUShader *fragment_shader);
   bool init();
   bool begin_frame();
   bool end_frame();
@@ -62,8 +73,8 @@ private:
   Context context;
 
   // TODO: Have support for multiple pipelines
-  SDL_GPUGraphicsPipeline *graphics_pipeline;
-
+  // SDL_GPUGraphicsPipeline *graphics_pipeline;
+  std::unordered_map<std::string, SDL_GPUGraphicsPipeline *> graphics_pipelines;
   std::unordered_map<std::string, SDL_GPUBuffer *> vertex_buffers;
   std::unordered_map<std::string, SDL_GPUBuffer *> index_buffers;
   std::unordered_map<std::string, SDL_GPUTexture *> gpu_textures;

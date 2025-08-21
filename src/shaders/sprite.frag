@@ -8,14 +8,9 @@ layout(set = 2, binding = 0) uniform sampler2D myTextureSampler;
 layout(std140, set = 3, binding = 0) uniform UniformBlock {
     vec4 modulate;
     float time;
-    bool use_texture;
 };
 
 void main() {
-    if (use_texture) {
-        vec4 albedo = texture(myTextureSampler, v_texcoord);
-        FragColor = vec4(albedo.rgb * v_color.rgb * modulate.rgb, albedo.a * v_color.a * modulate.a);
-    } else {
-        FragColor = v_color * modulate;
-    }
+    vec4 albedo = texture(myTextureSampler, v_texcoord);
+    FragColor = vec4(albedo.rgb * v_color.rgb * modulate.rgb, albedo.a * v_color.a * modulate.a);
 }

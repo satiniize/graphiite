@@ -11,7 +11,6 @@
 #include "clay_renderer.hpp"
 #include "config.hpp"
 #include "glm/glm.hpp"
-#include "glm/gtc/matrix_transform.hpp"
 #include "renderer.hpp"
 
 // Entities
@@ -32,7 +31,7 @@ Renderer renderer;
 Clay_ElementDeclaration sidebarItemConfig = (Clay_ElementDeclaration){
     .layout = {.sizing = {.width = CLAY_SIZING_GROW(0),
                           .height = CLAY_SIZING_FIXED(32)}},
-    .backgroundColor = {0, 255, 0, 64}};
+    .backgroundColor = {64, 64, 64, 255}};
 
 // Re-useable components are just normal functions
 void SidebarItemComponent() {
@@ -178,31 +177,21 @@ int main(int argc, char *argv[]) {
         physics_frame_count = 0;
         process_frame_count = 0;
       }
-
-      TransformComponent &amogus_transform = transform_components[amogus];
-
-      // Player specific code
-      // WASD Movement
-      float accel = 512.0f;
-      glm::vec2 move_dir = glm::vec2(0.0f, 0.0f);
-      if (keystate[SDL_SCANCODE_W]) {
-        move_dir.y -= 1.0f;
-      }
-      if (keystate[SDL_SCANCODE_A]) {
-        move_dir.x -= 1.0f;
-      }
-      if (keystate[SDL_SCANCODE_S]) {
-        move_dir.y += 1.0f;
-      }
-      if (keystate[SDL_SCANCODE_D]) {
-        move_dir.x += 1.0f;
-      }
-      velocity += move_dir * accel * physics_delta_time;
-      amogus_transform.position += velocity * physics_delta_time;
-
-      // Showcase rotation
-      amogus_transform.rotation += 32.0f * physics_delta_time;
     }
+    float cursor_x;
+    float cursor_y;
+
+    SDL_GetMouseState(&cursor_x, &cursor_y);
+
+    TransformComponent &cursorTransform = transform_components[amogus];
+    cursorTransform.position =
+        glm::vec2(cursor_x, cursor_y) / (float)viewport_scale;
+
+    Clay_Dimensions clay_dimensions = {
+        .width = (float)(renderer.width / viewport_scale),
+        .height = (float)(renderer.height / viewport_scale)};
+
+    Clay_SetLayoutDimensions(clay_dimensions);
     Clay_BeginLayout();
 
     Clay_LayoutConfig layoutElement = Clay_LayoutConfig{.padding = {5}};
@@ -213,16 +202,16 @@ int main(int argc, char *argv[]) {
                              .height = CLAY_SIZING_GROW(0)},
                   .padding = CLAY_PADDING_ALL(4),
               },
-          .backgroundColor = {255, 255, 255, 128}}) {
+          .backgroundColor = {24, 24, 24, 255}}) {
       CLAY({.id = CLAY_ID("Other"),
             .layout =
                 {
-                    .sizing = {.width = 256, .height = CLAY_SIZING_GROW(0)},
+                    .sizing = {.width = 128, .height = CLAY_SIZING_GROW(0)},
                     .padding = CLAY_PADDING_ALL(4),
                     .childGap = 4,
                     .layoutDirection = CLAY_TOP_TO_BOTTOM,
                 },
-            .backgroundColor = {255, 0, 0, 128}}) {
+            .backgroundColor = {48, 48, 48, 255}}) {
         for (int i = 0; i < 4; i++) {
           SidebarItemComponent();
         }
@@ -231,8 +220,8 @@ int main(int argc, char *argv[]) {
     Clay_RenderCommandArray render_commands = Clay_EndLayout();
 
     renderer.begin_frame();
-    SpriteSystem::draw_all(renderer);
     ClayRenderer::render_commands(renderer, render_commands);
+    SpriteSystem::draw_all(renderer);
     renderer.end_frame();
   }
   SDL_Log("Exiting...");

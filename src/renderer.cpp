@@ -223,55 +223,9 @@ bool Renderer::load_geometry(std::string path, const Vertex *vertices,
   return true;
 };
 
-bool Renderer::init() {
-  this->context = Context{};
-  this->context.title = "Software Renderer";
-
-  // SDL setup
-  if (SDL_Init(SDL_INIT_VIDEO) < 0) {
-    SDL_Log("Couldn't initialize SDL: %s", SDL_GetError());
-    return false;
-  }
-  SDL_Log("SDL video driver: %s", SDL_GetCurrentVideoDriver());
-
-  // Create GPU device
-  this->context.device =
-      SDL_CreateGPUDevice(SDL_GPU_SHADERFORMAT_SPIRV, true, NULL);
-  if (this->context.device == NULL) {
-    SDL_Log("GPUCreateDevice failed");
-    return false;
-  }
-
-  // Create window
-  SDL_WindowFlags flags = SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE;
-  this->context.window =
-      SDL_CreateWindow(this->context.title, WIDTH * viewport_scale,
-                       HEIGHT * viewport_scale, flags);
-  if (!this->context.window) {
-    SDL_Log("Couldn't create window: %s", SDL_GetError());
-    return false;
-  }
-
-  // Claim window and GPU device
-  if (!SDL_ClaimWindowForGPUDevice(this->context.device,
-                                   this->context.window)) {
-    SDL_Log("GPUClaimWindow failed");
-    return false;
-  }
-
-  // Disable V Sync for FPS testing
-  SDL_SetGPUSwapchainParameters(this->context.device, this->context.window,
-                                SDL_GPU_SWAPCHAINCOMPOSITION_SDR,
-                                SDL_GPU_PRESENTMODE_IMMEDIATE);
-
-  // Create shaders
-  // TODO: Make this easier, read the file and see how many is needed
-  SDL_GPUShader *vertex_shader = load_shader(
-      this->context.device, "src/shaders/basic.vert.spv", 0, 0, 0, 1);
-
-  SDL_GPUShader *fragment_shader = load_shader(
-      this->context.device, "src/shaders/basic.frag.spv", 1, 0, 0, 1);
-
+bool Renderer::create_graphics_pipeline(std::string path,
+                                        SDL_GPUShader *vertex_shader,
+                                        SDL_GPUShader *fragment_shader) {
   // Create the graphics pipeline
   SDL_GPUGraphicsPipelineCreateInfo pipeline_info{};
   pipeline_info.vertex_shader = vertex_shader;
@@ -352,7 +306,7 @@ bool Renderer::init() {
       color_target_descriptions;
   pipeline_info.target_info.num_color_targets = num_color_targets;
 
-  graphics_pipeline =
+  SDL_GPUGraphicsPipeline *graphics_pipeline =
       SDL_CreateGPUGraphicsPipeline(context.device, &pipeline_info);
 
   if (!graphics_pipeline) {
@@ -360,9 +314,70 @@ bool Renderer::init() {
     return false;
   }
 
+  graphics_pipelines[path] = graphics_pipeline;
+
+  return true;
+}
+
+bool Renderer::init() {
+  this->context = Context{};
+  this->context.title = "Software Renderer";
+
+  // SDL setup
+  if (SDL_Init(SDL_INIT_VIDEO) < 0) {
+    SDL_Log("Couldn't initialize SDL: %s", SDL_GetError());
+    return false;
+  }
+  SDL_Log("SDL video driver: %s", SDL_GetCurrentVideoDriver());
+
+  // Create GPU device
+  this->context.device =
+      SDL_CreateGPUDevice(SDL_GPU_SHADERFORMAT_SPIRV, true, NULL);
+  if (this->context.device == NULL) {
+    SDL_Log("GPUCreateDevice failed");
+    return false;
+  }
+
+  // Create window
+  SDL_WindowFlags flags = SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE;
+  this->context.window =
+      SDL_CreateWindow(this->context.title, WIDTH * viewport_scale,
+                       HEIGHT * viewport_scale, flags);
+  if (!this->context.window) {
+    SDL_Log("Couldn't create window: %s", SDL_GetError());
+    return false;
+  }
+
+  // Claim window and GPU device
+  if (!SDL_ClaimWindowForGPUDevice(this->context.device,
+                                   this->context.window)) {
+    SDL_Log("GPUClaimWindow failed");
+    return false;
+  }
+
+  // Disable V Sync for FPS testing
+  SDL_SetGPUSwapchainParameters(this->context.device, this->context.window,
+                                SDL_GPU_SWAPCHAINCOMPOSITION_SDR,
+                                SDL_GPU_PRESENTMODE_IMMEDIATE);
+
+  // Create shaders
+  // TODO: Make this easier, read the file and see how many is needed
+  SDL_GPUShader *vertex_shader = load_shader(
+      this->context.device, "src/shaders/basic.vert.spv", 0, 0, 0, 1);
+
+  SDL_GPUShader *sprite_fragment_shader = load_shader(
+      this->context.device, "src/shaders/sprite.frag.spv", 1, 0, 0, 1);
+
+  SDL_GPUShader *ui_rect_fragment_shader = load_shader(
+      this->context.device, "src/shaders/ui_rect.frag.spv", 0, 0, 0, 1);
+
+  create_graphics_pipeline("SPRITE", vertex_shader, sprite_fragment_shader);
+  create_graphics_pipeline("UI_RECT", vertex_shader, ui_rect_fragment_shader);
+
   // We don't need to store the shaders after creating the pipeline
   SDL_ReleaseGPUShader(context.device, vertex_shader);
-  SDL_ReleaseGPUShader(context.device, fragment_shader);
+  SDL_ReleaseGPUShader(context.device, sprite_fragment_shader);
+  SDL_ReleaseGPUShader(context.device, ui_rect_fragment_shader);
 
   // Create gpu sampler
   SDL_GPUSamplerCreateInfo sampler_info{};
@@ -405,7 +420,6 @@ bool Renderer::begin_frame() {
   }
 
   SDL_GPUTexture *swapchain_texture;
-  Uint32 width, height;
   SDL_WaitAndAcquireGPUSwapchainTexture(_command_buffer, context.window,
                                         &swapchain_texture, &width, &height);
 
@@ -437,7 +451,7 @@ bool Renderer::end_frame() {
 bool Renderer::draw_sprite(std::string path, glm::vec2 translation,
                            float rotation, glm::vec2 scale) {
   // Bind graphics pipeline
-  SDL_BindGPUGraphicsPipeline(_render_pass, graphics_pipeline);
+  SDL_BindGPUGraphicsPipeline(_render_pass, graphics_pipelines["SPRITE"]);
 
   // Bind vertex buffer
   SDL_GPUBufferBinding vertex_buffer_bindings[1];
@@ -456,6 +470,11 @@ bool Renderer::draw_sprite(std::string path, glm::vec2 translation,
 
   // Uniforms and samplers
   // TODO: conditional jump valgrind error?
+  if (gpu_textures.find(path) == gpu_textures.end()) {
+    SDL_Log("Sprite not loaded");
+    SDL_Quit();
+    return false;
+  }
   SDL_GPUTextureSamplerBinding fragment_sampler_bindings{};
   fragment_sampler_bindings.texture = gpu_textures[path];
   fragment_sampler_bindings.sampler = pixel_sampler;
@@ -466,11 +485,11 @@ bool Renderer::draw_sprite(std::string path, glm::vec2 translation,
   );
 
   // Calculate uniform values
-  fragment_uniform_buffer.time = SDL_GetTicksNS() / 1e9f;
-  fragment_uniform_buffer.use_texture = true;
-  fragment_uniform_buffer.modulate = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
-  SDL_PushGPUFragmentUniformData(_command_buffer, 0, &fragment_uniform_buffer,
-                                 sizeof(FragmentUniformBuffer));
+  sprite_fragment_uniform_buffer.time = SDL_GetTicksNS() / 1e9f;
+  sprite_fragment_uniform_buffer.modulate = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
+  SDL_PushGPUFragmentUniformData(_command_buffer, 0,
+                                 &sprite_fragment_uniform_buffer,
+                                 sizeof(SpriteFragmentUniformBuffer));
 
   glm::mat4 model_matrix = glm::mat4(1.0f);
   model_matrix = glm::translate(model_matrix, glm::vec3(translation, 0.0f));
@@ -501,7 +520,7 @@ bool Renderer::draw_sprite(std::string path, glm::vec2 translation,
 
 bool Renderer::draw_rect(glm::vec2 position, glm::vec2 size, glm::vec4 color) {
   // Bind graphics pipeline
-  SDL_BindGPUGraphicsPipeline(_render_pass, graphics_pipeline);
+  SDL_BindGPUGraphicsPipeline(_render_pass, graphics_pipelines["UI_RECT"]);
 
   // Bind vertex buffer
   SDL_GPUBufferBinding vertex_buffer_bindings[1];
@@ -530,11 +549,11 @@ bool Renderer::draw_rect(glm::vec2 position, glm::vec2 size, glm::vec4 color) {
   // );
 
   // Calculate uniform values
-  fragment_uniform_buffer.time = SDL_GetTicksNS() / 1e9f;
-  fragment_uniform_buffer.use_texture = false;
-  fragment_uniform_buffer.modulate = color;
-  SDL_PushGPUFragmentUniformData(_command_buffer, 0, &fragment_uniform_buffer,
-                                 sizeof(FragmentUniformBuffer));
+  ui_rect_fragment_uniform_buffer.time = SDL_GetTicksNS() / 1e9f;
+  ui_rect_fragment_uniform_buffer.modulate = color;
+  SDL_PushGPUFragmentUniformData(_command_buffer, 0,
+                                 &ui_rect_fragment_uniform_buffer,
+                                 sizeof(UIRectFragmentUniformBuffer));
 
   glm::mat4 model_matrix = glm::mat4(1.0f);
   model_matrix = glm::translate(model_matrix,
@@ -562,7 +581,10 @@ bool Renderer::draw_rect(glm::vec2 position, glm::vec2 size, glm::vec4 color) {
 };
 
 bool Renderer::cleanup() {
-  SDL_ReleaseGPUGraphicsPipeline(context.device, graphics_pipeline);
+  // SDL_ReleaseGPUGraphicsPipeline(context.device, graphics_pipeline);
+  for (auto &[path, graphics_pipeline] : graphics_pipelines) {
+    SDL_ReleaseGPUGraphicsPipeline(context.device, graphics_pipeline);
+  }
 
   for (auto &[path, texture] : gpu_textures) {
     SDL_ReleaseGPUTexture(context.device, texture);
