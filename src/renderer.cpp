@@ -499,12 +499,9 @@ bool Renderer::draw_sprite(std::string path, glm::vec2 translation,
 
   glm::mat4 view_matrix = glm::mat4(1.0f);
 
-  int new_width,
-      new_height; // TODO: Kinda redundant, might make this a private variable
-  SDL_GetWindowSizeInPixels(context.window, &new_width, &new_height);
   glm::mat4 projection_matrix =
-      glm::ortho(0.0f, (float)new_width / viewport_scale,
-                 (float)new_height / viewport_scale, 0.0f);
+      glm::ortho(0.0f, (float)this->width / viewport_scale,
+                 (float)this->height / viewport_scale, 0.0f);
 
   vertex_uniform_buffer.mvp_matrix =
       projection_matrix * view_matrix * model_matrix;
@@ -562,12 +559,10 @@ bool Renderer::draw_rect(glm::vec2 position, glm::vec2 size, glm::vec4 color) {
                                           0.0f));
   model_matrix = glm::scale(model_matrix, glm::vec3(size, 1.0f));
 
-  int new_width,
-      new_height; // TODO: Kinda redundant, might make this a private variable
-  SDL_GetWindowSizeInPixels(context.window, &new_width, &new_height);
+  // SDL_GetWindowSizeInPixels(context.window, &new_width, &new_height);
   glm::mat4 projection_matrix =
-      glm::ortho(0.0f, (float)new_width / viewport_scale,
-                 (float)new_height / viewport_scale, 0.0f);
+      glm::ortho(0.0f, (float)this->width / viewport_scale,
+                 (float)this->height / viewport_scale, 0.0f);
 
   vertex_uniform_buffer.mvp_matrix = projection_matrix * model_matrix;
 
