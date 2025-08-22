@@ -41,11 +41,28 @@ struct UIRectFragmentUniformBuffer {
 
 static UIRectFragmentUniformBuffer ui_rect_fragment_uniform_buffer{};
 
-struct VertexUniformBuffer {
+struct BasicVertexUniformBuffer {
   glm::mat4 mvp_matrix;
 };
 
-static VertexUniformBuffer vertex_uniform_buffer{};
+static BasicVertexUniformBuffer basic_vertex_uniform_buffer{};
+
+struct TextVertexUniformBuffer {
+  glm::mat4 mvp_matrix;
+  float time;
+  float offset;
+  float padding;
+  float padding2;
+};
+
+static TextVertexUniformBuffer text_vertex_uniform_buffer{};
+
+struct TextFragmentUniformBuffer {
+  glm::vec4 modulate;
+  glm::vec4 uv_rect;
+};
+
+static TextFragmentUniformBuffer text_fragment_uniform_buffer{};
 
 // TODO: Interpolate proj matrix for smoother resizing
 class Renderer {
@@ -68,6 +85,7 @@ public:
   bool draw_sprite(std::string path, glm::vec2 translation, float rotation,
                    glm::vec2 scale);
   bool draw_rect(glm::vec2 position, glm::vec2 size, glm::vec4 color);
+  bool draw_text(const char *text, glm::vec2 position);
   bool cleanup();
 
 private:

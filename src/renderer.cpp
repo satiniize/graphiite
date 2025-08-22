@@ -356,22 +356,35 @@ bool Renderer::init() {
 
   // Create shaders
   // TODO: Make this easier, read the file and see how many is needed
+  // Basic vertex shader
   SDL_GPUShader *vertex_shader = load_shader(
       this->context.device, "src/shaders/basic.vert.spv", 0, 0, 0, 1);
 
+  // Sprite fragment shader
   SDL_GPUShader *sprite_fragment_shader = load_shader(
       this->context.device, "src/shaders/sprite.frag.spv", 1, 0, 0, 1);
 
+  // UI rectangle fragment shader
   SDL_GPUShader *ui_rect_fragment_shader = load_shader(
       this->context.device, "src/shaders/ui_rect.frag.spv", 0, 0, 0, 1);
 
+  // Text fragment shader
+  SDL_GPUShader *text_fragment_shader = load_shader(
+      this->context.device, "src/shaders/text.frag.spv", 1, 0, 0, 1);
+
+  // Text vertex shader
+  SDL_GPUShader *text_vertex_shader = load_shader(
+      this->context.device, "src/shaders/text.vert.spv", 0, 0, 0, 1);
+
   create_graphics_pipeline("SPRITE", vertex_shader, sprite_fragment_shader);
   create_graphics_pipeline("UI_RECT", vertex_shader, ui_rect_fragment_shader);
+  create_graphics_pipeline("TEXT", text_vertex_shader, text_fragment_shader);
 
   // We don't need to store the shaders after creating the pipeline
   SDL_ReleaseGPUShader(context.device, vertex_shader);
   SDL_ReleaseGPUShader(context.device, sprite_fragment_shader);
   SDL_ReleaseGPUShader(context.device, ui_rect_fragment_shader);
+  SDL_ReleaseGPUShader(context.device, text_fragment_shader);
 
   // Create gpu sampler
   SDL_GPUSamplerCreateInfo sampler_info{};
@@ -497,11 +510,11 @@ bool Renderer::draw_sprite(std::string path, glm::vec2 translation,
       glm::ortho(0.0f, (float)this->width / viewport_scale,
                  (float)this->height / viewport_scale, 0.0f);
 
-  vertex_uniform_buffer.mvp_matrix =
+  basic_vertex_uniform_buffer.mvp_matrix =
       projection_matrix * view_matrix * model_matrix;
 
-  SDL_PushGPUVertexUniformData(_command_buffer, 0, &vertex_uniform_buffer,
-                               sizeof(VertexUniformBuffer));
+  SDL_PushGPUVertexUniformData(_command_buffer, 0, &basic_vertex_uniform_buffer,
+                               sizeof(BasicVertexUniformBuffer));
 
   SDL_DrawGPUIndexedPrimitives(_render_pass, 6, 1, 0, 0,
                                0); // TODO: Determine index count
@@ -558,16 +571,94 @@ bool Renderer::draw_rect(glm::vec2 position, glm::vec2 size, glm::vec4 color) {
       glm::ortho(0.0f, (float)this->width / viewport_scale,
                  (float)this->height / viewport_scale, 0.0f);
 
-  vertex_uniform_buffer.mvp_matrix = projection_matrix * model_matrix;
+  basic_vertex_uniform_buffer.mvp_matrix = projection_matrix * model_matrix;
 
-  SDL_PushGPUVertexUniformData(_command_buffer, 0, &vertex_uniform_buffer,
-                               sizeof(VertexUniformBuffer));
+  SDL_PushGPUVertexUniformData(_command_buffer, 0, &basic_vertex_uniform_buffer,
+                               sizeof(BasicVertexUniformBuffer));
 
   SDL_DrawGPUIndexedPrimitives(_render_pass, 6, 1, 0, 0,
                                0); // TODO: Determine index count
 
   return true;
 };
+
+bool Renderer::draw_text(const char *text, glm::vec2 position) {
+  // Bind graphics pipeline
+  SDL_BindGPUGraphicsPipeline(_render_pass, graphics_pipelines["TEXT"]);
+
+  // Bind vertex buffer
+  SDL_GPUBufferBinding vertex_buffer_bindings[1];
+  vertex_buffer_bindings[0].buffer = vertex_buffers["QUAD"];
+  vertex_buffer_bindings[0].offset = 0;
+
+  SDL_BindGPUVertexBuffers(_render_pass, 0, vertex_buffer_bindings, 1);
+
+  // Bind index buffer
+  SDL_GPUBufferBinding index_buffer_bindings[1];
+  index_buffer_bindings[0].buffer = index_buffers["QUAD"];
+  index_buffer_bindings[0].offset = 0;
+
+  SDL_BindGPUIndexBuffer(_render_pass, index_buffer_bindings,
+                         SDL_GPU_INDEXELEMENTSIZE_16BIT);
+
+  // Uniforms and samplers
+  // TODO: conditional jump valgrind error?
+  if (gpu_textures.find("FONT_GLYPH") == gpu_textures.end()) {
+    SDL_Log("Sprite not loaded");
+    SDL_Quit();
+    return false;
+  }
+  SDL_GPUTextureSamplerBinding fragment_sampler_bindings{};
+  fragment_sampler_bindings.texture = gpu_textures["FONT_GLYPH"];
+  fragment_sampler_bindings.sampler = pixel_sampler;
+  SDL_BindGPUFragmentSamplers(_render_pass,
+                              0, // The binding point for the sampler
+                              &fragment_sampler_bindings,
+                              1 // Number of textures/samplers to bind
+  );
+
+  glm::vec2 font_size = glm::vec2(4.0f, 8.0f);
+  for (size_t i = 0; i < strlen(text); i++) {
+    if ((text[i] - 33) == -1) {
+      continue;
+    }
+    // Calculate uniform values
+    text_fragment_uniform_buffer.modulate = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
+    float x = static_cast<float>((text[i] - 33) % 10) / 10.0f;
+    float y = static_cast<float>((text[i] - 33) / 10) / 10.0f;
+    text_fragment_uniform_buffer.uv_rect = glm::vec4(x, y, x + 0.1f, y + 0.1f);
+    SDL_PushGPUFragmentUniformData(_command_buffer, 0,
+                                   &text_fragment_uniform_buffer,
+                                   sizeof(TextFragmentUniformBuffer));
+
+    glm::mat4 model_matrix = glm::mat4(1.0f);
+    model_matrix =
+        glm::translate(model_matrix, glm::vec3(position.x + (i * font_size.x),
+                                               position.y, 0.0f));
+    model_matrix = glm::scale(
+        model_matrix, glm::vec3(font_size * glm::vec2(1.0f, -1.0f), 1.0f));
+
+    glm::mat4 view_matrix = glm::mat4(1.0f);
+
+    glm::mat4 projection_matrix =
+        glm::ortho(0.0f, (float)this->width / viewport_scale,
+                   (float)this->height / viewport_scale, 0.0f);
+
+    text_vertex_uniform_buffer.mvp_matrix =
+        projection_matrix * view_matrix * model_matrix;
+    text_vertex_uniform_buffer.time = SDL_GetTicksNS() / 1e9f;
+    text_vertex_uniform_buffer.offset = static_cast<float>(i);
+
+    SDL_PushGPUVertexUniformData(_command_buffer, 0,
+                                 &text_vertex_uniform_buffer,
+                                 sizeof(TextVertexUniformBuffer));
+
+    SDL_DrawGPUIndexedPrimitives(_render_pass, 6, 1, 0, 0,
+                                 0); // TODO: Determine index count
+  }
+
+  return true;
+}
 
 bool Renderer::cleanup() {
   // SDL_ReleaseGPUGraphicsPipeline(context.device, graphics_pipeline);

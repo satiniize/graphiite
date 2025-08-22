@@ -176,7 +176,7 @@ int main(int argc, char *argv[]) {
     SDL_Quit();
   }
 
-  TTF_Font *font = TTF_OpenFont("./res/IBMPlexMono-Regular.ttf", 256);
+  TTF_Font *font = TTF_OpenFont("res/SourceCodePro-Regular.ttf", 256);
   if (!font) {
     SDL_Log("Failed to load font");
     SDL_Quit();
@@ -195,9 +195,10 @@ int main(int argc, char *argv[]) {
   for (int i = 33; i <= 126; i++) {
     int x = (i - 33) % 10;
     int y = (i - 33) / 10;
-    SDL_Rect bg = {x * test_advance, y * height, test_advance, height};
-    SDL_FillSurfaceRect(ascii_glyph_atlas, &bg,
-                        (x + y) % 2 == 0 ? 0xFF0000FF : 0xFFFF0000);
+    // Draw test BG
+    // SDL_Rect bg = {x * test_advance, y * height, test_advance, height};
+    // SDL_FillSurfaceRect(ascii_glyph_atlas, &bg,
+    //                     (x + y) % 2 == 0 ? 0xFF0000FF : 0xFFFF0000);
     SDL_Surface *glyph = TTF_GetGlyphImage(font, i, &glyph_image_type);
     int minx, maxx, miny, maxy, advance;
     TTF_GetGlyphMetrics(font, i, &minx, &maxx, &miny, &maxy, &advance);
@@ -303,9 +304,12 @@ int main(int argc, char *argv[]) {
 
     ClayRenderer::render_commands(renderer, render_commands);
     SpriteSystem::draw_all(renderer);
-    renderer.draw_sprite("FONT_GLYPH",
-                         glm::vec2(test_advance / 2.0, height / 2.0), 0.0,
-                         glm::vec2(test_advance, -height));
+    // renderer.draw_sprite("FONT_GLYPH",
+    //                      glm::vec2(test_advance / 2.0, height / 2.0), 0.0,
+    //                      glm::vec2(test_advance, -height));
+    renderer.draw_text(
+        "This is a really long ASCII string. I can't believe this works!",
+        glm::vec2(32.0f, 32.0f));
     renderer.end_frame();
   }
   SDL_Log("Exiting...");
