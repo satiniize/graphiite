@@ -206,6 +206,7 @@ int main(int argc, char *argv[]) {
     cursorTransform.position =
         glm::vec2(cursor_x, cursor_y) / (float)viewport_scale;
 
+    renderer.begin_frame();
     Clay_Dimensions clay_dimensions = {
         .width = (float)(renderer.width / viewport_scale),
         .height = (float)(renderer.height / viewport_scale)};
@@ -255,7 +256,6 @@ int main(int argc, char *argv[]) {
     }
     Clay_RenderCommandArray render_commands = Clay_EndLayout();
 
-    renderer.begin_frame();
     ClayRenderer::render_commands(renderer, render_commands);
     SpriteSystem::draw_all(renderer);
     renderer.end_frame();
