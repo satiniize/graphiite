@@ -55,7 +55,7 @@ public:
 
   Renderer();
   ~Renderer();
-  bool load_texture(std::string path);
+  bool load_texture(std::string path, SDL_Surface *image_data);
   bool load_geometry(std::string path, const Vertex *vertices,
                      size_t vertex_size, const Uint16 *indices,
                      size_t index_size);

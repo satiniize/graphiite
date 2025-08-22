@@ -50,13 +50,7 @@ Renderer::Renderer() {}
 
 Renderer::~Renderer() {}
 
-bool Renderer::load_texture(std::string path) {
-  SDL_Surface *image_data = IMG_Load(path.c_str());
-  if (image_data == NULL) {
-    SDL_Log("Failed to load image! %s", path.c_str());
-    return false;
-  }
-
+bool Renderer::load_texture(std::string path, SDL_Surface *image_data) {
   // Apparently its read backwards so ABGR(CPU) -> RGBA(GPU)
   if (image_data->format != SDL_PIXELFORMAT_ABGR8888) {
     SDL_Surface *converted =

@@ -8,6 +8,7 @@
 #define CLAY_IMPLEMENTATION
 #include "clay.h"
 
+#include "SDL3_ttf/SDL_ttf.h"
 #include "clay_renderer.hpp"
 #include "config.hpp"
 #include "glm/glm.hpp"
@@ -84,7 +85,13 @@ bool init() {
     auto it = std::find(loaded_sprite_paths.begin(), loaded_sprite_paths.end(),
                         sprite_component.path);
     if (it == loaded_sprite_paths.end()) {
-      renderer.load_texture(sprite_component.path);
+      SDL_Surface *image_data = IMG_Load(sprite_component.path.c_str());
+      if (image_data == NULL) {
+        SDL_Log("Failed to load image! %s", sprite_component.path.c_str());
+        return false;
+      }
+      renderer.load_texture(sprite_component.path, image_data);
+      SDL_DestroySurface(image_data);
       loaded_sprite_paths.push_back(sprite_component.path);
     }
     // else {
@@ -163,6 +170,44 @@ int main(int argc, char *argv[]) {
       clay_memory, clay_dimensions, (Clay_ErrorHandler){handle_clay_errors});
   shut_up_data[1] = 1;
   Clay_SetMeasureTextFunction(MeasureText, (void *)shut_up_data);
+
+  if (!TTF_Init()) {
+    SDL_Log("Failed to initialize TTF");
+    SDL_Quit();
+  }
+
+  TTF_Font *font = TTF_OpenFont("./res/IBMPlexMono-Regular.ttf", 256);
+  if (!font) {
+    SDL_Log("Failed to load font");
+    SDL_Quit();
+  }
+
+  TTF_ImageType glyph_image_type;
+  SDL_Surface *test_glyph = TTF_GetGlyphImage(font, 34, &glyph_image_type);
+  int test_minx, test_maxx, test_miny, test_maxy, test_advance;
+  TTF_GetGlyphMetrics(font, 64, &test_minx, &test_maxx, &test_miny, &test_maxy,
+                      &test_advance);
+  int height = TTF_GetFontHeight(font);
+  SDL_Surface *ascii_glyph_atlas =
+      SDL_CreateSurface(test_advance * 10, height * 10, test_glyph->format);
+  SDL_DestroySurface(test_glyph);
+  std::cout << TTF_GetFontDescent(font) << std::endl;
+  for (int i = 33; i <= 126; i++) {
+    int x = (i - 33) % 10;
+    int y = (i - 33) / 10;
+    SDL_Rect bg = {x * test_advance, y * height, test_advance, height};
+    SDL_FillSurfaceRect(ascii_glyph_atlas, &bg,
+                        (x + y) % 2 == 0 ? 0xFF0000FF : 0xFFFF0000);
+    SDL_Surface *glyph = TTF_GetGlyphImage(font, i, &glyph_image_type);
+    int minx, maxx, miny, maxy, advance;
+    TTF_GetGlyphMetrics(font, i, &minx, &maxx, &miny, &maxy, &advance);
+    SDL_Rect dest = {x * test_advance + minx,
+                     (y + 1) * height - maxy + TTF_GetFontDescent(font), 0, 0};
+    SDL_BlitSurface(glyph, NULL, ascii_glyph_atlas, &dest);
+    SDL_DestroySurface(glyph);
+  }
+
+  renderer.load_texture("FONT_GLYPH", ascii_glyph_atlas);
 
   while (running) {
     uint32_t frame_tick = SDL_GetTicks();
@@ -258,6 +303,9 @@ int main(int argc, char *argv[]) {
 
     ClayRenderer::render_commands(renderer, render_commands);
     SpriteSystem::draw_all(renderer);
+    renderer.draw_sprite("FONT_GLYPH",
+                         glm::vec2(test_advance / 2.0, height / 2.0), 0.0,
+                         glm::vec2(test_advance, -height));
     renderer.end_frame();
   }
   SDL_Log("Exiting...");
