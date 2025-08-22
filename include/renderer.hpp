@@ -103,4 +103,6 @@ private:
 
   SDL_GPURenderPass *_render_pass;
   SDL_GPUCommandBuffer *_command_buffer;
+
+  glm::mat4 projection_matrix;
 };

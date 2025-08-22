@@ -444,6 +444,10 @@ bool Renderer::begin_frame() {
     return false;
   }
 
+  this->projection_matrix =
+      glm::ortho(0.0f, (float)this->width / viewport_scale, 0.0f,
+                 (float)this->height / viewport_scale);
+
   return true;
 }
 
@@ -499,19 +503,24 @@ bool Renderer::draw_sprite(std::string path, glm::vec2 translation,
                                  sizeof(SpriteFragmentUniformBuffer));
 
   glm::mat4 model_matrix = glm::mat4(1.0f);
-  model_matrix = glm::translate(model_matrix, glm::vec3(translation, 0.0f));
+  model_matrix = glm::translate(
+      model_matrix, glm::vec3(translation.x,
+                              static_cast<float>(this->height) /
+                                      static_cast<float>(viewport_scale) -
+                                  translation.y,
+                              0.0f));
   model_matrix = glm::rotate(model_matrix, glm::radians(rotation),
                              glm::vec3(0.0f, 0.0f, 1.0f));
   model_matrix = glm::scale(model_matrix, glm::vec3(scale, 1.0f));
 
   glm::mat4 view_matrix = glm::mat4(1.0f);
 
-  glm::mat4 projection_matrix =
-      glm::ortho(0.0f, (float)this->width / viewport_scale,
-                 (float)this->height / viewport_scale, 0.0f);
+  // glm::mat4 projection_matrix =
+  //     glm::ortho(0.0f, (float)this->width / viewport_scale,
+  //                (float)this->height / viewport_scale, 0.0f);
 
   basic_vertex_uniform_buffer.mvp_matrix =
-      projection_matrix * view_matrix * model_matrix;
+      this->projection_matrix * view_matrix * model_matrix;
 
   SDL_PushGPUVertexUniformData(_command_buffer, 0, &basic_vertex_uniform_buffer,
                                sizeof(BasicVertexUniformBuffer));
@@ -560,18 +569,23 @@ bool Renderer::draw_rect(glm::vec2 position, glm::vec2 size, glm::vec4 color) {
                                  sizeof(UIRectFragmentUniformBuffer));
 
   glm::mat4 model_matrix = glm::mat4(1.0f);
-  model_matrix = glm::translate(model_matrix,
-                                glm::vec3(glm::vec2(position.x + size.x / 2.0f,
-                                                    position.y + size.y / 2.0f),
-                                          0.0f));
+
+  model_matrix = glm::translate(
+      model_matrix,
+      glm::vec3(glm::vec2(position.x + size.x / 2.0f,
+                          static_cast<float>(this->height) /
+                                  static_cast<float>(viewport_scale) -
+                              (position.y + size.y / 2.0f)),
+                0.0f));
   model_matrix = glm::scale(model_matrix, glm::vec3(size, 1.0f));
 
   // SDL_GetWindowSizeInPixels(context.window, &new_width, &new_height);
-  glm::mat4 projection_matrix =
-      glm::ortho(0.0f, (float)this->width / viewport_scale,
-                 (float)this->height / viewport_scale, 0.0f);
+  // glm::mat4 projection_matrix =
+  //     glm::ortho(0.0f, (float)this->width / viewport_scale,
+  //                (float)this->height / viewport_scale, 0.0f);
 
-  basic_vertex_uniform_buffer.mvp_matrix = projection_matrix * model_matrix;
+  basic_vertex_uniform_buffer.mvp_matrix =
+      this->projection_matrix * model_matrix;
 
   SDL_PushGPUVertexUniformData(_command_buffer, 0, &basic_vertex_uniform_buffer,
                                sizeof(BasicVertexUniformBuffer));
@@ -632,20 +646,18 @@ bool Renderer::draw_text(const char *text, glm::vec2 position) {
                                    sizeof(TextFragmentUniformBuffer));
 
     glm::mat4 model_matrix = glm::mat4(1.0f);
-    model_matrix =
-        glm::translate(model_matrix, glm::vec3(position.x + (i * font_size.x),
-                                               position.y, 0.0f));
-    model_matrix = glm::scale(
-        model_matrix, glm::vec3(font_size * glm::vec2(1.0f, -1.0f), 1.0f));
+    model_matrix = glm::translate(
+        model_matrix, glm::vec3(position.x + (i * font_size.x),
+                                static_cast<float>(this->height) /
+                                        static_cast<float>(viewport_scale) -
+                                    position.y,
+                                0.0f));
+    model_matrix = glm::scale(model_matrix, glm::vec3(font_size, 1.0f));
 
     glm::mat4 view_matrix = glm::mat4(1.0f);
 
-    glm::mat4 projection_matrix =
-        glm::ortho(0.0f, (float)this->width / viewport_scale,
-                   (float)this->height / viewport_scale, 0.0f);
-
     text_vertex_uniform_buffer.mvp_matrix =
-        projection_matrix * view_matrix * model_matrix;
+        this->projection_matrix * view_matrix * model_matrix;
     text_vertex_uniform_buffer.time = SDL_GetTicksNS() / 1e9f;
     text_vertex_uniform_buffer.offset = static_cast<float>(i);
 
