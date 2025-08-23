@@ -35,7 +35,8 @@ static SpriteFragmentUniformBuffer sprite_fragment_uniform_buffer{};
 
 struct UIRectFragmentUniformBuffer {
   glm::vec4 modulate;
-  float time;
+  glm::vec4 corner_radii;
+  glm::vec4 size;
 };
 
 static UIRectFragmentUniformBuffer ui_rect_fragment_uniform_buffer{};
@@ -83,7 +84,8 @@ public:
   // Drawing functions
   bool draw_sprite(std::string path, glm::vec2 translation, float rotation,
                    glm::vec2 scale);
-  bool draw_rect(glm::vec2 position, glm::vec2 size, glm::vec4 color);
+  bool draw_rect(glm::vec2 position, glm::vec2 size, glm::vec4 color,
+                 glm::vec4 corner_radius);
   bool draw_text(const char *text, float point_size, glm::vec2 position);
   bool cleanup();
   glm::vec2 glyph_size;

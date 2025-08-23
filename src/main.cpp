@@ -234,25 +234,33 @@ int main(int argc, char *argv[]) {
             .layout = {
                 .sizing = {.width = CLAY_SIZING_GROW(0),
                            .height = CLAY_SIZING_GROW(0)},
-                .padding = CLAY_PADDING_ALL(2),
-                .childGap = 2,
+                .padding = CLAY_PADDING_ALL(8),
+                .childGap = 8,
                 .layoutDirection = CLAY_TOP_TO_BOTTOM,
             }}) {
         for (int i = 0; i < 4; i++) {
           CLAY({.layout = {
                     .sizing = {.width = CLAY_SIZING_GROW(0),
                                .height = CLAY_SIZING_GROW(0)},
-                    .childGap = 2,
+                    .childGap = 8,
                     .layoutDirection = CLAY_LEFT_TO_RIGHT,
                 }}) {
             for (int i = 0; i < 4; i++) {
-              CLAY({.layout =
-                        {
-                            .sizing = {.width = CLAY_SIZING_GROW(0),
-                                       .height = CLAY_SIZING_GROW(0)},
-                        },
-                    .backgroundColor =
-                        Clay_Hovered() ? COLOR_FG2 : COLOR_FG1}) {}
+              CLAY({
+                  .layout =
+                      {
+                          .sizing = {.width = CLAY_SIZING_GROW(0),
+                                     .height = CLAY_SIZING_GROW(0)},
+                      },
+                  .backgroundColor = Clay_Hovered() ? COLOR_FG2 : COLOR_FG1,
+                  .cornerRadius =
+                      {
+                          .topLeft = 32,
+                          .topRight = 32,
+                          .bottomLeft = 32,
+                          .bottomRight = 32,
+                      },
+              }) {}
             }
           }
         }

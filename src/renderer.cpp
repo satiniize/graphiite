@@ -577,7 +577,8 @@ bool Renderer::draw_sprite(std::string path, glm::vec2 translation,
   return true;
 }
 
-bool Renderer::draw_rect(glm::vec2 position, glm::vec2 size, glm::vec4 color) {
+bool Renderer::draw_rect(glm::vec2 position, glm::vec2 size, glm::vec4 color,
+                         glm::vec4 corner_radius) {
   // Bind graphics pipeline
   SDL_BindGPUGraphicsPipeline(_render_pass, graphics_pipelines["UI_RECT"]);
 
@@ -608,8 +609,10 @@ bool Renderer::draw_rect(glm::vec2 position, glm::vec2 size, glm::vec4 color) {
   // );
 
   // Calculate uniform values
-  ui_rect_fragment_uniform_buffer.time = SDL_GetTicksNS() / 1e9f;
+  // ui_rect_fragment_uniform_buffer.time = SDL_GetTicksNS() / 1e9f;
   ui_rect_fragment_uniform_buffer.modulate = color;
+  ui_rect_fragment_uniform_buffer.corner_radii = glm::vec4(corner_radius);
+  ui_rect_fragment_uniform_buffer.size = glm::vec4(size.x, size.y, 0.0f, 0.0f);
   SDL_PushGPUFragmentUniformData(_command_buffer, 0,
                                  &ui_rect_fragment_uniform_buffer,
                                  sizeof(UIRectFragmentUniformBuffer));

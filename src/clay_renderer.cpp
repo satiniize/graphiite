@@ -291,11 +291,11 @@ void render_commands(Renderer &renderer,
                       (float)config->backgroundColor.g / 255.0f,
                       (float)config->backgroundColor.b / 255.0f,
                       (float)config->backgroundColor.a / 255.0f);
-      if (config->cornerRadius.topLeft > 0) {
-      } else {
-        renderer.draw_rect(glm::vec2(rect.x, rect.y), glm::vec2(rect.w, rect.h),
-                           color);
-      }
+      glm::vec4 corner_radii(
+          config->cornerRadius.topLeft, config->cornerRadius.topRight,
+          config->cornerRadius.bottomLeft, config->cornerRadius.bottomRight);
+      renderer.draw_rect(glm::vec2(rect.x, rect.y), glm::vec2(rect.w, rect.h),
+                         color, corner_radii);
     } break;
     case CLAY_RENDER_COMMAND_TYPE_TEXT: {
       Clay_TextRenderData *config = &renderCommand->renderData.text;
