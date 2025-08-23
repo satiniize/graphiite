@@ -6,7 +6,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # set the output directory for built objects.
-# This makes sure that the dynamic library goes into the build directory automatically.
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/$<CONFIGURATION>")
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/$<CONFIGURATION>")
 
@@ -36,6 +35,10 @@ target_include_directories(software-renderer PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}
 target_link_libraries(software-renderer PRIVATE SDL3::SDL3)
 # Link to SDL_image
 target_link_libraries(software-renderer PRIVATE SDL3_image::SDL3_image)
+
+target_link_libraries(software-renderer PRIVATE glm::glm)
+
+target_link_libraries(software-renderer PRIVATE SDL3_ttf::SDL3_ttf)
 
 target_link_libraries(software-renderer PRIVATE glm::glm)
 

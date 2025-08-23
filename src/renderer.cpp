@@ -225,7 +225,7 @@ bool Renderer::create_graphics_pipeline(std::string path,
   pipeline_info.vertex_shader = vertex_shader;
   pipeline_info.fragment_shader = fragment_shader;
   // Vertex input state
-  u_int32_t num_vertex_buffers = 1;
+  static const u_int32_t num_vertex_buffers = 1;
 
   SDL_GPUVertexBufferDescription
       vertex_buffer_descriptions[num_vertex_buffers] = {};
@@ -236,11 +236,10 @@ bool Renderer::create_graphics_pipeline(std::string path,
 
   pipeline_info.vertex_input_state.vertex_buffer_descriptions =
       vertex_buffer_descriptions;
-
   pipeline_info.vertex_input_state.num_vertex_buffers = num_vertex_buffers;
 
   // Vertex attributes
-  uint32_t vertex_attributes_count = 3;
+  static const uint32_t vertex_attributes_count = 3;
 
   SDL_GPUVertexAttribute vertex_attributes[vertex_attributes_count] = {};
 
@@ -278,7 +277,7 @@ bool Renderer::create_graphics_pipeline(std::string path,
 
   // pipeline_info.multisample_state = multisample_state;
 
-  u_int32_t num_color_targets = 1;
+  static const u_int32_t num_color_targets = 1;
 
   SDL_GPUColorTargetDescription color_target_descriptions[num_color_targets];
   color_target_descriptions[0] = {};
@@ -318,7 +317,7 @@ bool Renderer::init() {
   this->context.title = "Software Renderer";
 
   // SDL setup
-  if (SDL_Init(SDL_INIT_VIDEO) < 0) {
+  if (!SDL_Init(SDL_INIT_VIDEO)) {
     SDL_Log("Couldn't initialize SDL: %s", SDL_GetError());
     return false;
   }
