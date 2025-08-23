@@ -26,39 +26,129 @@
 #include "transform_component.hpp"
 
 const Clay_Color COLOR_BG = {12, 8, 12, 255};
-const Clay_Color COLOR_FG1 = {28, 18, 28, 255};
-const Clay_Color COLOR_FG2 = {36, 28, 36, 255};
-const Clay_Color COLOR_BUTTON_NORMAL = COLOR_FG1;
-const Clay_Color COLOR_BUTTON_HOVER = COLOR_FG2;
+const Clay_Color COLOR_FG1 = {24, 16, 24, 255};
+const Clay_Color COLOR_FG2 = {32, 22, 32, 255};
+const Clay_Color COLOR_FG3 = {40, 28, 40, 255};
+const Clay_Color COLOR_BUTTON_NORMAL = COLOR_FG2;
+const Clay_Color COLOR_BUTTON_HOVER = COLOR_FG3;
 
 uint16_t shut_up_data[1];
 
 Renderer renderer;
 
-void MenuBarButton(Clay_String label) {
-  CLAY({.layout =
-            {
-                .sizing = {.width = CLAY_SIZING_FIT(16, 64),
-                           .height = CLAY_SIZING_FIT(16, 64)},
-                .padding =
-                    {
-                        .left = 8,
-                        .right = 8,
-                        .top = 4,
-                        .bottom = 4,
-                    },
-                .childAlignment =
-                    {
-                        .x = CLAY_ALIGN_X_CENTER,
-                        .y = CLAY_ALIGN_Y_CENTER,
-                    },
-            },
-        .backgroundColor =
-            Clay_Hovered() ? COLOR_BUTTON_HOVER : COLOR_BUTTON_NORMAL}) {
+void DropDownMenuSeperator() {
+  CLAY({
+      .layout =
+          {
+              .sizing =
+                  {
+                      .width = CLAY_SIZING_GROW(0),
+                      .height = CLAY_SIZING_FIXED(1),
+                  },
+          },
+      .backgroundColor = COLOR_BG,
+  }) {}
+}
+
+void DropDownMenuButton(Clay_String label) {
+  CLAY({
+      .layout =
+          {
+              .sizing =
+                  {
+                      .width = CLAY_SIZING_GROW(0),
+                      .height = CLAY_SIZING_FIT(0),
+                  },
+              .padding =
+                  {
+                      .left = 8,
+                      .right = 8,
+                      .top = 4,
+                      .bottom = 4,
+                  },
+              .childAlignment =
+                  {
+                      .x = CLAY_ALIGN_X_LEFT,
+                      .y = CLAY_ALIGN_Y_CENTER,
+                  },
+          },
+      .backgroundColor = Clay_Hovered() ? COLOR_FG2 : COLOR_FG1,
+  }) {
     CLAY_TEXT(label, CLAY_TEXT_CONFIG({
                          .textColor = {255, 255, 255, 255},
                          .fontSize = 12,
                      }));
+  }
+}
+
+void MenuBarButton(Clay_String label) {
+  CLAY({
+      .id = CLAY_SIDI(label, 0),
+      .layout =
+          {
+              .sizing = {.width = CLAY_SIZING_FIT(0),
+                         .height = CLAY_SIZING_FIT(0)},
+              .padding =
+                  {
+                      .left = 8,
+                      .right = 8,
+                      .top = 4,
+                      .bottom = 4,
+                  },
+              .childAlignment =
+                  {
+                      .x = CLAY_ALIGN_X_CENTER,
+                      .y = CLAY_ALIGN_Y_CENTER,
+                  },
+          },
+      .backgroundColor =
+          Clay_Hovered() ? COLOR_BUTTON_HOVER : COLOR_BUTTON_NORMAL,
+  }) {
+    CLAY_TEXT(label, CLAY_TEXT_CONFIG({
+                         .textColor = {255, 255, 255, 255},
+                         .fontSize = 12,
+                     }));
+
+    bool file_menu_visible =
+        Clay_PointerOver(Clay_GetElementIdWithIndex(label, 0)) ||
+        Clay_PointerOver(Clay_GetElementIdWithIndex(label, 1));
+
+    if (file_menu_visible) {
+      CLAY({
+          .id = CLAY_SIDI(label, 1),
+          .layout =
+              {
+                  .sizing =
+                      {
+                          .width = CLAY_SIZING_FIXED(192),
+                          .height = CLAY_SIZING_FIT(0),
+                      },
+                  .layoutDirection = CLAY_TOP_TO_BOTTOM,
+              },
+          .backgroundColor = COLOR_FG1,
+          .cornerRadius =
+              {
+                  .topLeft = 0,
+                  .topRight = 0,
+                  .bottomLeft = 8,
+                  .bottomRight = 8,
+              },
+          .floating =
+              {
+                  .attachPoints =
+                      {
+                          .parent = CLAY_ATTACH_POINT_LEFT_BOTTOM,
+                      },
+                  .attachTo = CLAY_ATTACH_TO_PARENT,
+              },
+      }) {
+        DropDownMenuButton(CLAY_STRING("Open Folder..."));
+        DropDownMenuSeperator();
+        DropDownMenuButton(CLAY_STRING("Open Recent..."));
+        DropDownMenuSeperator();
+        DropDownMenuButton(CLAY_STRING("Save"));
+      };
+    }
   }
 }
 
@@ -220,10 +310,10 @@ int main(int argc, char *argv[]) {
           .layout =
               {
                   .sizing = {.width = CLAY_SIZING_GROW(0),
-                             .height = CLAY_SIZING_FIT(16, 64)},
+                             .height = CLAY_SIZING_FIT(0)},
                   .childGap = 2,
               },
-          .backgroundColor = COLOR_FG1,
+          .backgroundColor = COLOR_FG2,
       }) {
         MenuBarButton(CLAY_STRING("File"));
         MenuBarButton(CLAY_STRING("Edit"));
@@ -234,15 +324,15 @@ int main(int argc, char *argv[]) {
             .layout = {
                 .sizing = {.width = CLAY_SIZING_GROW(0),
                            .height = CLAY_SIZING_GROW(0)},
-                .padding = CLAY_PADDING_ALL(8),
-                .childGap = 8,
+                .padding = CLAY_PADDING_ALL(4),
+                .childGap = 4,
                 .layoutDirection = CLAY_TOP_TO_BOTTOM,
             }}) {
         for (int i = 0; i < 4; i++) {
           CLAY({.layout = {
                     .sizing = {.width = CLAY_SIZING_GROW(0),
                                .height = CLAY_SIZING_GROW(0)},
-                    .childGap = 8,
+                    .childGap = 4,
                     .layoutDirection = CLAY_LEFT_TO_RIGHT,
                 }}) {
             for (int i = 0; i < 4; i++) {
@@ -252,13 +342,13 @@ int main(int argc, char *argv[]) {
                           .sizing = {.width = CLAY_SIZING_GROW(0),
                                      .height = CLAY_SIZING_GROW(0)},
                       },
-                  .backgroundColor = Clay_Hovered() ? COLOR_FG2 : COLOR_FG1,
+                  .backgroundColor = Clay_Hovered() ? COLOR_FG3 : COLOR_FG2,
                   .cornerRadius =
                       {
-                          .topLeft = 32,
-                          .topRight = 32,
-                          .bottomLeft = 32,
-                          .bottomRight = 32,
+                          .topLeft = 8,
+                          .topRight = 8,
+                          .bottomLeft = 8,
+                          .bottomRight = 8,
                       },
               }) {}
             }
