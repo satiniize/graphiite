@@ -10,6 +10,7 @@
 
 #include "SDL3/SDL.h"
 #include "SDL3_image/SDL_image.h"
+#include "SDL3_ttf/SDL_ttf.h"
 #include "glm/glm.hpp"
 #include "glm/gtc/matrix_transform.hpp"
 
@@ -87,6 +88,7 @@ public:
   bool draw_rect(glm::vec2 position, glm::vec2 size, glm::vec4 color);
   bool draw_text(const char *text, glm::vec2 position);
   bool cleanup();
+  glm::vec2 glyph_size;
 
 private:
   Context context;

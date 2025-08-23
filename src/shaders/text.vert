@@ -15,7 +15,8 @@ layout(std140, set = 1, binding = 0) uniform UniformBlock {
 
 void main()
 {
-    gl_Position = mvp_matrix * vec4(a_position * (1.0f + 0.2f * sin(8.0f * time + -offset * 0.2f)) + vec3(0.0f, 0.1f * sin(8.0f * time + -offset / 5.0f), 0.0f), 1.0f);
+    // gl_Position = mvp_matrix * vec4(a_position * (1.0f + 0.2f * sin(8.0f * time + -offset * 0.2f)) + vec3(0.0f, 0.1f * sin(8.0f * time + -offset / 5.0f), 0.0f), 1.0f);
+    gl_Position = mvp_matrix * vec4(a_position, 1.0f);
     v_color = a_color;
     v_texcoord = a_texcoord;
 }

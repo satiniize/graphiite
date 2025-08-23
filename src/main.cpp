@@ -1,5 +1,6 @@
 #include <cmath>
 #include <cstdint>
+#include <format>
 #include <random>
 #include <string>
 #include <sys/types.h>
@@ -8,7 +9,6 @@
 #define CLAY_IMPLEMENTATION
 #include "clay.h"
 
-#include "SDL3_ttf/SDL_ttf.h"
 #include "clay_renderer.hpp"
 #include "config.hpp"
 #include "glm/glm.hpp"
@@ -28,12 +28,14 @@
 const Clay_Color COLOR_BG = {24, 24, 24, 255};
 const Clay_Color COLOR_FG1 = {32, 32, 32, 255};
 const Clay_Color COLOR_FG2 = {44, 44, 44, 255};
-const Clay_Color COLOR_BUTTON_NORMAL = {48, 48, 48, 255};
-const Clay_Color COLOR_BUTTON_HOVER = {60, 60, 60, 255};
+const Clay_Color COLOR_BUTTON_NORMAL = COLOR_FG1;
+const Clay_Color COLOR_BUTTON_HOVER = COLOR_FG2;
 
 uint16_t shut_up_data[1];
 
 Renderer renderer;
+
+std::string menubar_buttons[] = {"File", "Edit", "View", "Help"};
 
 Clay_ElementDeclaration sidebarItemConfig = (Clay_ElementDeclaration){
     .layout = {.sizing = {.width = CLAY_SIZING_GROW(0),
@@ -45,11 +47,21 @@ void SidebarItemComponent() {
   CLAY(sidebarItemConfig) {}
 }
 
-// Clay_ElementDeclaration menubar_button_config = (Clay_ElementDeclaration)
-
-// void MenuBarButton() {
-//   CLAY(menubar_button_config) {}
-// }
+void MenuBarButton(Clay_String label) {
+  CLAY({.layout =
+            {
+                .sizing = {.width = CLAY_SIZING_FIT(16, 64),
+                           .height = CLAY_SIZING_GROW(0)},
+                .padding = CLAY_PADDING_ALL(1),
+            },
+        .backgroundColor =
+            Clay_Hovered() ? COLOR_BUTTON_HOVER : COLOR_BUTTON_NORMAL}) {
+    CLAY_TEXT(label, CLAY_TEXT_CONFIG({
+                         .textColor = {255, 255, 255, 255},
+                         .fontSize = 7,
+                     }));
+  }
+}
 
 void handle_clay_errors(Clay_ErrorData errorData) {
   // See the Clay_ErrorData struct for more information
@@ -66,12 +78,15 @@ static inline Clay_Dimensions MeasureText(Clay_StringSlice text,
   // Clay_TextElementConfig contains members such as fontId, fontSize,
   // letterSpacing etc Note: Clay_String->chars is not guaranteed to be null
   // terminated
-  return (Clay_Dimensions){
-      .width = (float)text.length *
-               config->fontSize, // <- this will only work for monospace fonts,
-                                 // see the renderers/ directory for more
-                                 // advanced text measurement
-      .height = (float)config->fontSize};
+  // return (Clay_Dimensions){
+  //     .width = (float)text.length *
+  //              config->fontSize, // <- this will only work for monospace
+  //              fonts,
+  //                                // see the renderers/ directory for more
+  //                                // advanced text measurement
+  //     .height = (float)config->fontSize};
+  return (Clay_Dimensions){.width = (float)text.length * renderer.glyph_size.x,
+                           .height = (float)renderer.glyph_size.y};
 }
 
 bool init() {
@@ -171,45 +186,6 @@ int main(int argc, char *argv[]) {
   shut_up_data[1] = 1;
   Clay_SetMeasureTextFunction(MeasureText, (void *)shut_up_data);
 
-  if (!TTF_Init()) {
-    SDL_Log("Failed to initialize TTF");
-    SDL_Quit();
-  }
-
-  TTF_Font *font = TTF_OpenFont("res/SourceCodePro-Regular.ttf", 256);
-  if (!font) {
-    SDL_Log("Failed to load font");
-    SDL_Quit();
-  }
-
-  TTF_ImageType glyph_image_type;
-  SDL_Surface *test_glyph = TTF_GetGlyphImage(font, 34, &glyph_image_type);
-  int test_minx, test_maxx, test_miny, test_maxy, test_advance;
-  TTF_GetGlyphMetrics(font, 64, &test_minx, &test_maxx, &test_miny, &test_maxy,
-                      &test_advance);
-  int height = TTF_GetFontHeight(font);
-  SDL_Surface *ascii_glyph_atlas =
-      SDL_CreateSurface(test_advance * 10, height * 10, test_glyph->format);
-  SDL_DestroySurface(test_glyph);
-  std::cout << TTF_GetFontDescent(font) << std::endl;
-  for (int i = 33; i <= 126; i++) {
-    int x = (i - 33) % 10;
-    int y = (i - 33) / 10;
-    // Draw test BG
-    // SDL_Rect bg = {x * test_advance, y * height, test_advance, height};
-    // SDL_FillSurfaceRect(ascii_glyph_atlas, &bg,
-    //                     (x + y) % 2 == 0 ? 0xFF0000FF : 0xFFFF0000);
-    SDL_Surface *glyph = TTF_GetGlyphImage(font, i, &glyph_image_type);
-    int minx, maxx, miny, maxy, advance;
-    TTF_GetGlyphMetrics(font, i, &minx, &maxx, &miny, &maxy, &advance);
-    SDL_Rect dest = {x * test_advance + minx,
-                     (y + 1) * height - maxy + TTF_GetFontDescent(font), 0, 0};
-    SDL_BlitSurface(glyph, NULL, ascii_glyph_atlas, &dest);
-    SDL_DestroySurface(glyph);
-  }
-
-  renderer.load_texture("FONT_GLYPH", ascii_glyph_atlas);
-
   while (running) {
     uint32_t frame_tick = SDL_GetTicks();
     process_delta_time =
@@ -254,8 +230,10 @@ int main(int argc, char *argv[]) {
 
     renderer.begin_frame();
     Clay_Dimensions clay_dimensions = {
-        .width = (float)(renderer.width / viewport_scale),
-        .height = (float)(renderer.height / viewport_scale)};
+        .width = static_cast<float>(renderer.width) /
+                 static_cast<float>(viewport_scale),
+        .height = static_cast<float>(renderer.height) /
+                  static_cast<float>(viewport_scale)};
 
     Clay_SetLayoutDimensions(clay_dimensions);
     Clay_BeginLayout();
@@ -274,29 +252,41 @@ int main(int argc, char *argv[]) {
           .id = CLAY_ID("MenuBar"),
           .layout =
               {
-                  .sizing = {.width = CLAY_SIZING_GROW(0), .height = 8},
+                  .sizing = {.width = CLAY_SIZING_GROW(0), .height = 10},
                   .childGap = 2,
               },
-          .backgroundColor = COLOR_FG2,
+          .backgroundColor = COLOR_FG1,
       }) {
-        for (int i = 0; i < 5; i++) {
-          CLAY({.layout = {.sizing = {.width = CLAY_SIZING_FIXED(16),
-                                      .height = CLAY_SIZING_FIXED(8)}},
-                .backgroundColor = Clay_Hovered() ? COLOR_BUTTON_HOVER
-                                                  : COLOR_BUTTON_NORMAL}) {}
-        }
+        MenuBarButton(CLAY_STRING("File"));
+        MenuBarButton(CLAY_STRING("Edit"));
+        MenuBarButton(CLAY_STRING("View"));
+        MenuBarButton(CLAY_STRING("Help"));
       }
-      CLAY({.id = CLAY_ID("Content"),
-            .layout =
-                {
-                    .sizing = {.width = 128, .height = CLAY_SIZING_GROW(0)},
-                    .padding = CLAY_PADDING_ALL(4),
-                    .childGap = 4,
-                    .layoutDirection = CLAY_TOP_TO_BOTTOM,
-                },
-            .backgroundColor = COLOR_FG1}) {
+      CLAY({.id = CLAY_ID("MarginContainer1"),
+            .layout = {
+                .sizing = {.width = CLAY_SIZING_GROW(0),
+                           .height = CLAY_SIZING_GROW(0)},
+                .padding = CLAY_PADDING_ALL(2),
+                .childGap = 2,
+                .layoutDirection = CLAY_TOP_TO_BOTTOM,
+            }}) {
         for (int i = 0; i < 4; i++) {
-          SidebarItemComponent();
+          CLAY({.layout = {
+                    .sizing = {.width = CLAY_SIZING_GROW(0),
+                               .height = CLAY_SIZING_GROW(0)},
+                    .childGap = 2,
+                    .layoutDirection = CLAY_LEFT_TO_RIGHT,
+                }}) {
+            for (int i = 0; i < 4; i++) {
+              CLAY({.layout =
+                        {
+                            .sizing = {.width = CLAY_SIZING_GROW(0),
+                                       .height = CLAY_SIZING_GROW(0)},
+                        },
+                    .backgroundColor =
+                        Clay_Hovered() ? COLOR_FG2 : COLOR_FG1}) {}
+            }
+          }
         }
       }
     }
@@ -304,12 +294,6 @@ int main(int argc, char *argv[]) {
 
     ClayRenderer::render_commands(renderer, render_commands);
     SpriteSystem::draw_all(renderer);
-    // renderer.draw_sprite("FONT_GLYPH",
-    //                      glm::vec2(test_advance / 2.0, height / 2.0), 0.0,
-    //                      glm::vec2(test_advance, -height));
-    renderer.draw_text(
-        "This is a really long ASCII string. I can't believe this works!",
-        glm::vec2(32.0f, 32.0f));
     renderer.end_frame();
   }
   SDL_Log("Exiting...");

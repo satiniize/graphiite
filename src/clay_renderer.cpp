@@ -281,8 +281,8 @@ void render_commands(Renderer &renderer,
     Clay_RenderCommand *renderCommand =
         Clay_RenderCommandArray_Get(&renderCommands, i);
     const Clay_BoundingBox bounding_box = renderCommand->boundingBox;
-    const SDL_FRect rect = {(int)bounding_box.x, (int)bounding_box.y,
-                            (int)bounding_box.width, (int)bounding_box.height};
+    const SDL_FRect rect = {bounding_box.x, bounding_box.y, bounding_box.width,
+                            bounding_box.height};
 
     switch (renderCommand->commandType) {
     case CLAY_RENDER_COMMAND_TYPE_RECTANGLE: {
@@ -292,15 +292,26 @@ void render_commands(Renderer &renderer,
                       (float)config->backgroundColor.b / 255.0f,
                       (float)config->backgroundColor.a / 255.0f);
       if (config->cornerRadius.topLeft > 0) {
-        // SDL_Log("Tried rounded corners");
-        // SDL_Clay_RenderFillRoundedRect(rendererData, rect,
-        //                                config->cornerRadius.topLeft,
-        //                                config->backgroundColor);
       } else {
         renderer.draw_rect(glm::vec2(rect.x, rect.y), glm::vec2(rect.w, rect.h),
                            color);
       }
     } break;
+    case CLAY_RENDER_COMMAND_TYPE_TEXT: {
+      Clay_TextRenderData *config = &renderCommand->renderData.text;
+      renderer.draw_text(config->stringContents.chars,
+                         glm::vec2(rect.x, rect.y));
+      // TTF_Font *font = rendererData->fonts[config->fontId];
+      // TTF_SetFontSize(font, config->fontSize);
+      // TTF_Text *text = TTF_CreateText(rendererData->textEngine, font,
+      // config->stringContents.chars,
+      // config->stringContents.length);
+      // TTF_SetTextColor(text, config->textColor.r, config->textColor.g,
+      // config->textColor.b, config->textColor.a);
+      // TTF_DrawRendererText(text, rect.x, rect.y);
+      // TTF_DestroyText(text);
+    } break;
+
     default:
       SDL_Log("Unknown render command type: %d", renderCommand->commandType);
     }

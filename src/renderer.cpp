@@ -324,6 +324,11 @@ bool Renderer::init() {
   }
   SDL_Log("SDL video driver: %s", SDL_GetCurrentVideoDriver());
 
+  if (!TTF_Init()) {
+    SDL_Log("Failed to initialize TTF");
+    SDL_Quit();
+  }
+
   // Create GPU device
   this->context.device =
       SDL_CreateGPUDevice(SDL_GPU_SHADERFORMAT_SPIRV, true, NULL);
@@ -414,6 +419,55 @@ bool Renderer::init() {
                 std::size(quad_vertices) * sizeof(Vertex), quad_indices,
                 std::size(quad_indices) * sizeof(Uint16));
 
+  float size_in_points = 7.0f;
+  float supersampling_factor = static_cast<float>(viewport_scale);
+  std::string font_path = "res/SourceCodePro-Regular.ttf";
+  TTF_Font *font =
+      TTF_OpenFont(font_path.c_str(), size_in_points * supersampling_factor);
+  if (!font) {
+    SDL_Log("Failed to load font");
+    SDL_Quit();
+  }
+
+  TTF_ImageType glyph_image_type;
+  static Uint32 W_UNICODE = 34;
+  SDL_Surface *test_glyph =
+      TTF_GetGlyphImage(font, W_UNICODE, &glyph_image_type);
+
+  int height = TTF_GetFontHeight(font);
+  int advance;
+  TTF_GetGlyphMetrics(font, W_UNICODE, NULL, NULL, NULL, NULL, &advance);
+
+  this->glyph_size = glm::vec2(advance, height) / supersampling_factor;
+
+  SDL_Surface *ascii_glyph_atlas =
+      SDL_CreateSurface(advance * 10, height * 10, test_glyph->format);
+  SDL_DestroySurface(test_glyph);
+
+  for (int i = 33; i <= 126; i++) {
+    int x = (i - 33) % 10;
+    int y = (i - 33) / 10;
+    // Draw test BG
+    // SDL_Rect bg = {x * advance, y * height, advance, height};
+    // SDL_FillSurfaceRect(ascii_glyph_atlas, &bg,
+    //                     (x + y) % 2 == 0 ? 0xFF0000FF : 0xFFFF0000);
+    SDL_Surface *glyph = TTF_GetGlyphImage(font, i, &glyph_image_type);
+
+    int min_x, max_x, min_y, max_y;
+    TTF_GetGlyphMetrics(font, i, &min_x, &max_x, &min_y, &max_y, NULL);
+
+    SDL_Rect dest = {x * advance + min_x,
+                     (y + 1) * height - max_y + TTF_GetFontDescent(font), 0, 0};
+    SDL_BlitSurface(glyph, NULL, ascii_glyph_atlas, &dest);
+
+    SDL_DestroySurface(glyph);
+  }
+
+  this->load_texture("FONT_GLYPH", ascii_glyph_atlas);
+
+  SDL_DestroySurface(ascii_glyph_atlas);
+  TTF_CloseFont(font);
+
   return true;
 }
 
@@ -428,11 +482,12 @@ bool Renderer::begin_frame() {
 
   SDL_GPUTexture *swapchain_texture;
   SDL_WaitAndAcquireGPUSwapchainTexture(_command_buffer, context.window,
-                                        &swapchain_texture, &width, &height);
+                                        &swapchain_texture, &this->width,
+                                        &this->height);
 
   SDL_GPUColorTargetInfo color_target_info{};
   color_target_info.texture = swapchain_texture;
-  color_target_info.clear_color = (SDL_FColor){0.5f, 0.5f, 0.5f, 1.0f};
+  color_target_info.clear_color = (SDL_FColor){1.0f, 0.0f, 1.0f, 1.0f};
   color_target_info.load_op = SDL_GPU_LOADOP_CLEAR;
   color_target_info.store_op = SDL_GPU_STOREOP_STORE;
 
@@ -445,8 +500,8 @@ bool Renderer::begin_frame() {
   }
 
   this->projection_matrix =
-      glm::ortho(0.0f, (float)this->width / viewport_scale, 0.0f,
-                 (float)this->height / viewport_scale);
+      glm::ortho(0.0f, (float)this->width / viewport_scale,
+                 -(float)this->height / viewport_scale, 0.0f);
 
   return true;
 }
@@ -503,21 +558,13 @@ bool Renderer::draw_sprite(std::string path, glm::vec2 translation,
                                  sizeof(SpriteFragmentUniformBuffer));
 
   glm::mat4 model_matrix = glm::mat4(1.0f);
-  model_matrix = glm::translate(
-      model_matrix, glm::vec3(translation.x,
-                              static_cast<float>(this->height) /
-                                      static_cast<float>(viewport_scale) -
-                                  translation.y,
-                              0.0f));
+  model_matrix = glm::translate(model_matrix,
+                                glm::vec3(translation.x, -translation.y, 0.0f));
   model_matrix = glm::rotate(model_matrix, glm::radians(rotation),
                              glm::vec3(0.0f, 0.0f, 1.0f));
   model_matrix = glm::scale(model_matrix, glm::vec3(scale, 1.0f));
 
   glm::mat4 view_matrix = glm::mat4(1.0f);
-
-  // glm::mat4 projection_matrix =
-  //     glm::ortho(0.0f, (float)this->width / viewport_scale,
-  //                (float)this->height / viewport_scale, 0.0f);
 
   basic_vertex_uniform_buffer.mvp_matrix =
       this->projection_matrix * view_matrix * model_matrix;
@@ -570,19 +617,10 @@ bool Renderer::draw_rect(glm::vec2 position, glm::vec2 size, glm::vec4 color) {
 
   glm::mat4 model_matrix = glm::mat4(1.0f);
 
-  model_matrix = glm::translate(
-      model_matrix,
-      glm::vec3(glm::vec2(position.x + size.x / 2.0f,
-                          static_cast<float>(this->height) /
-                                  static_cast<float>(viewport_scale) -
-                              (position.y + size.y / 2.0f)),
-                0.0f));
+  model_matrix = glm::translate(model_matrix,
+                                glm::vec3(position.x + size.x / 2.0f,
+                                          -(position.y + size.y / 2.0f), 0.0f));
   model_matrix = glm::scale(model_matrix, glm::vec3(size, 1.0f));
-
-  // SDL_GetWindowSizeInPixels(context.window, &new_width, &new_height);
-  // glm::mat4 projection_matrix =
-  //     glm::ortho(0.0f, (float)this->width / viewport_scale,
-  //                (float)this->height / viewport_scale, 0.0f);
 
   basic_vertex_uniform_buffer.mvp_matrix =
       this->projection_matrix * model_matrix;
@@ -631,7 +669,6 @@ bool Renderer::draw_text(const char *text, glm::vec2 position) {
                               1 // Number of textures/samplers to bind
   );
 
-  glm::vec2 font_size = glm::vec2(4.0f, 8.0f);
   for (size_t i = 0; i < strlen(text); i++) {
     if ((text[i] - 33) == -1) {
       continue;
@@ -646,13 +683,11 @@ bool Renderer::draw_text(const char *text, glm::vec2 position) {
                                    sizeof(TextFragmentUniformBuffer));
 
     glm::mat4 model_matrix = glm::mat4(1.0f);
-    model_matrix = glm::translate(
-        model_matrix, glm::vec3(position.x + (i * font_size.x),
-                                static_cast<float>(this->height) /
-                                        static_cast<float>(viewport_scale) -
-                                    position.y,
-                                0.0f));
-    model_matrix = glm::scale(model_matrix, glm::vec3(font_size, 1.0f));
+    model_matrix =
+        glm::translate(model_matrix, glm::vec3(position.x + (i * glyph_size.x),
+                                               -position.y, 0.0f));
+    model_matrix = glm::scale(model_matrix, glm::vec3(glyph_size, 1.0f));
+    model_matrix = glm::translate(model_matrix, glm::vec3(0.5f, -0.5f, 0.0f));
 
     glm::mat4 view_matrix = glm::mat4(1.0f);
 
