@@ -418,11 +418,8 @@ bool Renderer::init() {
                 std::size(quad_vertices) * sizeof(Vertex), quad_indices,
                 std::size(quad_indices) * sizeof(Uint16));
 
-  float size_in_points = 7.0f;
-  float supersampling_factor = static_cast<float>(viewport_scale);
   std::string font_path = "res/SourceCodePro-Bold.ttf";
-  TTF_Font *font =
-      TTF_OpenFont(font_path.c_str(), size_in_points * supersampling_factor);
+  TTF_Font *font = TTF_OpenFont(font_path.c_str(), font_sample_point_size);
   if (!font) {
     SDL_Log("Failed to load font");
     SDL_Quit();
@@ -437,7 +434,7 @@ bool Renderer::init() {
   int advance;
   TTF_GetGlyphMetrics(font, W_UNICODE, NULL, NULL, NULL, NULL, &advance);
 
-  this->glyph_size = glm::vec2(advance, height) / supersampling_factor;
+  this->glyph_size = glm::vec2(advance, height);
 
   SDL_Surface *ascii_glyph_atlas =
       SDL_CreateSurface(advance * 10, height * 10, test_glyph->format);
@@ -633,7 +630,8 @@ bool Renderer::draw_rect(glm::vec2 position, glm::vec2 size, glm::vec4 color) {
   return true;
 };
 
-bool Renderer::draw_text(const char *text, glm::vec2 position) {
+bool Renderer::draw_text(const char *text, float point_size,
+                         glm::vec2 position) {
   // Bind graphics pipeline
   SDL_BindGPUGraphicsPipeline(_render_pass, graphics_pipelines["TEXT"]);
 
@@ -668,6 +666,8 @@ bool Renderer::draw_text(const char *text, glm::vec2 position) {
                               1 // Number of textures/samplers to bind
   );
 
+  float scalar = point_size / font_sample_point_size;
+
   for (size_t i = 0; i < strlen(text); i++) {
     if ((text[i] - 33) == -1) {
       continue;
@@ -682,10 +682,11 @@ bool Renderer::draw_text(const char *text, glm::vec2 position) {
                                    sizeof(TextFragmentUniformBuffer));
 
     glm::mat4 model_matrix = glm::mat4(1.0f);
+    model_matrix = glm::translate(
+        model_matrix,
+        glm::vec3(position.x + (i * glyph_size.x * scalar), -position.y, 0.0f));
     model_matrix =
-        glm::translate(model_matrix, glm::vec3(position.x + (i * glyph_size.x),
-                                               -position.y, 0.0f));
-    model_matrix = glm::scale(model_matrix, glm::vec3(glyph_size, 1.0f));
+        glm::scale(model_matrix, glm::vec3(glyph_size * scalar, 1.0f));
     model_matrix = glm::translate(model_matrix, glm::vec3(0.5f, -0.5f, 0.0f));
 
     glm::mat4 view_matrix = glm::mat4(1.0f);

@@ -35,14 +35,17 @@ uint16_t shut_up_data[1];
 
 Renderer renderer;
 
-std::string menubar_buttons[] = {"File", "Edit", "View", "Help"};
-
 void MenuBarButton(Clay_String label) {
   CLAY({.layout =
             {
                 .sizing = {.width = CLAY_SIZING_FIT(16, 64),
-                           .height = CLAY_SIZING_GROW(0)},
+                           .height = CLAY_SIZING_FIXED(16)},
                 .padding = CLAY_PADDING_ALL(1),
+                .childAlignment =
+                    {
+                        .x = CLAY_ALIGN_X_CENTER,
+                        .y = CLAY_ALIGN_Y_CENTER,
+                    },
             },
         .backgroundColor =
             Clay_Hovered() ? COLOR_BUTTON_HOVER : COLOR_BUTTON_NORMAL}) {
@@ -64,18 +67,10 @@ void handle_clay_errors(Clay_ErrorData errorData) {
 static inline Clay_Dimensions MeasureText(Clay_StringSlice text,
                                           Clay_TextElementConfig *config,
                                           void *userData) {
-  // Clay_TextElementConfig contains members such as fontId, fontSize,
-  // letterSpacing etc Note: Clay_String->chars is not guaranteed to be null
-  // terminated
-  // return (Clay_Dimensions){
-  //     .width = (float)text.length *
-  //              config->fontSize, // <- this will only work for monospace
-  //              fonts,
-  //                                // see the renderers/ directory for more
-  //                                // advanced text measurement
-  //     .height = (float)config->fontSize};
-  return (Clay_Dimensions){.width = (float)text.length * renderer.glyph_size.x,
-                           .height = (float)renderer.glyph_size.y};
+  float scalar = config->fontSize / renderer.font_sample_point_size;
+  return (Clay_Dimensions){.width = (float)text.length * renderer.glyph_size.x *
+                                    scalar,
+                           .height = (float)renderer.glyph_size.y * scalar};
 }
 
 bool init() {

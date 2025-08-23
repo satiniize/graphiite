@@ -299,7 +299,7 @@ void render_commands(Renderer &renderer,
     } break;
     case CLAY_RENDER_COMMAND_TYPE_TEXT: {
       Clay_TextRenderData *config = &renderCommand->renderData.text;
-      renderer.draw_text(config->stringContents.chars,
+      renderer.draw_text(config->stringContents.chars, config->fontSize,
                          glm::vec2(rect.x, rect.y));
       // TTF_Font *font = rendererData->fonts[config->fontId];
       // TTF_SetFontSize(font, config->fontSize);

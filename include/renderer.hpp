@@ -86,9 +86,10 @@ public:
   bool draw_sprite(std::string path, glm::vec2 translation, float rotation,
                    glm::vec2 scale);
   bool draw_rect(glm::vec2 position, glm::vec2 size, glm::vec4 color);
-  bool draw_text(const char *text, glm::vec2 position);
+  bool draw_text(const char *text, float point_size, glm::vec2 position);
   bool cleanup();
   glm::vec2 glyph_size;
+  float font_sample_point_size = 64.0f;
 
 private:
   Context context;
