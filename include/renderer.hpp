@@ -1,8 +1,5 @@
 #pragma once
 
-#define WIDTH 320
-#define HEIGHT 180
-
 #include <iterator>
 #include <string>
 #include <unordered_map>
@@ -26,7 +23,8 @@ struct Vertex {
   float u, v;       // vec2 texture coordinates
 };
 
-const int viewport_scale = 4;
+const int WIDTH = 1280;
+const int HEIGHT = 720;
 
 struct SpriteFragmentUniformBuffer {
   glm::vec4 modulate;
@@ -90,6 +88,7 @@ public:
   bool cleanup();
   glm::vec2 glyph_size;
   float font_sample_point_size = 64.0f;
+  int viewport_scale = 2;
 
 private:
   Context context;

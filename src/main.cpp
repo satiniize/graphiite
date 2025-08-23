@@ -25,9 +25,9 @@
 #include "sprite_component.hpp"
 #include "transform_component.hpp"
 
-const Clay_Color COLOR_BG = {12, 8, 8, 255};
-const Clay_Color COLOR_FG1 = {24, 16, 16, 255};
-const Clay_Color COLOR_FG2 = {32, 24, 24, 255};
+const Clay_Color COLOR_BG = {12, 8, 12, 255};
+const Clay_Color COLOR_FG1 = {28, 18, 28, 255};
+const Clay_Color COLOR_FG2 = {36, 28, 36, 255};
 const Clay_Color COLOR_BUTTON_NORMAL = COLOR_FG1;
 const Clay_Color COLOR_BUTTON_HOVER = COLOR_FG2;
 
@@ -39,8 +39,14 @@ void MenuBarButton(Clay_String label) {
   CLAY({.layout =
             {
                 .sizing = {.width = CLAY_SIZING_FIT(16, 64),
-                           .height = CLAY_SIZING_FIXED(16)},
-                .padding = CLAY_PADDING_ALL(1),
+                           .height = CLAY_SIZING_FIT(16, 64)},
+                .padding =
+                    {
+                        .left = 8,
+                        .right = 8,
+                        .top = 4,
+                        .bottom = 4,
+                    },
                 .childAlignment =
                     {
                         .x = CLAY_ALIGN_X_CENTER,
@@ -51,7 +57,7 @@ void MenuBarButton(Clay_String label) {
             Clay_Hovered() ? COLOR_BUTTON_HOVER : COLOR_BUTTON_NORMAL}) {
     CLAY_TEXT(label, CLAY_TEXT_CONFIG({
                          .textColor = {255, 255, 255, 255},
-                         .fontSize = 7,
+                         .fontSize = 12,
                      }));
   }
 }
@@ -168,8 +174,9 @@ int main(int argc, char *argv[]) {
     float cursor_y;
     SDL_GetMouseState(&cursor_x, &cursor_y);
 
-    Clay_Vector2 mouse_position = {cursor_x / viewport_scale,
-                                   cursor_y / viewport_scale};
+    // Clay_Vector2 mouse_position = {cursor_x / renderer.viewport_scale,
+    //                                cursor_y / renderer.viewport_scale};
+    Clay_Vector2 mouse_position = {cursor_x, cursor_y};
     Clay_SetPointerState(mouse_position, false);
 
     // const bool *keystate = SDL_GetKeyboardState(NULL);
@@ -186,15 +193,16 @@ int main(int argc, char *argv[]) {
     }
 
     TransformComponent &cursor_transform = transform_components[amogus];
-    cursor_transform.position =
-        glm::vec2(cursor_x, cursor_y) / (float)viewport_scale;
+    // cursor_transform.position =
+    //     glm::vec2(cursor_x, cursor_y) / (float)renderer.viewport_scale;
+    cursor_transform.position = glm::vec2(cursor_x, cursor_y);
 
     renderer.begin_frame();
     Clay_Dimensions clay_dimensions = {
         .width = static_cast<float>(renderer.width) /
-                 static_cast<float>(viewport_scale),
+                 static_cast<float>(renderer.viewport_scale),
         .height = static_cast<float>(renderer.height) /
-                  static_cast<float>(viewport_scale)};
+                  static_cast<float>(renderer.viewport_scale)};
     Clay_SetLayoutDimensions(clay_dimensions);
 
     Clay_BeginLayout();
@@ -211,7 +219,8 @@ int main(int argc, char *argv[]) {
           .id = CLAY_ID("MenuBar"),
           .layout =
               {
-                  .sizing = {.width = CLAY_SIZING_GROW(0), .height = 10},
+                  .sizing = {.width = CLAY_SIZING_GROW(0),
+                             .height = CLAY_SIZING_FIT(16, 64)},
                   .childGap = 2,
               },
           .backgroundColor = COLOR_FG1,

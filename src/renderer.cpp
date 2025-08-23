@@ -337,10 +337,10 @@ bool Renderer::init() {
   }
 
   // Create window
-  SDL_WindowFlags flags = SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE;
+  SDL_WindowFlags flags =
+      SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY;
   this->context.window =
-      SDL_CreateWindow(this->context.title, WIDTH * viewport_scale,
-                       HEIGHT * viewport_scale, flags);
+      SDL_CreateWindow(this->context.title, WIDTH, HEIGHT, flags);
   if (!this->context.window) {
     SDL_Log("Couldn't create window: %s", SDL_GetError());
     return false;
@@ -354,9 +354,10 @@ bool Renderer::init() {
   }
 
   // Disable V Sync for FPS testing
-  SDL_SetGPUSwapchainParameters(this->context.device, this->context.window,
-                                SDL_GPU_SWAPCHAINCOMPOSITION_SDR,
-                                SDL_GPU_PRESENTMODE_IMMEDIATE);
+  // Doesn't seem to work in wayland
+  // SDL_SetGPUSwapchainParameters(this->context.device, this->context.window,
+  //                               SDL_GPU_SWAPCHAINCOMPOSITION_SDR,
+  //                               SDL_GPU_PRESENTMODE_IMMEDIATE);
 
   // Create shaders
   // TODO: Make this easier, read the file and see how many is needed
@@ -418,7 +419,7 @@ bool Renderer::init() {
                 std::size(quad_vertices) * sizeof(Vertex), quad_indices,
                 std::size(quad_indices) * sizeof(Uint16));
 
-  std::string font_path = "res/SourceCodePro-Bold.ttf";
+  std::string font_path = "res/SourceCodePro-SemiBold.ttf";
   TTF_Font *font = TTF_OpenFont(font_path.c_str(), font_sample_point_size);
   if (!font) {
     SDL_Log("Failed to load font");
@@ -506,6 +507,8 @@ bool Renderer::end_frame() {
   SDL_EndGPURenderPass(_render_pass);
 
   SDL_SubmitGPUCommandBuffer(_command_buffer);
+
+  this->viewport_scale = SDL_GetWindowPixelDensity(this->context.window);
 
   return true;
 }

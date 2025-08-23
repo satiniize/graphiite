@@ -8,6 +8,9 @@
 		},
 		"program": "$ZED_WORKTREE_ROOT/build/Debug/software-renderer",
 		"request": "launch",
-		"adapter": "CodeLLDB"
+		"adapter": "CodeLLDB",
+		"env": {
+			"SDL_VIDEODRIVER": "wayland"
+		}
 	}
 ]
