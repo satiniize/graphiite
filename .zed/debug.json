@@ -1,12 +1,26 @@
 [
 	{
-		"label": "Debug native binary",
+		"label": "Debug Native Binary",
 		"build": {
 			"command": "bash",
 			"args": ["$ZED_WORKTREE_ROOT/build.sh", "Debug"],
 			"cwd": "$ZED_WORKTREE_ROOT"
 		},
 		"program": "$ZED_WORKTREE_ROOT/build/Debug/software-renderer",
+		"request": "launch",
+		"adapter": "CodeLLDB",
+		"env": {
+			"SDL_VIDEODRIVER": "wayland"
+		}
+	},
+	{
+		"label": "Run Release Binary",
+		"build": {
+			"command": "bash",
+			"args": ["$ZED_WORKTREE_ROOT/build.sh", "Release"],
+			"cwd": "$ZED_WORKTREE_ROOT"
+		},
+		"program": "$ZED_WORKTREE_ROOT/build/Release/software-renderer",
 		"request": "launch",
 		"adapter": "CodeLLDB",
 		"env": {
