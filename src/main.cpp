@@ -25,9 +25,9 @@
 #include "sprite_component.hpp"
 #include "transform_component.hpp"
 
-const Clay_Color COLOR_BG = {24, 24, 24, 255};
-const Clay_Color COLOR_FG1 = {32, 32, 32, 255};
-const Clay_Color COLOR_FG2 = {44, 44, 44, 255};
+const Clay_Color COLOR_BG = {12, 8, 8, 255};
+const Clay_Color COLOR_FG1 = {24, 16, 16, 255};
+const Clay_Color COLOR_FG2 = {32, 24, 24, 255};
 const Clay_Color COLOR_BUTTON_NORMAL = COLOR_FG1;
 const Clay_Color COLOR_BUTTON_HOVER = COLOR_FG2;
 
@@ -36,16 +36,6 @@ uint16_t shut_up_data[1];
 Renderer renderer;
 
 std::string menubar_buttons[] = {"File", "Edit", "View", "Help"};
-
-Clay_ElementDeclaration sidebarItemConfig = (Clay_ElementDeclaration){
-    .layout = {.sizing = {.width = CLAY_SIZING_GROW(0),
-                          .height = CLAY_SIZING_FIXED(32)}},
-    .backgroundColor = COLOR_FG2};
-
-// Re-useable components are just normal functions
-void SidebarItemComponent() {
-  CLAY(sidebarItemConfig) {}
-}
 
 void MenuBarButton(Clay_String label) {
   CLAY({.layout =
@@ -71,7 +61,6 @@ void handle_clay_errors(Clay_ErrorData errorData) {
   }
 }
 
-// Example measure text function
 static inline Clay_Dimensions MeasureText(Clay_StringSlice text,
                                           Clay_TextElementConfig *config,
                                           void *userData) {
@@ -90,30 +79,28 @@ static inline Clay_Dimensions MeasureText(Clay_StringSlice text,
 }
 
 bool init() {
+  renderer.init();
   // For every sprite, add their paths to an array
   // Send this array to renderer to load data and transfer to gpu
-  renderer.init();
-
   std::vector<std::string> loaded_sprite_paths;
   for (auto &[entity_id, sprite_component] : sprite_components) {
-    // TODO: Unsure if this is efficient
     auto it = std::find(loaded_sprite_paths.begin(), loaded_sprite_paths.end(),
                         sprite_component.path);
-    if (it == loaded_sprite_paths.end()) {
-      SDL_Surface *image_data = IMG_Load(sprite_component.path.c_str());
-      if (image_data == NULL) {
-        SDL_Log("Failed to load image! %s", sprite_component.path.c_str());
-        return false;
-      }
-      renderer.load_texture(sprite_component.path, image_data);
-      SDL_DestroySurface(image_data);
-      loaded_sprite_paths.push_back(sprite_component.path);
-    }
-    // else {
-    // sprite_component.texture_id = it - loaded_sprite_paths.begin();
-    // }
-  }
 
+    if (it != loaded_sprite_paths.end()) {
+      continue;
+    }
+
+    SDL_Surface *image_data = IMG_Load(sprite_component.path.c_str());
+    if (image_data == NULL) {
+      SDL_Log("Failed to load image! %s", sprite_component.path.c_str());
+      return false;
+    }
+
+    renderer.load_texture(sprite_component.path, image_data);
+    SDL_DestroySurface(image_data);
+    loaded_sprite_paths.push_back(sprite_component.path);
+  }
   return true;
 }
 
@@ -140,26 +127,7 @@ int main(int argc, char *argv[]) {
   };
   transform_components[amogus] = transform_component;
 
-  std::mt19937 random_engine;
-  std::uniform_real_distribution<float> velocity_distribution(-1.0f, 1.0f);
-  std::uniform_real_distribution<float> position_distribution(0.0f, 1.0f);
-  int friends = 0;
-  for (int i = 0; i < friends; ++i) {
-    EntityID amogus2 = entity_manager.create();
-    SpriteComponent sprite_component2 = {
-        .path = "res/amogus.bmp",
-    };
-    sprite_components[amogus2] = sprite_component2;
-    TransformComponent transform_component2;
-    transform_component2.position =
-        glm::vec2(16.0f + (static_cast<float>(WIDTH) - 32.0f) *
-                              position_distribution(random_engine),
-                  16.0f + (static_cast<float>(HEIGHT) - 32.0f) *
-                              position_distribution(random_engine));
-    transform_component2.scale = glm::vec2(16.0f, 16.0f),
-    transform_components[amogus2] = transform_component2;
-  }
-
+  // Init(texture uploading) must be after entities are created
   if (!init()) {
     return 1;
   }
@@ -174,7 +142,6 @@ int main(int argc, char *argv[]) {
   float time_scale = 1.0f;
 
   bool running = true;
-  glm::vec2 velocity = glm::vec2(0.0f, 0.0f);
 
   uint64_t total_memory_size = Clay_MinMemorySize();
   Clay_Arena clay_memory = Clay_CreateArenaWithCapacityAndMemory(
@@ -193,11 +160,6 @@ int main(int argc, char *argv[]) {
     accumulator += process_delta_time;
     prev_frame_tick = frame_tick;
 
-    float cursor_x;
-    float cursor_y;
-
-    SDL_GetMouseState(&cursor_x, &cursor_y);
-
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
       if (event.type == SDL_EVENT_QUIT) {
@@ -207,11 +169,15 @@ int main(int argc, char *argv[]) {
       }
     }
 
+    float cursor_x;
+    float cursor_y;
+    SDL_GetMouseState(&cursor_x, &cursor_y);
+
     Clay_Vector2 mouse_position = {cursor_x / viewport_scale,
                                    cursor_y / viewport_scale};
     Clay_SetPointerState(mouse_position, false);
 
-    const bool *keystate = SDL_GetKeyboardState(NULL);
+    // const bool *keystate = SDL_GetKeyboardState(NULL);
 
     ++process_frame_count;
     if (accumulator >= (physics_delta_time / time_scale)) {
@@ -224,8 +190,8 @@ int main(int argc, char *argv[]) {
       }
     }
 
-    TransformComponent &cursorTransform = transform_components[amogus];
-    cursorTransform.position =
+    TransformComponent &cursor_transform = transform_components[amogus];
+    cursor_transform.position =
         glm::vec2(cursor_x, cursor_y) / (float)viewport_scale;
 
     renderer.begin_frame();
@@ -234,11 +200,9 @@ int main(int argc, char *argv[]) {
                  static_cast<float>(viewport_scale),
         .height = static_cast<float>(renderer.height) /
                   static_cast<float>(viewport_scale)};
-
     Clay_SetLayoutDimensions(clay_dimensions);
-    Clay_BeginLayout();
 
-    Clay_LayoutConfig layoutElement = Clay_LayoutConfig{.padding = {5}};
+    Clay_BeginLayout();
     CLAY({.id = CLAY_ID("Root"),
           .layout =
               {

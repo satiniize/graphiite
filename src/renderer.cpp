@@ -420,7 +420,7 @@ bool Renderer::init() {
 
   float size_in_points = 7.0f;
   float supersampling_factor = static_cast<float>(viewport_scale);
-  std::string font_path = "res/SourceCodePro-Regular.ttf";
+  std::string font_path = "res/SourceCodePro-Bold.ttf";
   TTF_Font *font =
       TTF_OpenFont(font_path.c_str(), size_in_points * supersampling_factor);
   if (!font) {
