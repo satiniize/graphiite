@@ -382,15 +382,22 @@ bool Renderer::init() {
   SDL_GPUShader *text_vertex_shader = load_shader(
       this->context.device, "src/shaders/text.vert.spv", 0, 0, 0, 1);
 
+  SDL_GPUShader *rounded_corner_border_shader =
+      load_shader(this->context.device,
+                  "src/shaders/rounded_corner_border.frag.spv", 0, 0, 0, 1);
+
   create_graphics_pipeline("SPRITE", vertex_shader, sprite_fragment_shader);
   create_graphics_pipeline("UI_RECT", vertex_shader, ui_rect_fragment_shader);
   create_graphics_pipeline("TEXT", text_vertex_shader, text_fragment_shader);
+  create_graphics_pipeline("ROUNDED_CORNER_BORDER", vertex_shader,
+                           rounded_corner_border_shader);
 
   // We don't need to store the shaders after creating the pipeline
   SDL_ReleaseGPUShader(context.device, vertex_shader);
   SDL_ReleaseGPUShader(context.device, sprite_fragment_shader);
   SDL_ReleaseGPUShader(context.device, ui_rect_fragment_shader);
   SDL_ReleaseGPUShader(context.device, text_fragment_shader);
+  SDL_ReleaseGPUShader(context.device, rounded_corner_border_shader);
 
   // Create gpu sampler
   SDL_GPUSamplerCreateInfo sampler_info{};
@@ -714,6 +721,57 @@ bool Renderer::draw_text(const char *text, float point_size,
   return true;
 }
 
+bool Renderer::draw_rounded_corner_border(glm::vec2 position, float radius,
+                                          float thickness, float rotation,
+                                          glm::vec4 color) {
+  // Bind graphics pipeline
+  SDL_BindGPUGraphicsPipeline(_render_pass,
+                              graphics_pipelines["ROUNDED_CORNER_BORDER"]);
+
+  // Bind vertex buffer
+  SDL_GPUBufferBinding vertex_buffer_bindings[1];
+  vertex_buffer_bindings[0].buffer = vertex_buffers["QUAD"];
+  vertex_buffer_bindings[0].offset = 0;
+
+  SDL_BindGPUVertexBuffers(_render_pass, 0, vertex_buffer_bindings, 1);
+
+  // Bind index buffer
+  SDL_GPUBufferBinding index_buffer_bindings[1];
+  index_buffer_bindings[0].buffer = index_buffers["QUAD"];
+  index_buffer_bindings[0].offset = 0;
+
+  SDL_BindGPUIndexBuffer(_render_pass, index_buffer_bindings,
+                         SDL_GPU_INDEXELEMENTSIZE_16BIT);
+
+  // Calculate uniform values
+  rounded_corner_border_fragment_uniform_buffer.modulate = color;
+  rounded_corner_border_fragment_uniform_buffer.relative_thickness =
+      thickness / radius;
+  SDL_PushGPUFragmentUniformData(
+      _command_buffer, 0, &rounded_corner_border_fragment_uniform_buffer,
+      sizeof(RoundedCornerBorderFragmentUniformBuffer));
+
+  glm::mat4 model_matrix = glm::mat4(1.0f);
+
+  model_matrix =
+      glm::translate(model_matrix, glm::vec3(position.x, -position.y, 0.0f));
+  model_matrix = glm::scale(model_matrix, glm::vec3(radius, radius, 1.0f));
+  model_matrix = glm::rotate(model_matrix, glm::radians(rotation),
+                             glm::vec3(0.0f, 0.0f, 1.0f));
+  model_matrix = glm::translate(model_matrix, glm::vec3(0.5f, 0.5f, 0.0f));
+
+  basic_vertex_uniform_buffer.mvp_matrix =
+      this->projection_matrix * model_matrix;
+
+  SDL_PushGPUVertexUniformData(_command_buffer, 0, &basic_vertex_uniform_buffer,
+                               sizeof(BasicVertexUniformBuffer));
+
+  SDL_DrawGPUIndexedPrimitives(_render_pass, 6, 1, 0, 0,
+                               0); // TODO: Determine index count
+
+  return true;
+}
+
 bool Renderer::begin_scissor_mode(glm::ivec2 pos, glm::ivec2 size) {
   const SDL_Rect rect = {
       pos.x,
@@ -758,4 +816,3 @@ bool Renderer::cleanup() {
 
   return true;
 }
-// TODO: create begin_scissor_mode and end_scissor_mode

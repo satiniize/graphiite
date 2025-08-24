@@ -46,14 +46,13 @@ void render_commands(Renderer &renderer,
         const float length =
             rect.h - clampedRadii.topLeft - clampedRadii.bottomLeft;
 
-        renderer.draw_rect(glm::vec2(rect.x - 1, starting_y),
+        renderer.draw_rect(glm::vec2(rect.x, starting_y),
                            glm::vec2(config->width.left, length), color,
                            glm::vec4(0.0f));
       }
       // Right edge
       if (config->width.right > 0) {
-        const float starting_x =
-            rect.x + rect.w - (float)config->width.right + 1;
+        const float starting_x = rect.x + rect.w - (float)config->width.right;
         const float starting_y = rect.y + clampedRadii.topRight;
         const float length =
             rect.h - clampedRadii.topRight - clampedRadii.bottomRight;
@@ -61,26 +60,55 @@ void render_commands(Renderer &renderer,
                            glm::vec2(config->width.right, length), color,
                            glm::vec4(0.0f));
       }
-
+      // Top edge
       if (config->width.top > 0) {
         const float starting_x = rect.x + clampedRadii.topLeft;
         const float length =
             rect.w - clampedRadii.topLeft - clampedRadii.topRight;
 
-        renderer.draw_rect(glm::vec2(starting_x, rect.y - 1),
+        renderer.draw_rect(glm::vec2(starting_x, rect.y),
                            glm::vec2(length, config->width.top), color,
                            glm::vec4(0.0f));
       }
+      // Bottom edge
       if (config->width.bottom > 0) {
         const float starting_x = rect.x + clampedRadii.bottomLeft;
-        const float starting_y =
-            rect.y + rect.h - (float)config->width.bottom + 1;
+        const float starting_y = rect.y + rect.h - (float)config->width.bottom;
         const float length =
             rect.w - clampedRadii.bottomLeft - clampedRadii.bottomRight;
 
         renderer.draw_rect(glm::vec2(starting_x, starting_y),
                            glm::vec2(length, config->width.bottom), color,
                            glm::vec4(0.0f));
+      }
+
+      if (config->cornerRadius.topLeft > 0) {
+        const float centerX = rect.x + clampedRadii.topLeft;
+        const float centerY = rect.y + clampedRadii.topLeft;
+        renderer.draw_rounded_corner_border(glm::vec2(centerX, centerY),
+                                            clampedRadii.topLeft,
+                                            config->width.top, 90.0f, color);
+      }
+      if (config->cornerRadius.topRight > 0) {
+        const float centerX = rect.x + rect.w - clampedRadii.topRight;
+        const float centerY = rect.y + clampedRadii.topRight;
+        renderer.draw_rounded_corner_border(glm::vec2(centerX, centerY),
+                                            clampedRadii.topRight,
+                                            config->width.top, 0.0f, color);
+      }
+      if (config->cornerRadius.bottomLeft > 0) {
+        const float centerX = rect.x + clampedRadii.bottomLeft;
+        const float centerY = rect.y + rect.h - clampedRadii.bottomLeft;
+        renderer.draw_rounded_corner_border(
+            glm::vec2(centerX, centerY), clampedRadii.bottomLeft,
+            config->width.bottom, 180.0f, color);
+      }
+      if (config->cornerRadius.bottomRight > 0) {
+        const float centerX = rect.x + rect.w - clampedRadii.bottomRight;
+        const float centerY = rect.y + rect.h - clampedRadii.bottomRight;
+        renderer.draw_rounded_corner_border(
+            glm::vec2(centerX, centerY), clampedRadii.bottomRight,
+            config->width.bottom, 270.0f, color);
       }
 
     } break;

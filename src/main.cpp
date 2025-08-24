@@ -73,6 +73,13 @@ void DropDownMenuButton(Clay_String label) {
                   },
           },
       .backgroundColor = Clay_Hovered() ? COLOR_FG2 : COLOR_FG1,
+      .cornerRadius =
+          {
+              .topLeft = 0,
+              .topRight = 0,
+              .bottomLeft = 8,
+              .bottomRight = 8,
+          },
   }) {
     CLAY_TEXT(label, CLAY_TEXT_CONFIG({
                          .textColor = {255, 255, 255, 255},
@@ -140,6 +147,17 @@ void MenuBarButton(Clay_String label) {
                           .parent = CLAY_ATTACH_POINT_LEFT_BOTTOM,
                       },
                   .attachTo = CLAY_ATTACH_TO_PARENT,
+              },
+          .border =
+              {
+                  .color = COLOR_BG,
+                  .width =
+                      {
+                          .left = 1,
+                          .right = 1,
+                          .top = 1,
+                          .bottom = 1,
+                      },
               },
       }) {
         DropDownMenuButton(CLAY_STRING("Open Folder..."));

@@ -64,6 +64,14 @@ struct TextFragmentUniformBuffer {
 
 static TextFragmentUniformBuffer text_fragment_uniform_buffer{};
 
+struct RoundedCornerBorderFragmentUniformBuffer {
+  glm::vec4 modulate;
+  float relative_thickness;
+};
+
+static RoundedCornerBorderFragmentUniformBuffer
+    rounded_corner_border_fragment_uniform_buffer{};
+
 // TODO: Interpolate proj matrix for smoother resizing
 class Renderer {
 public:
@@ -87,6 +95,9 @@ public:
   bool draw_rect(glm::vec2 position, glm::vec2 size, glm::vec4 color,
                  glm::vec4 corner_radius);
   bool draw_text(const char *text, float point_size, glm::vec2 position);
+  bool draw_rounded_corner_border(glm::vec2 position, float radius,
+                                  float thickness, float rotation,
+                                  glm::vec4 color);
   bool begin_scissor_mode(glm::ivec2 pos, glm::ivec2 size);
   bool end_scissor_mode();
   bool cleanup();
