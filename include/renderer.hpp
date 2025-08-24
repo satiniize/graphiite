@@ -1,8 +1,5 @@
 #pragma once
 
-#define WIDTH 320
-#define HEIGHT 180
-
 #include <iterator>
 #include <string>
 #include <unordered_map>
@@ -10,6 +7,7 @@
 
 #include "SDL3/SDL.h"
 #include "SDL3_image/SDL_image.h"
+#include "SDL3_ttf/SDL_ttf.h"
 #include "glm/glm.hpp"
 #include "glm/gtc/matrix_transform.hpp"
 
@@ -19,73 +17,109 @@ struct Context {
   const char *title;
 };
 
-// the vertex input layout
 struct Vertex {
   float x, y, z;    // vec3 position
   float r, g, b, a; // vec4 color
   float u, v;       // vec2 texture coordinates
 };
 
-const int viewport_scale = 4;
+const int WIDTH = 1280;
+const int HEIGHT = 720;
 
-// a list of vertices
-static Vertex vertices[]{
-    {-0.5f, 0.5f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f}, // top left vertex
-    {0.5f, 0.5f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f},  // top right vertex
-    {-0.5f, -0.5f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f,
-     1.0f}, // bottom left vertex
-    {0.5f, -0.5f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f}
-    // bottom right vertex
-};
-
-static Uint16 indices[]{0, 1, 2, 2, 1, 3};
-
-// struct Mesh {
-//   std::vector<Vertex> vertices;
-//   std::vector<uint16_t> indices;
-// }
-// enum class
-
-struct FragmentUniformBuffer {
+struct SpriteFragmentUniformBuffer {
+  glm::vec4 modulate;
   float time;
 };
 
-static FragmentUniformBuffer fragment_uniform_buffer{};
+static SpriteFragmentUniformBuffer sprite_fragment_uniform_buffer{};
 
-struct VertexUniformBuffer {
+struct UIRectFragmentUniformBuffer {
+  glm::vec4 modulate;
+  glm::vec4 corner_radii;
+  glm::vec4 size;
+};
+
+static UIRectFragmentUniformBuffer ui_rect_fragment_uniform_buffer{};
+
+struct BasicVertexUniformBuffer {
   glm::mat4 mvp_matrix;
 };
 
-static VertexUniformBuffer vertex_uniform_buffer{};
+static BasicVertexUniformBuffer basic_vertex_uniform_buffer{};
 
+struct TextVertexUniformBuffer {
+  glm::mat4 mvp_matrix;
+  float time;
+  float offset;
+  float padding;
+  float padding2;
+};
+
+static TextVertexUniformBuffer text_vertex_uniform_buffer{};
+
+struct TextFragmentUniformBuffer {
+  glm::vec4 modulate;
+  glm::vec4 uv_rect;
+};
+
+static TextFragmentUniformBuffer text_fragment_uniform_buffer{};
+
+struct RoundedCornerBorderFragmentUniformBuffer {
+  glm::vec4 modulate;
+  float relative_thickness;
+};
+
+static RoundedCornerBorderFragmentUniformBuffer
+    rounded_corner_border_fragment_uniform_buffer{};
+
+// TODO: Interpolate proj matrix for smoother resizing
 class Renderer {
 public:
+  Uint32 width;
+  Uint32 height;
+
   Renderer();
   ~Renderer();
-  bool load_texture(std::string path);
+  bool load_texture(std::string path, SDL_Surface *image_data);
+  bool load_geometry(std::string path, const Vertex *vertices,
+                     size_t vertex_size, const Uint16 *indices,
+                     size_t index_size);
+  bool create_graphics_pipeline(std::string path, SDL_GPUShader *vertex_shader,
+                                SDL_GPUShader *fragment_shader);
   bool init();
   bool begin_frame();
   bool end_frame();
+  // Drawing functions
   bool draw_sprite(std::string path, glm::vec2 translation, float rotation,
                    glm::vec2 scale);
-  // bool draw_mesh(const Mesh &mesh);
+  bool draw_rect(glm::vec2 position, glm::vec2 size, glm::vec4 color,
+                 glm::vec4 corner_radius);
+  bool draw_text(const char *text, float point_size, glm::vec2 position);
+  bool draw_rounded_corner_border(glm::vec2 position, float radius,
+                                  float thickness, float rotation,
+                                  glm::vec4 color);
+  bool begin_scissor_mode(glm::ivec2 pos, glm::ivec2 size);
+  bool end_scissor_mode();
   bool cleanup();
+  glm::vec2 glyph_size;
+  float font_sample_point_size = 64.0f;
+  int viewport_scale = 2;
 
 private:
   Context context;
 
-  SDL_GPUGraphicsPipeline *graphics_pipeline;
-
-  SDL_GPUBuffer *vertex_buffer;
-  SDL_GPUBuffer *index_buffer;
-
+  // TODO: Have support for multiple pipelines
+  // SDL_GPUGraphicsPipeline *graphics_pipeline;
+  std::unordered_map<std::string, SDL_GPUGraphicsPipeline *> graphics_pipelines;
+  std::unordered_map<std::string, SDL_GPUBuffer *> vertex_buffers;
+  std::unordered_map<std::string, SDL_GPUBuffer *> index_buffers;
   std::unordered_map<std::string, SDL_GPUTexture *> gpu_textures;
-  std::unordered_map<std::string, std::vector<Vertex>> vertex_buffers;
-  std::unordered_map<std::string, std::vector<uint16_t>> index_buffers;
 
-  // SDL_GPUTexture *quad_texture;
+  // TODO: Have support for multiple samplers
   SDL_GPUSampler *pixel_sampler;
 
   SDL_GPURenderPass *_render_pass;
   SDL_GPUCommandBuffer *_command_buffer;
+
+  glm::mat4 projection_matrix;
 };

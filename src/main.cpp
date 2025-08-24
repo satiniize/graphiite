@@ -1,15 +1,17 @@
 #include <cmath>
 #include <cstdint>
-#include <fstream>
-#include <iostream>
+#include <format>
 #include <random>
 #include <string>
 #include <sys/types.h>
 #include <vector>
 
+#define CLAY_IMPLEMENTATION
+#include "clay.h"
+
+#include "clay_renderer.hpp"
 #include "config.hpp"
 #include "glm/glm.hpp"
-#include "glm/gtc/matrix_transform.hpp"
 #include "renderer.hpp"
 
 // Entities
@@ -23,27 +25,191 @@
 #include "sprite_component.hpp"
 #include "transform_component.hpp"
 
+const Clay_Color COLOR_BG = {12, 8, 12, 255};
+const Clay_Color COLOR_FG1 = {24, 16, 24, 255};
+const Clay_Color COLOR_FG2 = {32, 22, 32, 255};
+const Clay_Color COLOR_FG3 = {40, 28, 40, 255};
+const Clay_Color COLOR_BUTTON_NORMAL = COLOR_FG2;
+const Clay_Color COLOR_BUTTON_HOVER = COLOR_FG3;
+
+uint16_t shut_up_data[1];
+
 Renderer renderer;
 
+void DropDownMenuSeperator() {
+  CLAY({
+      .layout =
+          {
+              .sizing =
+                  {
+                      .width = CLAY_SIZING_GROW(0),
+                      .height = CLAY_SIZING_FIXED(1),
+                  },
+          },
+      .backgroundColor = COLOR_BG,
+  }) {}
+}
+
+void DropDownMenuButton(Clay_String label) {
+  CLAY({
+      .layout =
+          {
+              .sizing =
+                  {
+                      .width = CLAY_SIZING_GROW(0),
+                      .height = CLAY_SIZING_FIT(0),
+                  },
+              .padding =
+                  {
+                      .left = 8,
+                      .right = 8,
+                      .top = 4,
+                      .bottom = 4,
+                  },
+              .childAlignment =
+                  {
+                      .x = CLAY_ALIGN_X_LEFT,
+                      .y = CLAY_ALIGN_Y_CENTER,
+                  },
+          },
+      .backgroundColor = Clay_Hovered() ? COLOR_FG2 : COLOR_FG1,
+      .cornerRadius =
+          {
+              .topLeft = 0,
+              .topRight = 0,
+              .bottomLeft = 8,
+              .bottomRight = 8,
+          },
+  }) {
+    CLAY_TEXT(label, CLAY_TEXT_CONFIG({
+                         .textColor = {255, 255, 255, 255},
+                         .fontSize = 12,
+                     }));
+  }
+}
+
+void MenuBarButton(Clay_String label) {
+  CLAY({
+      .id = CLAY_SIDI(label, 0),
+      .layout =
+          {
+              .sizing = {.width = CLAY_SIZING_FIT(0),
+                         .height = CLAY_SIZING_FIT(0)},
+              .padding =
+                  {
+                      .left = 8,
+                      .right = 8,
+                      .top = 4,
+                      .bottom = 4,
+                  },
+              .childAlignment =
+                  {
+                      .x = CLAY_ALIGN_X_CENTER,
+                      .y = CLAY_ALIGN_Y_CENTER,
+                  },
+          },
+      .backgroundColor =
+          Clay_Hovered() ? COLOR_BUTTON_HOVER : COLOR_BUTTON_NORMAL,
+  }) {
+    CLAY_TEXT(label, CLAY_TEXT_CONFIG({
+                         .textColor = {255, 255, 255, 255},
+                         .fontSize = 12,
+                     }));
+
+    bool file_menu_visible =
+        Clay_PointerOver(Clay_GetElementIdWithIndex(label, 0)) ||
+        Clay_PointerOver(Clay_GetElementIdWithIndex(label, 1));
+
+    if (file_menu_visible) {
+      CLAY({
+          .id = CLAY_SIDI(label, 1),
+          .layout =
+              {
+                  .sizing =
+                      {
+                          .width = CLAY_SIZING_FIXED(192),
+                          .height = CLAY_SIZING_FIT(0),
+                      },
+                  .layoutDirection = CLAY_TOP_TO_BOTTOM,
+              },
+          .backgroundColor = COLOR_FG1,
+          .cornerRadius =
+              {
+                  .topLeft = 0,
+                  .topRight = 0,
+                  .bottomLeft = 8,
+                  .bottomRight = 8,
+              },
+          .floating =
+              {
+                  .attachPoints =
+                      {
+                          .parent = CLAY_ATTACH_POINT_LEFT_BOTTOM,
+                      },
+                  .attachTo = CLAY_ATTACH_TO_PARENT,
+              },
+          .border =
+              {
+                  .color = COLOR_BG,
+                  .width =
+                      {
+                          .left = 1,
+                          .right = 1,
+                          .top = 1,
+                          .bottom = 1,
+                      },
+              },
+      }) {
+        DropDownMenuButton(CLAY_STRING("Open Folder..."));
+        DropDownMenuSeperator();
+        DropDownMenuButton(CLAY_STRING("Open Recent..."));
+        DropDownMenuSeperator();
+        DropDownMenuButton(CLAY_STRING("Save"));
+      };
+    }
+  }
+}
+
+void handle_clay_errors(Clay_ErrorData errorData) {
+  // See the Clay_ErrorData struct for more information
+  printf("%s", errorData.errorText.chars);
+  switch (errorData.errorType) {
+    // etc
+  }
+}
+
+static inline Clay_Dimensions MeasureText(Clay_StringSlice text,
+                                          Clay_TextElementConfig *config,
+                                          void *userData) {
+  float scalar = config->fontSize / renderer.font_sample_point_size;
+  return (Clay_Dimensions){.width = (float)text.length * renderer.glyph_size.x *
+                                    scalar,
+                           .height = (float)renderer.glyph_size.y * scalar};
+}
+
 bool init() {
+  renderer.init();
   // For every sprite, add their paths to an array
   // Send this array to renderer to load data and transfer to gpu
-  renderer.init();
-
   std::vector<std::string> loaded_sprite_paths;
   for (auto &[entity_id, sprite_component] : sprite_components) {
-    // TODO: Unsure if this is efficient
     auto it = std::find(loaded_sprite_paths.begin(), loaded_sprite_paths.end(),
                         sprite_component.path);
-    if (it == loaded_sprite_paths.end()) {
-      renderer.load_texture(sprite_component.path);
-      loaded_sprite_paths.push_back(sprite_component.path);
-    }
-    // else {
-    // sprite_component.texture_id = it - loaded_sprite_paths.begin();
-    // }
-  }
 
+    if (it != loaded_sprite_paths.end()) {
+      continue;
+    }
+
+    SDL_Surface *image_data = IMG_Load(sprite_component.path.c_str());
+    if (image_data == NULL) {
+      SDL_Log("Failed to load image! %s", sprite_component.path.c_str());
+      return false;
+    }
+
+    renderer.load_texture(sprite_component.path, image_data);
+    SDL_DestroySurface(image_data);
+    loaded_sprite_paths.push_back(sprite_component.path);
+  }
   return true;
 }
 
@@ -66,30 +232,11 @@ int main(int argc, char *argv[]) {
   // TODO: Get size of image
   TransformComponent transform_component = {
       .position = glm::vec2(64.0f, 64.0f),
-      .scale = glm::vec2(16.0f, 16.0f),
+      .scale = glm::vec2(4.0f, 4.0f),
   };
   transform_components[amogus] = transform_component;
 
-  std::mt19937 random_engine;
-  std::uniform_real_distribution<float> velocity_distribution(-1.0f, 1.0f);
-  std::uniform_real_distribution<float> position_distribution(0.0f, 1.0f);
-  int friends = 128;
-  for (int i = 0; i < friends; ++i) {
-    EntityID amogus2 = entity_manager.create();
-    SpriteComponent sprite_component2 = {
-        .path = "res/amogus.bmp",
-    };
-    sprite_components[amogus2] = sprite_component2;
-    TransformComponent transform_component2;
-    transform_component2.position =
-        glm::vec2(16.0f + (static_cast<float>(WIDTH) - 32.0f) *
-                              position_distribution(random_engine),
-                  16.0f + (static_cast<float>(HEIGHT) - 32.0f) *
-                              position_distribution(random_engine));
-    transform_component2.scale = glm::vec2(16.0f, 16.0f),
-    transform_components[amogus2] = transform_component2;
-  }
-
+  // Init(texture uploading) must be after entities are created
   if (!init()) {
     return 1;
   }
@@ -104,7 +251,18 @@ int main(int argc, char *argv[]) {
   float time_scale = 1.0f;
 
   bool running = true;
-  glm::vec2 velocity = glm::vec2(0.0f, 0.0f);
+
+  uint64_t total_memory_size = Clay_MinMemorySize();
+  Clay_Arena clay_memory = Clay_CreateArenaWithCapacityAndMemory(
+      total_memory_size, malloc(total_memory_size));
+  Clay_Dimensions clay_dimensions = {.width = (float)WIDTH,
+                                     .height = (float)HEIGHT};
+  Clay_Context *clayContextBottom = Clay_Initialize(
+      clay_memory, clay_dimensions, (Clay_ErrorHandler){handle_clay_errors});
+  shut_up_data[1] = 1;
+  Clay_SetMeasureTextFunction(MeasureText, (void *)shut_up_data);
+
+  std::string test_image_path = "res/uv.bmp";
 
   while (running) {
     uint32_t frame_tick = SDL_GetTicks();
@@ -118,9 +276,20 @@ int main(int argc, char *argv[]) {
       if (event.type == SDL_EVENT_QUIT) {
         running = false;
       }
+      if (event.type == SDL_EVENT_MOUSE_WHEEL) {
+      }
     }
 
-    const bool *keystate = SDL_GetKeyboardState(NULL);
+    float cursor_x;
+    float cursor_y;
+    SDL_GetMouseState(&cursor_x, &cursor_y);
+
+    // Clay_Vector2 mouse_position = {cursor_x / renderer.viewport_scale,
+    //                                cursor_y / renderer.viewport_scale};
+    Clay_Vector2 mouse_position = {cursor_x, cursor_y};
+    Clay_SetPointerState(mouse_position, false);
+
+    // const bool *keystate = SDL_GetKeyboardState(NULL);
 
     ++process_frame_count;
     if (accumulator >= (physics_delta_time / time_scale)) {
@@ -131,37 +300,120 @@ int main(int argc, char *argv[]) {
         physics_frame_count = 0;
         process_frame_count = 0;
       }
-
-      TransformComponent &amogus_transform = transform_components[amogus];
-
-      // Player specific code
-      // WASD Movement
-      float accel = 512.0f;
-      glm::vec2 move_dir = glm::vec2(0.0f, 0.0f);
-      if (keystate[SDL_SCANCODE_W]) {
-        move_dir.y -= 1.0f;
-      }
-      if (keystate[SDL_SCANCODE_A]) {
-        move_dir.x -= 1.0f;
-      }
-      if (keystate[SDL_SCANCODE_S]) {
-        move_dir.y += 1.0f;
-      }
-      if (keystate[SDL_SCANCODE_D]) {
-        move_dir.x += 1.0f;
-      }
-      velocity += move_dir * accel * physics_delta_time;
-      amogus_transform.position += velocity * physics_delta_time;
-
-      // Showcase rotation
-      amogus_transform.rotation += 32.0f * physics_delta_time;
     }
 
+    TransformComponent &cursor_transform = transform_components[amogus];
+    // cursor_transform.position =
+    //     glm::vec2(cursor_x, cursor_y) / (float)renderer.viewport_scale;
+    cursor_transform.position = glm::vec2(cursor_x, cursor_y);
+
     renderer.begin_frame();
+    Clay_Dimensions clay_dimensions = {
+        .width = static_cast<float>(renderer.width) /
+                 static_cast<float>(renderer.viewport_scale),
+        .height = static_cast<float>(renderer.height) /
+                  static_cast<float>(renderer.viewport_scale)};
+    Clay_SetLayoutDimensions(clay_dimensions);
+
+    Clay_BeginLayout();
+    CLAY({.id = CLAY_ID("Root"),
+          .layout =
+              {
+                  .sizing = {.width = CLAY_SIZING_GROW(0),
+                             .height = CLAY_SIZING_GROW(0)},
+                  .padding = CLAY_PADDING_ALL(0),
+                  .layoutDirection = CLAY_TOP_TO_BOTTOM,
+              },
+          .backgroundColor = COLOR_BG}) {
+      CLAY({
+          .id = CLAY_ID("MenuBar"),
+          .layout =
+              {
+                  .sizing = {.width = CLAY_SIZING_GROW(0),
+                             .height = CLAY_SIZING_FIT(0)},
+                  .childGap = 2,
+              },
+          .backgroundColor = COLOR_FG2,
+      }) {
+        MenuBarButton(CLAY_STRING("File"));
+        MenuBarButton(CLAY_STRING("Edit"));
+        MenuBarButton(CLAY_STRING("View"));
+        MenuBarButton(CLAY_STRING("Help"));
+      }
+      CLAY({.id = CLAY_ID("MarginContainer1"),
+            .layout = {
+                .sizing = {.width = CLAY_SIZING_GROW(0),
+                           .height = CLAY_SIZING_GROW(0)},
+                .padding = CLAY_PADDING_ALL(4),
+                .childGap = 4,
+                .layoutDirection = CLAY_TOP_TO_BOTTOM,
+            }}) {
+        for (int i = 0; i < 4; i++) {
+          CLAY({.layout = {
+                    .sizing = {.width = CLAY_SIZING_GROW(0),
+                               .height = CLAY_SIZING_GROW(0)},
+                    .childGap = 4,
+                    .layoutDirection = CLAY_LEFT_TO_RIGHT,
+                }}) {
+            for (int i = 0; i < 4; i++) {
+              CLAY({
+                  .layout =
+                      {
+                          .sizing = {.width = CLAY_SIZING_GROW(0),
+                                     .height = CLAY_SIZING_GROW(0)},
+                          .padding = CLAY_PADDING_ALL(4),
+                          .childAlignment =
+                              {
+                                  .x = CLAY_ALIGN_X_CENTER,
+                                  .y = CLAY_ALIGN_Y_TOP,
+                              },
+                      },
+                  .backgroundColor = Clay_Hovered() ? COLOR_FG3 : COLOR_FG2,
+                  .cornerRadius =
+                      {
+                          .topLeft = 8,
+                          .topRight = 8,
+                          .bottomLeft = 8,
+                          .bottomRight = 8,
+                      },
+                  .border =
+                      {
+                          .color = COLOR_FG3,
+                          .width =
+                              {
+                                  .left = 2,
+                                  .right = 2,
+                                  .top = 2,
+                                  .bottom = 2,
+                              },
+                      },
+              }) {
+                CLAY({
+                    .layout =
+                        {
+                            .sizing = {.width = CLAY_SIZING_GROW(0),
+                                       .height = CLAY_SIZING_GROW(0)},
+                        },
+                    .aspectRatio =
+                        {
+                            .aspectRatio = (3.0f / 2.0f),
+                        },
+                    .image =
+                        {
+                            .imageData = static_cast<void *>(&test_image_path),
+                        },
+                }) {}
+              }
+            }
+          }
+        }
+      }
+    }
+    Clay_RenderCommandArray render_commands = Clay_EndLayout();
+
+    ClayRenderer::render_commands(renderer, render_commands);
     SpriteSystem::draw_all(renderer);
     renderer.end_frame();
-
-    // loop();
   }
   SDL_Log("Exiting...");
   cleanup();

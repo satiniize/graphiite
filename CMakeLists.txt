@@ -4,8 +4,8 @@ project(software-renderer)
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # set the output directory for built objects.
-# This makes sure that the dynamic library goes into the build directory automatically.
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/$<CONFIGURATION>")
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/$<CONFIGURATION>")
 
@@ -17,11 +17,14 @@ add_subdirectory(lib/SDL_image EXCLUDE_FROM_ALL)
 
 add_subdirectory(lib/glm EXCLUDE_FROM_ALL)
 
+add_subdirectory(lib/SDL_ttf EXCLUDE_FROM_ALL)
+
 # Source files for the project
 set(SR_SOURCES
 	src/main.cpp
 	src/sprite_system.cpp
 	src/renderer.cpp
+	src/clay_renderer.cpp
 	)
 
 # Create your game executable target as usual
@@ -34,3 +37,9 @@ target_link_libraries(software-renderer PRIVATE SDL3::SDL3)
 target_link_libraries(software-renderer PRIVATE SDL3_image::SDL3_image)
 
 target_link_libraries(software-renderer PRIVATE glm::glm)
+
+target_link_libraries(software-renderer PRIVATE SDL3_ttf::SDL3_ttf)
+
+target_link_libraries(software-renderer PRIVATE glm::glm)
+
+target_link_libraries(software-renderer PRIVATE SDL3_ttf::SDL3_ttf)
