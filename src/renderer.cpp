@@ -521,6 +521,8 @@ bool Renderer::end_frame() {
   return true;
 }
 
+// TODO: Add a queue_sprite_load() function to load in unavailable sprites
+// TODO: Add a destroy_XX() function to free unused resources
 bool Renderer::draw_sprite(std::string path, glm::vec2 translation,
                            float rotation, glm::vec2 scale) {
   // Bind graphics pipeline
