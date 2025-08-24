@@ -404,9 +404,9 @@ bool Renderer::init() {
   sampler_info.mag_filter = SDL_GPU_FILTER_LINEAR;
   sampler_info.min_filter = SDL_GPU_FILTER_LINEAR;
   sampler_info.mipmap_mode = SDL_GPU_SAMPLERMIPMAPMODE_LINEAR;
-  sampler_info.address_mode_u = SDL_GPU_SAMPLERADDRESSMODE_REPEAT;
-  sampler_info.address_mode_v = SDL_GPU_SAMPLERADDRESSMODE_REPEAT;
-  sampler_info.address_mode_w = SDL_GPU_SAMPLERADDRESSMODE_REPEAT;
+  sampler_info.address_mode_u = SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE;
+  sampler_info.address_mode_v = SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE;
+  sampler_info.address_mode_w = SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE;
 
   pixel_sampler = SDL_CreateGPUSampler(context.device, &sampler_info);
   if (!pixel_sampler) {

@@ -121,7 +121,12 @@ void render_commands(Renderer &renderer,
       renderer.end_scissor_mode();
     } break;
     case CLAY_RENDER_COMMAND_TYPE_IMAGE: {
-
+      std::string *string_pointer =
+          static_cast<std::string *>(renderCommand->renderData.image.imageData);
+      std::string image_path = *string_pointer;
+      renderer.draw_sprite(
+          image_path, glm::vec2(rect.x + rect.w / 2.0f, rect.y + rect.h / 2.0f),
+          0.0f, glm::vec2(rect.w, rect.h));
     } break;
     default:
       SDL_Log("Unknown render command type: %d", renderCommand->commandType);

@@ -262,6 +262,8 @@ int main(int argc, char *argv[]) {
   shut_up_data[1] = 1;
   Clay_SetMeasureTextFunction(MeasureText, (void *)shut_up_data);
 
+  std::string test_image_path = "res/uv.bmp";
+
   while (running) {
     uint32_t frame_tick = SDL_GetTicks();
     process_delta_time =
@@ -359,6 +361,12 @@ int main(int argc, char *argv[]) {
                       {
                           .sizing = {.width = CLAY_SIZING_GROW(0),
                                      .height = CLAY_SIZING_GROW(0)},
+                          .padding = CLAY_PADDING_ALL(4),
+                          .childAlignment =
+                              {
+                                  .x = CLAY_ALIGN_X_CENTER,
+                                  .y = CLAY_ALIGN_Y_TOP,
+                              },
                       },
                   .backgroundColor = Clay_Hovered() ? COLOR_FG3 : COLOR_FG2,
                   .cornerRadius =
@@ -379,7 +387,23 @@ int main(int argc, char *argv[]) {
                                   .bottom = 2,
                               },
                       },
-              }) {}
+              }) {
+                CLAY({
+                    .layout =
+                        {
+                            .sizing = {.width = CLAY_SIZING_GROW(0),
+                                       .height = CLAY_SIZING_GROW(0)},
+                        },
+                    .aspectRatio =
+                        {
+                            .aspectRatio = (3.0f / 2.0f),
+                        },
+                    .image =
+                        {
+                            .imageData = static_cast<void *>(&test_image_path),
+                        },
+                }) {}
+              }
             }
           }
         }
