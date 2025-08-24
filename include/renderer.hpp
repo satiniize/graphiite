@@ -87,6 +87,8 @@ public:
   bool draw_rect(glm::vec2 position, glm::vec2 size, glm::vec4 color,
                  glm::vec4 corner_radius);
   bool draw_text(const char *text, float point_size, glm::vec2 position);
+  bool begin_scissor_mode(glm::ivec2 pos, glm::ivec2 size);
+  bool end_scissor_mode();
   bool cleanup();
   glm::vec2 glyph_size;
   float font_sample_point_size = 64.0f;

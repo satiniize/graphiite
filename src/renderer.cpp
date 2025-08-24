@@ -714,6 +714,22 @@ bool Renderer::draw_text(const char *text, float point_size,
   return true;
 }
 
+bool Renderer::begin_scissor_mode(glm::ivec2 pos, glm::ivec2 size) {
+  const SDL_Rect rect = {
+      pos.x,
+      pos.y,
+      size.x,
+      size.y,
+  };
+  SDL_SetGPUScissor(_render_pass, &rect);
+  return true;
+}
+
+bool Renderer::end_scissor_mode() {
+  SDL_SetGPUScissor(_render_pass, nullptr);
+  return true;
+}
+
 bool Renderer::cleanup() {
   // SDL_ReleaseGPUGraphicsPipeline(context.device, graphics_pipeline);
   for (auto &[path, graphics_pipeline] : graphics_pipelines) {
@@ -742,3 +758,4 @@ bool Renderer::cleanup() {
 
   return true;
 }
+// TODO: create begin_scissor_mode and end_scissor_mode

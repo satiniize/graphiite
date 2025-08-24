@@ -350,6 +350,17 @@ int main(int argc, char *argv[]) {
                           .bottomLeft = 8,
                           .bottomRight = 8,
                       },
+                  .border =
+                      {
+                          .color = COLOR_FG3,
+                          .width =
+                              {
+                                  .left = 2,
+                                  .right = 2,
+                                  .top = 2,
+                                  .bottom = 2,
+                              },
+                      },
               }) {}
             }
           }
