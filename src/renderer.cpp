@@ -786,7 +786,15 @@ bool Renderer::begin_scissor_mode(glm::ivec2 pos, glm::ivec2 size) {
 }
 
 bool Renderer::end_scissor_mode() {
-  SDL_SetGPUScissor(_render_pass, nullptr);
+  // Iffy fix
+  const SDL_Rect rect = {
+      0,
+      0,
+      static_cast<int>(this->width),
+      static_cast<int>(this->height),
+  };
+  SDL_SetGPUScissor(_render_pass, &rect);
+  // SDL_SetGPUScissor(_render_pass, nullptr);
   return true;
 }
 

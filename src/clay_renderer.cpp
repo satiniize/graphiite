@@ -113,9 +113,12 @@ void render_commands(Renderer &renderer,
 
     } break;
     case CLAY_RENDER_COMMAND_TYPE_SCISSOR_START: {
+      // TODO: Investigate this weird off by one pixel error
       renderer.begin_scissor_mode(
-          glm::ivec2(bounding_box.x, bounding_box.y),
-          glm::ivec2(bounding_box.width, bounding_box.height));
+          glm::ivec2(bounding_box.x * renderer.viewport_scale,
+                     bounding_box.y * renderer.viewport_scale),
+          glm::ivec2(bounding_box.width * renderer.viewport_scale + 1,
+                     bounding_box.height * renderer.viewport_scale + 1));
     } break;
     case CLAY_RENDER_COMMAND_TYPE_SCISSOR_END: {
       renderer.end_scissor_mode();

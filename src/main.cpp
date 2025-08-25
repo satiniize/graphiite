@@ -25,32 +25,17 @@
 #include "sprite_component.hpp"
 #include "transform_component.hpp"
 
-const Clay_Color COLOR_BG = {12, 8, 12, 255};
-const Clay_Color COLOR_FG1 = {24, 16, 24, 255};
-const Clay_Color COLOR_FG2 = {32, 22, 32, 255};
-const Clay_Color COLOR_FG3 = {40, 28, 40, 255};
-const Clay_Color COLOR_BUTTON_NORMAL = COLOR_FG2;
-const Clay_Color COLOR_BUTTON_HOVER = COLOR_FG3;
+const Clay_Color COLOR_WHITE = {192, 192, 192, 255};
+const Clay_Color COLOR_BLACK = {12, 12, 12, 255};
+const Clay_Color COLOR_GREY = {40, 40, 40, 255};
+const Clay_Color COLOR_DARK_GREY = {24, 24, 24, 255};
 
 uint16_t shut_up_data[1];
+std::string test_image_path = "res/uv.bmp";
 
 Renderer renderer;
 
-void DropDownMenuSeperator() {
-  CLAY({
-      .layout =
-          {
-              .sizing =
-                  {
-                      .width = CLAY_SIZING_GROW(0),
-                      .height = CLAY_SIZING_FIXED(1),
-                  },
-          },
-      .backgroundColor = COLOR_BG,
-  }) {}
-}
-
-void DropDownMenuButton(Clay_String label) {
+inline void DropDownMenuSeperator() {
   CLAY({
       .layout =
           {
@@ -61,8 +46,40 @@ void DropDownMenuButton(Clay_String label) {
                   },
               .padding =
                   {
-                      .left = 8,
-                      .right = 8,
+                      .left = 0,
+                      .right = 0,
+                      .top = 2,
+                      .bottom = 2,
+                  },
+          },
+  }) {
+    CLAY({
+        .layout =
+            {
+                .sizing =
+                    {
+                        .width = CLAY_SIZING_GROW(0),
+                        .height = CLAY_SIZING_FIXED(1),
+                    },
+            },
+        .backgroundColor = COLOR_GREY,
+    }) {}
+  }
+}
+
+inline void DropDownMenuButton(Clay_String label) {
+  CLAY({
+      .layout =
+          {
+              .sizing =
+                  {
+                      .width = CLAY_SIZING_GROW(0),
+                      .height = CLAY_SIZING_FIT(0),
+                  },
+              .padding =
+                  {
+                      .left = 4,
+                      .right = 4,
                       .top = 4,
                       .bottom = 4,
                   },
@@ -72,13 +89,13 @@ void DropDownMenuButton(Clay_String label) {
                       .y = CLAY_ALIGN_Y_CENTER,
                   },
           },
-      .backgroundColor = Clay_Hovered() ? COLOR_FG2 : COLOR_FG1,
+      .backgroundColor = Clay_Hovered() ? COLOR_GREY : COLOR_DARK_GREY,
       .cornerRadius =
           {
-              .topLeft = 0,
-              .topRight = 0,
-              .bottomLeft = 8,
-              .bottomRight = 8,
+              .topLeft = 3,
+              .topRight = 3,
+              .bottomLeft = 3,
+              .bottomRight = 3,
           },
   }) {
     CLAY_TEXT(label, CLAY_TEXT_CONFIG({
@@ -88,7 +105,51 @@ void DropDownMenuButton(Clay_String label) {
   }
 }
 
-void MenuBarButton(Clay_String label) {
+inline void SessionDropdownMenu() {
+  DropDownMenuButton(CLAY_STRING("New Session"));
+  DropDownMenuButton(CLAY_STRING("Open Session..."));
+  DropDownMenuSeperator();
+  DropDownMenuButton(CLAY_STRING("Save Session"));
+  DropDownMenuButton(CLAY_STRING("Save Session As..."));
+  DropDownMenuSeperator();
+  DropDownMenuButton(CLAY_STRING("Close Session"));
+  DropDownMenuButton(CLAY_STRING("Exit"));
+}
+
+inline void EditDropdownMenu() {
+  DropDownMenuButton(CLAY_STRING("Undo"));
+  DropDownMenuButton(CLAY_STRING("Redo"));
+  DropDownMenuSeperator();
+  DropDownMenuButton(CLAY_STRING("Cut"));
+  DropDownMenuButton(CLAY_STRING("Copy"));
+  DropDownMenuButton(CLAY_STRING("Paste"));
+  DropDownMenuSeperator();
+  DropDownMenuButton(CLAY_STRING("Delete Selected"));
+  DropDownMenuButton(CLAY_STRING("Select All"));
+}
+
+inline void ViewDropdownMenu() {
+  DropDownMenuButton(CLAY_STRING("Zoom In"));
+  DropDownMenuButton(CLAY_STRING("Zoom Out"));
+  DropDownMenuButton(CLAY_STRING("Actual Size"));
+  DropDownMenuSeperator();
+  DropDownMenuButton(CLAY_STRING("Show Grid"));   // Toggle or submenu
+  DropDownMenuButton(CLAY_STRING("Show Rulers")); // Toggle or submenu
+  DropDownMenuSeperator();
+  DropDownMenuButton(CLAY_STRING("Fullscreen"));
+  DropDownMenuButton(CLAY_STRING("Preferences..."));
+}
+
+inline void HelpDropdownMenu() {
+  DropDownMenuButton(CLAY_STRING("View Help"));
+  DropDownMenuButton(CLAY_STRING("Keyboard Shortcuts"));
+  DropDownMenuSeperator();
+  DropDownMenuButton(CLAY_STRING("Check for Updates..."));
+  DropDownMenuSeperator();
+  DropDownMenuButton(CLAY_STRING("About PhotoSorter"));
+}
+
+inline void MenuBarButton(Clay_String label, void (*dropdown_menu)()) {
   CLAY({
       .id = CLAY_SIDI(label, 0),
       .layout =
@@ -97,8 +158,8 @@ void MenuBarButton(Clay_String label) {
                          .height = CLAY_SIZING_FIT(0)},
               .padding =
                   {
-                      .left = 8,
-                      .right = 8,
+                      .left = 4,
+                      .right = 4,
                       .top = 4,
                       .bottom = 4,
                   },
@@ -108,8 +169,14 @@ void MenuBarButton(Clay_String label) {
                       .y = CLAY_ALIGN_Y_CENTER,
                   },
           },
-      .backgroundColor =
-          Clay_Hovered() ? COLOR_BUTTON_HOVER : COLOR_BUTTON_NORMAL,
+      .backgroundColor = Clay_Hovered() ? COLOR_GREY : COLOR_DARK_GREY,
+      .cornerRadius =
+          {
+              .topLeft = 3,
+              .topRight = 3,
+              .bottomLeft = 3,
+              .bottomRight = 3,
+          },
   }) {
     CLAY_TEXT(label, CLAY_TEXT_CONFIG({
                          .textColor = {255, 255, 255, 255},
@@ -130,18 +197,19 @@ void MenuBarButton(Clay_String label) {
                           .width = CLAY_SIZING_FIXED(192),
                           .height = CLAY_SIZING_FIT(0),
                       },
-                  .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                  .padding = CLAY_PADDING_ALL(3),
               },
-          .backgroundColor = COLOR_FG1,
+          .backgroundColor = COLOR_WHITE,
           .cornerRadius =
               {
-                  .topLeft = 0,
-                  .topRight = 0,
+                  .topLeft = 8,
+                  .topRight = 8,
                   .bottomLeft = 8,
                   .bottomRight = 8,
               },
           .floating =
               {
+                  .zIndex = 1,
                   .attachPoints =
                       {
                           .parent = CLAY_ATTACH_POINT_LEFT_BOTTOM,
@@ -150,22 +218,137 @@ void MenuBarButton(Clay_String label) {
               },
           .border =
               {
-                  .color = COLOR_BG,
+                  .color = COLOR_BLACK,
                   .width =
                       {
-                          .left = 1,
-                          .right = 1,
-                          .top = 1,
-                          .bottom = 1,
+                          .left = 2,
+                          .right = 2,
+                          .top = 2,
+                          .bottom = 2,
+                      },
+              },
+      }){CLAY({
+          .layout =
+              {
+                  .sizing =
+                      {
+                          .width = CLAY_SIZING_GROW(0),
+                          .height = CLAY_SIZING_GROW(0),
+                      },
+                  .padding = CLAY_PADDING_ALL(2),
+                  .layoutDirection = CLAY_TOP_TO_BOTTOM,
+              },
+          .backgroundColor = COLOR_DARK_GREY,
+          .cornerRadius =
+              {
+                  .topLeft = 5,
+                  .topRight = 5,
+                  .bottomLeft = 5,
+                  .bottomRight = 5,
+              },
+      }){dropdown_menu();
+    }
+  };
+}
+}
+}
+
+inline void PhotoItem() {
+  CLAY({
+      .layout =
+          {
+              .sizing = {.width = CLAY_SIZING_GROW(0),
+                         .height = CLAY_SIZING_GROW(0)},
+              .padding = CLAY_PADDING_ALL(3),
+              .childGap = 8,
+              .childAlignment =
+                  {
+                      .x = CLAY_ALIGN_X_CENTER,
+                      .y = CLAY_ALIGN_Y_TOP,
+                  },
+              .layoutDirection = CLAY_TOP_TO_BOTTOM,
+          },
+      .backgroundColor = COLOR_WHITE,
+      .cornerRadius = CLAY_CORNER_RADIUS(3),
+      .border =
+          {
+              .color = COLOR_BLACK,
+              .width =
+                  {
+                      .left = 2,
+                      .right = 2,
+                      .top = 2,
+                      .bottom = 2,
+                  },
+          },
+  }) {
+    CLAY({
+        .layout =
+            {
+                .sizing = {.width = CLAY_SIZING_GROW(0),
+                           .height = CLAY_SIZING_GROW(0)},
+                .padding = CLAY_PADDING_ALL(3),
+            },
+        .aspectRatio =
+            {
+                .aspectRatio = (3.0f / 2.0f),
+            },
+        .image =
+            {
+                .imageData = static_cast<void *>(&test_image_path),
+            },
+    }) {
+      CLAY_TEXT(CLAY_STRING("IMGTEST.JPG"),
+                CLAY_TEXT_CONFIG({
+                    .textColor = {255, 255, 255, 255},
+                    .fontSize = 16,
+                }));
+      CLAY({
+          .layout =
+              {
+                  .sizing =
+                      {
+                          .width = CLAY_SIZING_GROW(0),
+                          .height = CLAY_SIZING_GROW(0),
+                      },
+              },
+      }) {}
+      CLAY({
+          .layout =
+              {
+                  .sizing =
+                      {
+                          .width = CLAY_SIZING_FIXED(32),
+                          .height = CLAY_SIZING_FIXED(32),
+                      },
+                  .padding = CLAY_PADDING_ALL(3),
+              },
+          .backgroundColor = COLOR_WHITE,
+          .cornerRadius = CLAY_CORNER_RADIUS(3),
+          .border =
+              {
+                  .color = COLOR_BLACK,
+                  .width =
+                      {
+                          .left = 2,
+                          .right = 2,
+                          .top = 2,
+                          .bottom = 2,
                       },
               },
       }) {
-        DropDownMenuButton(CLAY_STRING("Open Folder..."));
-        DropDownMenuSeperator();
-        DropDownMenuButton(CLAY_STRING("Open Recent..."));
-        DropDownMenuSeperator();
-        DropDownMenuButton(CLAY_STRING("Save"));
-      };
+        CLAY({
+            .layout =
+                {
+                    .sizing =
+                        {
+                            .width = CLAY_SIZING_GROW(0),
+                            .height = CLAY_SIZING_GROW(0),
+                        },
+                },
+            .backgroundColor = Clay_Hovered() ? COLOR_GREY : COLOR_DARK_GREY,
+        }) {}
+      }
     }
   }
 }
@@ -232,7 +415,7 @@ int main(int argc, char *argv[]) {
   // TODO: Get size of image
   TransformComponent transform_component = {
       .position = glm::vec2(64.0f, 64.0f),
-      .scale = glm::vec2(4.0f, 4.0f),
+      .scale = glm::vec2(8.0f, 8.0f),
   };
   transform_components[amogus] = transform_component;
 
@@ -259,10 +442,8 @@ int main(int argc, char *argv[]) {
                                      .height = (float)HEIGHT};
   Clay_Context *clayContextBottom = Clay_Initialize(
       clay_memory, clay_dimensions, (Clay_ErrorHandler){handle_clay_errors});
-  shut_up_data[1] = 1;
+  shut_up_data[0] = 1;
   Clay_SetMeasureTextFunction(MeasureText, (void *)shut_up_data);
-
-  std::string test_image_path = "res/uv.bmp";
 
   while (running) {
     uint32_t frame_tick = SDL_GetTicks();
@@ -271,12 +452,14 @@ int main(int argc, char *argv[]) {
     accumulator += process_delta_time;
     prev_frame_tick = frame_tick;
 
+    Clay_Vector2 mouse_scroll = {0.0f, 0.0f};
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
       if (event.type == SDL_EVENT_QUIT) {
         running = false;
       }
       if (event.type == SDL_EVENT_MOUSE_WHEEL) {
+        mouse_scroll.y = event.wheel.y;
       }
     }
 
@@ -284,10 +467,9 @@ int main(int argc, char *argv[]) {
     float cursor_y;
     SDL_GetMouseState(&cursor_x, &cursor_y);
 
-    // Clay_Vector2 mouse_position = {cursor_x / renderer.viewport_scale,
-    //                                cursor_y / renderer.viewport_scale};
     Clay_Vector2 mouse_position = {cursor_x, cursor_y};
     Clay_SetPointerState(mouse_position, false);
+    Clay_UpdateScrollContainers(true, mouse_scroll, process_delta_time);
 
     // const bool *keystate = SDL_GetKeyboardState(NULL);
 
@@ -303,113 +485,124 @@ int main(int argc, char *argv[]) {
     }
 
     TransformComponent &cursor_transform = transform_components[amogus];
-    // cursor_transform.position =
-    //     glm::vec2(cursor_x, cursor_y) / (float)renderer.viewport_scale;
     cursor_transform.position = glm::vec2(cursor_x, cursor_y);
 
     renderer.begin_frame();
+    int image_minimum_width = 240 * renderer.viewport_scale;
+    int photo_columns = renderer.width / image_minimum_width;
     Clay_Dimensions clay_dimensions = {
         .width = static_cast<float>(renderer.width) /
                  static_cast<float>(renderer.viewport_scale),
         .height = static_cast<float>(renderer.height) /
                   static_cast<float>(renderer.viewport_scale)};
+
     Clay_SetLayoutDimensions(clay_dimensions);
 
     Clay_BeginLayout();
-    CLAY({.id = CLAY_ID("Root"),
-          .layout =
-              {
-                  .sizing = {.width = CLAY_SIZING_GROW(0),
-                             .height = CLAY_SIZING_GROW(0)},
-                  .padding = CLAY_PADDING_ALL(0),
-                  .layoutDirection = CLAY_TOP_TO_BOTTOM,
-              },
-          .backgroundColor = COLOR_BG}) {
+    CLAY({
+        .id = CLAY_ID("Root"),
+        .layout =
+            {
+                .sizing = {.width = CLAY_SIZING_GROW(0),
+                           .height = CLAY_SIZING_GROW(0)},
+                .padding = CLAY_PADDING_ALL(0),
+                .layoutDirection = CLAY_TOP_TO_BOTTOM,
+            },
+    }) {
       CLAY({
           .id = CLAY_ID("MenuBar"),
           .layout =
               {
                   .sizing = {.width = CLAY_SIZING_GROW(0),
                              .height = CLAY_SIZING_FIT(0)},
-                  .childGap = 2,
+                  .padding =
+                      {
+                          .left = 0,
+                          .right = 0,
+                          .top = 0,
+                          .bottom = 3,
+                      },
               },
-          .backgroundColor = COLOR_FG2,
+          .backgroundColor = COLOR_WHITE,
+          .border =
+              {
+                  .color = COLOR_BLACK,
+                  .width =
+                      {
+                          .left = 0,
+                          .right = 0,
+                          .top = 0,
+                          .bottom = 2,
+                      },
+              },
       }) {
-        MenuBarButton(CLAY_STRING("File"));
-        MenuBarButton(CLAY_STRING("Edit"));
-        MenuBarButton(CLAY_STRING("View"));
-        MenuBarButton(CLAY_STRING("Help"));
+        CLAY({
+            .layout =
+                {
+                    .sizing =
+                        {
+                            .width = CLAY_SIZING_GROW(0),
+                            .height = CLAY_SIZING_GROW(0),
+                        },
+                    .padding = CLAY_PADDING_ALL(4),
+                    .childGap = 4,
+                },
+            .backgroundColor = COLOR_DARK_GREY,
+        }) {
+          MenuBarButton(CLAY_STRING("Session"), SessionDropdownMenu);
+          MenuBarButton(CLAY_STRING("Edit"), EditDropdownMenu);
+          MenuBarButton(CLAY_STRING("View"), ViewDropdownMenu);
+          MenuBarButton(CLAY_STRING("Help"), HelpDropdownMenu);
+        }
       }
-      CLAY({.id = CLAY_ID("MarginContainer1"),
-            .layout = {
-                .sizing = {.width = CLAY_SIZING_GROW(0),
-                           .height = CLAY_SIZING_GROW(0)},
-                .padding = CLAY_PADDING_ALL(4),
-                .childGap = 4,
-                .layoutDirection = CLAY_TOP_TO_BOTTOM,
-            }}) {
-        for (int i = 0; i < 4; i++) {
+      CLAY({
+          .id = CLAY_ID("MarginContainer1"),
+          .layout =
+              {
+                  .sizing = {.width = CLAY_SIZING_GROW(0),
+                             .height = CLAY_SIZING_GROW(0)},
+                  .padding = CLAY_PADDING_ALL(4),
+                  .childGap = 4,
+                  .layoutDirection = CLAY_TOP_TO_BOTTOM,
+              },
+          .backgroundColor = COLOR_GREY,
+          .clip =
+              {
+                  .vertical = true,
+                  .childOffset = Clay_GetScrollOffset(),
+              },
+      }) {
+        for (int i = 0; i < 16; i++) {
           CLAY({.layout = {
                     .sizing = {.width = CLAY_SIZING_GROW(0),
-                               .height = CLAY_SIZING_GROW(0)},
+                               .height = CLAY_SIZING_FIT(0)},
                     .childGap = 4,
                     .layoutDirection = CLAY_LEFT_TO_RIGHT,
                 }}) {
-            for (int i = 0; i < 4; i++) {
-              CLAY({
-                  .layout =
-                      {
-                          .sizing = {.width = CLAY_SIZING_GROW(0),
-                                     .height = CLAY_SIZING_GROW(0)},
-                          .padding = CLAY_PADDING_ALL(4),
-                          .childAlignment =
-                              {
-                                  .x = CLAY_ALIGN_X_CENTER,
-                                  .y = CLAY_ALIGN_Y_TOP,
-                              },
-                      },
-                  .backgroundColor = Clay_Hovered() ? COLOR_FG3 : COLOR_FG2,
-                  .cornerRadius =
-                      {
-                          .topLeft = 8,
-                          .topRight = 8,
-                          .bottomLeft = 8,
-                          .bottomRight = 8,
-                      },
-                  .border =
-                      {
-                          .color = COLOR_FG3,
-                          .width =
-                              {
-                                  .left = 2,
-                                  .right = 2,
-                                  .top = 2,
-                                  .bottom = 2,
-                              },
-                      },
-              }) {
-                CLAY({
-                    .layout =
-                        {
-                            .sizing = {.width = CLAY_SIZING_GROW(0),
-                                       .height = CLAY_SIZING_GROW(0)},
-                        },
-                    .aspectRatio =
-                        {
-                            .aspectRatio = (3.0f / 2.0f),
-                        },
-                    .image =
-                        {
-                            .imageData = static_cast<void *>(&test_image_path),
-                        },
-                }) {}
-              }
+            for (int i = 0; i < photo_columns; i++) {
+              PhotoItem();
             }
           }
         }
       }
     }
     Clay_RenderCommandArray render_commands = Clay_EndLayout();
+
+    // TODO: Anything outside of renderer should first collate commands
+    // This should allow for unloaded sprites to be identified, allowing
+    // renderer to load them in first before trying to render them, instead
+    // of rendering them on the next frame.
+    //
+    // This should also help if there are many draw calls, and it also
+    // should facilitate objects which use the same resources
+    //
+    // Best implementation of these would make the draw_X commands internal,
+    // and instead provide an exposed "draw" function that instead
+    // adds the draw command to a staging array.
+
+    // TODO: Clay renderer should have an id: data unordered map to allow
+    // for basic animations like css
+    // Would also probably need to make a Tween class or just lerp it.
 
     ClayRenderer::render_commands(renderer, render_commands);
     SpriteSystem::draw_all(renderer);
