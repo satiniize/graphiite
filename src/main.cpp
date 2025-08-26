@@ -1,5 +1,7 @@
+#include "SDL3/SDL_log.h"
 #include <cmath>
 #include <cstdint>
+#include <filesystem>
 #include <format>
 #include <random>
 #include <string>
@@ -253,7 +255,7 @@ inline void MenuBarButton(Clay_String label, void (*dropdown_menu)()) {
 }
 }
 
-inline void PhotoItem() {
+inline void PhotoItem(std::string &image_path) {
   CLAY({
       .layout =
           {
@@ -295,7 +297,7 @@ inline void PhotoItem() {
             },
         .image =
             {
-                .imageData = static_cast<void *>(&test_image_path),
+                .imageData = static_cast<void *>(&image_path),
             },
     }) {
       CLAY_TEXT(CLAY_STRING("IMGTEST.JPG"),
@@ -445,6 +447,47 @@ int main(int argc, char *argv[]) {
   shut_up_data[0] = 1;
   Clay_SetMeasureTextFunction(MeasureText, (void *)shut_up_data);
 
+  std::string photos_root_path = "res/FUJI/";
+
+  if (!std::filesystem::exists(photos_root_path) &&
+      std::filesystem::is_directory(photos_root_path)) {
+    SDL_Log("Invalid photo path");
+    return 1;
+  }
+
+  std::vector<std::string> photo_paths;
+
+  for (const std::filesystem::directory_entry &entry :
+       std::filesystem::directory_iterator(photos_root_path)) {
+    if (entry.is_regular_file()) {
+      std::cout << "File: " << entry.path() << std::endl;
+      photo_paths.push_back(entry.path().string());
+      SDL_Surface *image_data = IMG_Load(entry.path().c_str());
+      if (image_data == NULL) {
+        SDL_Log("Failed to load image! %s", entry.path().c_str());
+      }
+
+      int downsample_factor = 8;
+      int width = image_data->w / downsample_factor;
+      int height = image_data->h / downsample_factor;
+      SDL_Surface *downsampled =
+          SDL_CreateSurface(width, height, image_data->format);
+
+      SDL_Rect src_rect = {0, 0, image_data->w, image_data->h};
+      SDL_Rect dst_rect = {0, 0, width, height};
+      SDL_BlitSurfaceScaled(image_data, &src_rect, downsampled, &dst_rect,
+                            SDL_SCALEMODE_LINEAR);
+
+      SDL_Log("Finished loading CPU side");
+      renderer.load_texture(entry.path(), downsampled);
+      SDL_Log("Finished loading GPU side");
+      SDL_DestroySurface(image_data);
+      SDL_DestroySurface(downsampled);
+    }
+  }
+
+  int num_images = std::size(photo_paths);
+
   while (running) {
     uint32_t frame_tick = SDL_GetTicks();
     process_delta_time =
@@ -486,6 +529,8 @@ int main(int argc, char *argv[]) {
 
     TransformComponent &cursor_transform = transform_components[amogus];
     cursor_transform.position = glm::vec2(cursor_x, cursor_y);
+
+    int image_counter = 0;
 
     renderer.begin_frame();
     int image_minimum_width = 240 * renderer.viewport_scale;
@@ -572,7 +617,7 @@ int main(int argc, char *argv[]) {
                   .childOffset = Clay_GetScrollOffset(),
               },
       }) {
-        for (int i = 0; i < 16; i++) {
+        for (int i = 0; i < 16 && image_counter < num_images; i++) {
           CLAY({.layout = {
                     .sizing = {.width = CLAY_SIZING_GROW(0),
                                .height = CLAY_SIZING_FIT(0)},
@@ -580,7 +625,19 @@ int main(int argc, char *argv[]) {
                     .layoutDirection = CLAY_LEFT_TO_RIGHT,
                 }}) {
             for (int i = 0; i < photo_columns; i++) {
-              PhotoItem();
+              if (image_counter < num_images) {
+                std::cout << photo_paths[image_counter] << std::endl;
+                PhotoItem(photo_paths[image_counter]);
+                image_counter++;
+              } else {
+                CLAY({
+                    .layout =
+                        {
+                            .sizing = {.width = CLAY_SIZING_GROW(0),
+                                       .height = CLAY_SIZING_GROW(0)},
+                        },
+                }) {}
+              }
             }
           }
         }
