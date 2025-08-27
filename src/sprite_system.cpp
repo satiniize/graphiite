@@ -15,7 +15,7 @@ void draw_all(Renderer &renderer) {
     if (it != transform_components.end()) {
       TransformComponent transform = it->second;
       renderer.draw_sprite(sprite.path, transform.position, transform.rotation,
-                           transform.scale);
+                           transform.scale, glm::vec4(1.0f, 1.0f, 1.0f, 1.0f));
     }
   }
 }

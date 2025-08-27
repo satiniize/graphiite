@@ -7,6 +7,11 @@
 #include <iostream>
 #include <unordered_map>
 
+struct ImageData {
+  std::string path;
+  bool tiling;
+};
+
 namespace ClayRenderer {
 static int NUM_CIRCLE_SEGMENTS = 16;
 

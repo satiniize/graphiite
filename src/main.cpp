@@ -1,4 +1,6 @@
 #include "SDL3/SDL_log.h"
+#include "SDL3/SDL_surface.h"
+#include "glm/common.hpp"
 #include <cmath>
 #include <cstdint>
 #include <filesystem>
@@ -34,8 +36,14 @@ const Clay_Color COLOR_DARK_GREY = {24, 24, 24, 255};
 
 uint16_t shut_up_data[1];
 std::string test_image_path = "res/uv.bmp";
+std::string carbon_fiber_path = "res/carbon_fiber.png";
 
 Renderer renderer;
+
+ImageData edge_sheen_data;
+ImageData carbon_fiber_data;
+ImageData vignette_data;
+ImageData stretch_data;
 
 inline void DropDownMenuSeperator() {
   CLAY({
@@ -229,33 +237,39 @@ inline void MenuBarButton(Clay_String label, void (*dropdown_menu)()) {
                           .bottom = 2,
                       },
               },
-      }){CLAY({
-          .layout =
-              {
-                  .sizing =
-                      {
-                          .width = CLAY_SIZING_GROW(0),
-                          .height = CLAY_SIZING_GROW(0),
-                      },
-                  .padding = CLAY_PADDING_ALL(2),
-                  .layoutDirection = CLAY_TOP_TO_BOTTOM,
-              },
-          .backgroundColor = COLOR_DARK_GREY,
-          .cornerRadius =
-              {
-                  .topLeft = 5,
-                  .topRight = 5,
-                  .bottomLeft = 5,
-                  .bottomRight = 5,
-              },
-      }){dropdown_menu();
+      }) {
+        CLAY({
+            .layout =
+                {
+                    .sizing =
+                        {
+                            .width = CLAY_SIZING_GROW(0),
+                            .height = CLAY_SIZING_GROW(0),
+                        },
+                    .padding = CLAY_PADDING_ALL(2),
+                    .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                },
+            .backgroundColor = COLOR_DARK_GREY,
+            .cornerRadius =
+                {
+                    .topLeft = 5,
+                    .topRight = 5,
+                    .bottomLeft = 5,
+                    .bottomRight = 5,
+                },
+        }) {
+          dropdown_menu();
+        }
+      }
     }
-  };
-}
-}
+  }
 }
 
-inline void PhotoItem(std::string &image_path) {
+std::string edge_sheen_path = "res/edge_sheen.png";
+
+inline void PhotoItem(ImageData &image_data) {
+  uint16_t corner_radius = 16;
+  uint16_t checkbox_corner_radius = 5;
   CLAY({
       .layout =
           {
@@ -270,8 +284,12 @@ inline void PhotoItem(std::string &image_path) {
                   },
               .layoutDirection = CLAY_TOP_TO_BOTTOM,
           },
-      .backgroundColor = COLOR_WHITE,
-      .cornerRadius = CLAY_CORNER_RADIUS(3),
+      .backgroundColor = {1.0f, 1.0f, 1.0f, 1.0f},
+      .cornerRadius = CLAY_CORNER_RADIUS(static_cast<float>(corner_radius)),
+      .image =
+          {
+              .imageData = static_cast<void *>(&edge_sheen_data),
+          },
       .border =
           {
               .color = COLOR_BLACK,
@@ -289,22 +307,26 @@ inline void PhotoItem(std::string &image_path) {
             {
                 .sizing = {.width = CLAY_SIZING_GROW(0),
                            .height = CLAY_SIZING_GROW(0)},
-                .padding = CLAY_PADDING_ALL(3),
+                .padding = CLAY_PADDING_ALL(static_cast<uint16_t>(
+                    corner_radius - 3 - checkbox_corner_radius)),
             },
+        .backgroundColor = {1.0f, 1.0f, 1.0f, 1.0f},
+        .cornerRadius =
+            CLAY_CORNER_RADIUS(static_cast<float>(corner_radius - 3)),
         .aspectRatio =
             {
                 .aspectRatio = (3.0f / 2.0f),
             },
         .image =
             {
-                .imageData = static_cast<void *>(&image_path),
+                .imageData = static_cast<void *>(&image_data),
             },
     }) {
-      CLAY_TEXT(CLAY_STRING("IMGTEST.JPG"),
-                CLAY_TEXT_CONFIG({
-                    .textColor = {255, 255, 255, 255},
-                    .fontSize = 16,
-                }));
+      // CLAY_TEXT(CLAY_STRING("IMGTEST.JPG"),
+      //           CLAY_TEXT_CONFIG({
+      //               .textColor = {255, 255, 255, 255},
+      //               .fontSize = 16,
+      //           }));
       CLAY({
           .layout =
               {
@@ -325,8 +347,13 @@ inline void PhotoItem(std::string &image_path) {
                       },
                   .padding = CLAY_PADDING_ALL(3),
               },
-          .backgroundColor = COLOR_WHITE,
-          .cornerRadius = CLAY_CORNER_RADIUS(3),
+          .backgroundColor = {1.0f, 1.0f, 1.0f, 1.0},
+          .cornerRadius =
+              CLAY_CORNER_RADIUS(static_cast<float>(checkbox_corner_radius)),
+          .image =
+              {
+                  .imageData = static_cast<void *>(&edge_sheen_data),
+              },
           .border =
               {
                   .color = COLOR_BLACK,
@@ -348,7 +375,14 @@ inline void PhotoItem(std::string &image_path) {
                             .height = CLAY_SIZING_GROW(0),
                         },
                 },
-            .backgroundColor = Clay_Hovered() ? COLOR_GREY : COLOR_DARK_GREY,
+            // .backgroundColor = Clay_Hovered() ? COLOR_GREY : COLOR_DARK_GREY,
+            .backgroundColor = {1.0f, 1.0f, 1.0f, 1.0f},
+            .cornerRadius = CLAY_CORNER_RADIUS(
+                static_cast<float>(checkbox_corner_radius - 3)),
+            .image =
+                {
+                    .imageData = static_cast<void *>(&stretch_data),
+                },
         }) {}
       }
     }
@@ -455,18 +489,26 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  std::vector<std::string> photo_paths;
+  std::vector<ImageData> photo_paths;
 
   for (const std::filesystem::directory_entry &entry :
        std::filesystem::directory_iterator(photos_root_path)) {
     if (entry.is_regular_file()) {
       std::cout << "File: " << entry.path() << std::endl;
-      photo_paths.push_back(entry.path().string());
+
+      ImageData photo_data{};
+      photo_data.path = entry.path().string();
+      photo_data.tiling = false;
+
+      photo_paths.push_back(photo_data);
+      SDL_Log("Start IMG_Load");
       SDL_Surface *image_data = IMG_Load(entry.path().c_str());
+      SDL_Log("End IMG_Load");
       if (image_data == NULL) {
         SDL_Log("Failed to load image! %s", entry.path().c_str());
       }
 
+      SDL_Log("Start downsample");
       int downsample_factor = 8;
       int width = image_data->w / downsample_factor;
       int height = image_data->h / downsample_factor;
@@ -478,15 +520,47 @@ int main(int argc, char *argv[]) {
       SDL_BlitSurfaceScaled(image_data, &src_rect, downsampled, &dst_rect,
                             SDL_SCALEMODE_LINEAR);
 
-      SDL_Log("Finished loading CPU side");
+      SDL_Log("End downsample");
+      SDL_Log("Start GPU upload");
       renderer.load_texture(entry.path(), downsampled);
-      SDL_Log("Finished loading GPU side");
+      SDL_Log("End GPU upload");
       SDL_DestroySurface(image_data);
       SDL_DestroySurface(downsampled);
     }
   }
 
   int num_images = std::size(photo_paths);
+  bool is_mouse_down = false;
+
+  // Clay_Vector2 margin_container_scroll = {0.0, 0.0};
+  // float scroll_speed = 4.0f;
+  SDL_Surface *edge_sheen = IMG_Load("res/edge_sheen.png");
+  renderer.load_texture("res/edge_sheen.png", edge_sheen);
+  SDL_DestroySurface(edge_sheen);
+
+  edge_sheen_data.path = "res/edge_sheen.png";
+  edge_sheen_data.tiling = false;
+
+  SDL_Surface *carbon_fiber = IMG_Load("res/carbon_fiber.png");
+  renderer.load_texture("res/carbon_fiber.png", carbon_fiber);
+  SDL_DestroySurface(carbon_fiber);
+
+  carbon_fiber_data.path = "res/carbon_fiber.png";
+  carbon_fiber_data.tiling = true;
+
+  SDL_Surface *vignette = IMG_Load("res/vignette.png");
+  renderer.load_texture("res/vignette.png", vignette);
+  SDL_DestroySurface(vignette);
+
+  vignette_data.path = "res/vignette.png";
+  vignette_data.tiling = false;
+
+  SDL_Surface *stretch = IMG_Load("res/stretch.png");
+  renderer.load_texture("res/stretch.png", stretch);
+  SDL_DestroySurface(stretch);
+
+  stretch_data.path = "res/stretch.png";
+  stretch_data.tiling = false;
 
   while (running) {
     uint32_t frame_tick = SDL_GetTicks();
@@ -502,7 +576,14 @@ int main(int argc, char *argv[]) {
         running = false;
       }
       if (event.type == SDL_EVENT_MOUSE_WHEEL) {
+        mouse_scroll.x = event.wheel.x;
         mouse_scroll.y = event.wheel.y;
+      }
+      if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN) {
+        is_mouse_down = true;
+      }
+      if (event.type == SDL_EVENT_MOUSE_BUTTON_UP) {
+        is_mouse_down = false;
       }
     }
 
@@ -511,8 +592,6 @@ int main(int argc, char *argv[]) {
     SDL_GetMouseState(&cursor_x, &cursor_y);
 
     Clay_Vector2 mouse_position = {cursor_x, cursor_y};
-    Clay_SetPointerState(mouse_position, false);
-    Clay_UpdateScrollContainers(true, mouse_scroll, process_delta_time);
 
     // const bool *keystate = SDL_GetKeyboardState(NULL);
 
@@ -533,15 +612,30 @@ int main(int argc, char *argv[]) {
     int image_counter = 0;
 
     renderer.begin_frame();
-    int image_minimum_width = 240 * renderer.viewport_scale;
-    int photo_columns = renderer.width / image_minimum_width;
+
     Clay_Dimensions clay_dimensions = {
         .width = static_cast<float>(renderer.width) /
                  static_cast<float>(renderer.viewport_scale),
         .height = static_cast<float>(renderer.height) /
                   static_cast<float>(renderer.viewport_scale)};
 
+    // Photo grid calculation
+    int image_minimum_width = 240 * renderer.viewport_scale;
+    int photo_columns = renderer.width / image_minimum_width;
+
+    // Clay foreplay
     Clay_SetLayoutDimensions(clay_dimensions);
+    Clay_SetPointerState(mouse_position, is_mouse_down);
+    Clay_UpdateScrollContainers(true, mouse_scroll, process_delta_time);
+
+    // std::cout
+    //     <<
+    //     Clay_GetElementData(CLAY_ID("MarginContainer1")).boundingBox.height
+    //     << std::endl;
+
+    // std::cout << renderer.height / renderer.viewport_scale << std::endl;
+
+    // std::cout << margin_container_scroll.y << std::endl;
 
     Clay_BeginLayout();
     CLAY({
@@ -592,7 +686,11 @@ int main(int argc, char *argv[]) {
                     .padding = CLAY_PADDING_ALL(4),
                     .childGap = 4,
                 },
-            .backgroundColor = COLOR_DARK_GREY,
+            .backgroundColor = {1.0f, 1.0f, 1.0f, 1.0f},
+            .image =
+                {
+                    .imageData = static_cast<void *>(&stretch_data),
+                },
         }) {
           MenuBarButton(CLAY_STRING("Session"), SessionDropdownMenu);
           MenuBarButton(CLAY_STRING("Edit"), EditDropdownMenu);
@@ -606,37 +704,61 @@ int main(int argc, char *argv[]) {
               {
                   .sizing = {.width = CLAY_SIZING_GROW(0),
                              .height = CLAY_SIZING_GROW(0)},
-                  .padding = CLAY_PADDING_ALL(4),
-                  .childGap = 4,
-                  .layoutDirection = CLAY_TOP_TO_BOTTOM,
               },
-          .backgroundColor = COLOR_GREY,
-          .clip =
+          .backgroundColor = {1.0f, 1.0f, 1.0f, 1.0f},
+          .image =
               {
-                  .vertical = true,
-                  .childOffset = Clay_GetScrollOffset(),
+                  .imageData = static_cast<void *>(&carbon_fiber_data),
               },
+
       }) {
-        for (int i = 0; i < 16 && image_counter < num_images; i++) {
-          CLAY({.layout = {
-                    .sizing = {.width = CLAY_SIZING_GROW(0),
-                               .height = CLAY_SIZING_FIT(0)},
-                    .childGap = 4,
-                    .layoutDirection = CLAY_LEFT_TO_RIGHT,
-                }}) {
-            for (int i = 0; i < photo_columns; i++) {
-              if (image_counter < num_images) {
-                std::cout << photo_paths[image_counter] << std::endl;
-                PhotoItem(photo_paths[image_counter]);
-                image_counter++;
-              } else {
-                CLAY({
-                    .layout =
+        CLAY({
+            .layout =
+                {
+                    .sizing =
                         {
-                            .sizing = {.width = CLAY_SIZING_GROW(0),
-                                       .height = CLAY_SIZING_GROW(0)},
+                            .width = CLAY_SIZING_GROW(0),
+                            .height = CLAY_SIZING_GROW(0),
                         },
-                }) {}
+                    .padding = CLAY_PADDING_ALL(4),
+                    .childGap = 4,
+                    .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                },
+            .backgroundColor = {1.0f, 1.0f, 1.0f, 1.0f},
+            .image =
+                {
+                    .imageData = static_cast<void *>(&vignette_data),
+                },
+            .clip =
+                {
+                    .vertical = true,
+                    .childOffset =
+                        Clay_GetScrollOffset(), // Somehow this function
+                                                // resets the scroll to 0 when
+                                                // the overlay is first
+                                                // rendered
+                },
+        }) {
+          for (int i = 0; i < 16 && image_counter < num_images; i++) {
+            CLAY({.layout = {
+                      .sizing = {.width = CLAY_SIZING_GROW(0),
+                                 .height = CLAY_SIZING_FIT(0)},
+                      .childGap = 4,
+                      .layoutDirection = CLAY_LEFT_TO_RIGHT,
+                  }}) {
+              for (int i = 0; i < photo_columns; i++) {
+                if (image_counter < num_images) {
+                  PhotoItem(photo_paths[image_counter]);
+                  image_counter++;
+                } else {
+                  CLAY({
+                      .layout =
+                          {
+                              .sizing = {.width = CLAY_SIZING_GROW(0),
+                                         .height = CLAY_SIZING_GROW(0)},
+                          },
+                  }) {}
+                }
               }
             }
           }

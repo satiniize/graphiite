@@ -11,6 +11,8 @@ layout(std140, set = 1, binding = 0) uniform UniformBlock {
     mat4 mvp_matrix;
     float time;
     float offset;
+    float padding1;
+    float padding2;
 };
 
 void main()
