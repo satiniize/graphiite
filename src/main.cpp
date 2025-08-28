@@ -36,6 +36,7 @@ const Clay_Color COLOR_DARK_GREY = {24, 24, 24, 255};
 const Clay_Color COLOR_PURE_WHITE = {255, 255, 255, 255};
 
 const Clay_Color COLOR_LIGHT_GREY = {128, 128, 128, 255};
+const Clay_Color COLOR_TRANSPARENT = {255, 255, 255, 0};
 
 uint16_t shut_up_data[1];
 std::string test_image_path = "res/uv.bmp";
@@ -48,6 +49,13 @@ ImageData carbon_fiber_data;
 ImageData vignette_data;
 ImageData bg_sheen_data;
 ImageData check_data;
+
+struct Photo {
+  ImageData image_data;
+  bool selected;
+};
+
+std::vector<Photo> photos;
 
 inline void DropDownMenuSeperator() {
   CLAY({
@@ -271,7 +279,18 @@ inline void MenuBarButton(Clay_String label, void (*dropdown_menu)()) {
 
 std::string edge_sheen_path = "res/edge_sheen.png";
 
-inline void PhotoItem(ImageData &image_data) {
+void HandleButtonInteraction(Clay_ElementId elementId,
+                             Clay_PointerData pointerInfo, intptr_t userData) {
+  Photo *photo = (Photo *)userData;
+  // Pointer state allows you to detect mouse down / hold / release
+  if (pointerInfo.state == CLAY_POINTER_DATA_PRESSED_THIS_FRAME) {
+    photo->selected = !photo->selected;
+    // Do some click handling
+    // NavigateTo(buttonData->link);
+  }
+}
+
+inline void PhotoItem(Photo &photo) {
   uint16_t corner_radius = 16;
   uint16_t checkbox_corner_radius = 5;
   CLAY({
@@ -323,7 +342,7 @@ inline void PhotoItem(ImageData &image_data) {
             },
         .image =
             {
-                .imageData = static_cast<void *>(&image_data),
+                .imageData = static_cast<void *>(&photo.image_data),
             },
     }) {
       // CLAY_TEXT(CLAY_STRING("IMGTEST.JPG"),
@@ -387,7 +406,25 @@ inline void PhotoItem(ImageData &image_data) {
                 {
                     .imageData = static_cast<void *>(&bg_sheen_data),
                 },
-        }) {}
+        }) {
+          Clay_OnHover(HandleButtonInteraction, (intptr_t)&photo);
+          CLAY({
+              .layout =
+                  {
+                      .sizing =
+                          {
+                              .width = CLAY_SIZING_GROW(0),
+                              .height = CLAY_SIZING_GROW(0),
+                          },
+                  },
+              .backgroundColor =
+                  photo.selected ? COLOR_PURE_WHITE : COLOR_TRANSPARENT,
+              .image =
+                  {
+                      .imageData = static_cast<void *>(&check_data),
+                  },
+          }) {}
+        }
       }
     }
   }
@@ -563,18 +600,23 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  std::vector<ImageData> photo_paths;
+  // std::vector<ImageData> photo_paths;
 
   for (const std::filesystem::directory_entry &entry :
        std::filesystem::directory_iterator(photos_root_path)) {
     if (entry.is_regular_file()) {
       std::cout << "File: " << entry.path() << std::endl;
 
-      ImageData photo_data{};
-      photo_data.path = entry.path().string();
-      photo_data.tiling = false;
+      Photo photo{};
+      ImageData photo_image_data{};
+      photo_image_data.path = entry.path().string();
+      photo_image_data.tiling = false;
 
-      photo_paths.push_back(photo_data);
+      photo.image_data = photo_image_data;
+      photo.selected = false;
+
+      photos.push_back(photo);
+      // photo_paths.push_back(image_data);
       SDL_Log("Start IMG_Load");
       SDL_Surface *image_data = IMG_Load(entry.path().c_str());
       SDL_Log("End IMG_Load");
@@ -603,7 +645,7 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  int num_images = std::size(photo_paths);
+  int num_images = std::size(photos);
   bool is_mouse_down = false;
 
   // Clay_Vector2 margin_container_scroll = {0.0, 0.0};
@@ -784,7 +826,7 @@ int main(int argc, char *argv[]) {
                   }}) {
               for (int i = 0; i < photo_columns; i++) {
                 if (image_counter < num_images) {
-                  PhotoItem(photo_paths[image_counter]);
+                  PhotoItem(photos[image_counter]);
                   image_counter++;
                 } else {
                   CLAY({
