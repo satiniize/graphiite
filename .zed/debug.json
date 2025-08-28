@@ -1,6 +1,6 @@
 [
 	{
-		"label": "Debug Native Binary",
+		"label": "Run Debug Binary",
 		"build": {
 			"command": "bash",
 			"args": ["$ZED_WORKTREE_ROOT/build.sh", "Debug"],

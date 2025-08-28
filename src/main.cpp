@@ -33,6 +33,9 @@ const Clay_Color COLOR_WHITE = {192, 192, 192, 255};
 const Clay_Color COLOR_BLACK = {12, 12, 12, 255};
 const Clay_Color COLOR_GREY = {40, 40, 40, 255};
 const Clay_Color COLOR_DARK_GREY = {24, 24, 24, 255};
+const Clay_Color COLOR_PURE_WHITE = {255, 255, 255, 255};
+
+const Clay_Color COLOR_LIGHT_GREY = {128, 128, 128, 255};
 
 uint16_t shut_up_data[1];
 std::string test_image_path = "res/uv.bmp";
@@ -43,7 +46,7 @@ Renderer renderer;
 ImageData edge_sheen_data;
 ImageData carbon_fiber_data;
 ImageData vignette_data;
-ImageData stretch_data;
+ImageData bg_sheen_data;
 
 inline void DropDownMenuSeperator() {
   CLAY({
@@ -284,7 +287,7 @@ inline void PhotoItem(ImageData &image_data) {
                   },
               .layoutDirection = CLAY_TOP_TO_BOTTOM,
           },
-      .backgroundColor = {1.0f, 1.0f, 1.0f, 1.0f},
+      .backgroundColor = COLOR_PURE_WHITE,
       .cornerRadius = CLAY_CORNER_RADIUS(static_cast<float>(corner_radius)),
       .image =
           {
@@ -310,7 +313,7 @@ inline void PhotoItem(ImageData &image_data) {
                 .padding = CLAY_PADDING_ALL(static_cast<uint16_t>(
                     corner_radius - 3 - checkbox_corner_radius)),
             },
-        .backgroundColor = {1.0f, 1.0f, 1.0f, 1.0f},
+        .backgroundColor = COLOR_PURE_WHITE,
         .cornerRadius =
             CLAY_CORNER_RADIUS(static_cast<float>(corner_radius - 3)),
         .aspectRatio =
@@ -347,7 +350,7 @@ inline void PhotoItem(ImageData &image_data) {
                       },
                   .padding = CLAY_PADDING_ALL(3),
               },
-          .backgroundColor = {1.0f, 1.0f, 1.0f, 1.0},
+          .backgroundColor = COLOR_PURE_WHITE,
           .cornerRadius =
               CLAY_CORNER_RADIUS(static_cast<float>(checkbox_corner_radius)),
           .image =
@@ -375,13 +378,13 @@ inline void PhotoItem(ImageData &image_data) {
                             .height = CLAY_SIZING_GROW(0),
                         },
                 },
-            // .backgroundColor = Clay_Hovered() ? COLOR_GREY : COLOR_DARK_GREY,
-            .backgroundColor = {1.0f, 1.0f, 1.0f, 1.0f},
+            .backgroundColor =
+                Clay_Hovered() ? COLOR_PURE_WHITE : COLOR_LIGHT_GREY,
             .cornerRadius = CLAY_CORNER_RADIUS(
                 static_cast<float>(checkbox_corner_radius - 3)),
             .image =
                 {
-                    .imageData = static_cast<void *>(&stretch_data),
+                    .imageData = static_cast<void *>(&bg_sheen_data),
                 },
         }) {}
       }
@@ -404,6 +407,76 @@ static inline Clay_Dimensions MeasureText(Clay_StringSlice text,
   return (Clay_Dimensions){.width = (float)text.length * renderer.glyph_size.x *
                                     scalar,
                            .height = (float)renderer.glyph_size.y * scalar};
+}
+
+void ImageGrid() {}
+
+void Button(Clay_String label) {
+  // Finalize button
+  uint16_t button_height = 48;
+  CLAY({
+      .layout =
+          {
+              .sizing =
+                  {
+                      .width = CLAY_SIZING_FIT(),
+                      .height =
+                          CLAY_SIZING_FIXED(static_cast<float>(button_height)),
+                  },
+              .padding = CLAY_PADDING_ALL(3),
+          },
+      .backgroundColor = COLOR_PURE_WHITE,
+      .cornerRadius = CLAY_CORNER_RADIUS(button_height / 2.0f),
+      .image =
+          {
+              .imageData = static_cast<void *>(&edge_sheen_data),
+          },
+      .border =
+          {
+              .color = COLOR_BLACK,
+              .width =
+                  {
+                      .left = 2,
+                      .right = 2,
+                      .top = 2,
+                      .bottom = 2,
+                  },
+          },
+  }) {
+    CLAY({
+        .layout =
+            {
+                .sizing =
+                    {
+                        .width = CLAY_SIZING_GROW(0),
+                        .height = CLAY_SIZING_GROW(0),
+                    },
+                .padding =
+                    {
+                        .left = 16,
+                        .right = 16,
+                        .top = 0,
+                        .bottom = 0,
+                    },
+                .childAlignment =
+                    {
+                        .x = CLAY_ALIGN_X_CENTER,
+                        .y = CLAY_ALIGN_Y_CENTER,
+                    },
+            },
+        .backgroundColor = Clay_Hovered() ? COLOR_PURE_WHITE : COLOR_LIGHT_GREY,
+        .cornerRadius = CLAY_CORNER_RADIUS(button_height / 2.0f - 3.0f),
+        .image =
+            {
+                .imageData = static_cast<void *>(&bg_sheen_data),
+            },
+    }) {
+      CLAY_TEXT(label, CLAY_TEXT_CONFIG({
+                           .textColor = {255, 255, 255, 255},
+                           .fontSize = 20,
+                       }));
+    }
+  }
 }
 
 bool init() {
@@ -555,12 +628,12 @@ int main(int argc, char *argv[]) {
   vignette_data.path = "res/vignette.png";
   vignette_data.tiling = false;
 
-  SDL_Surface *stretch = IMG_Load("res/stretch.png");
-  renderer.load_texture("res/stretch.png", stretch);
-  SDL_DestroySurface(stretch);
+  SDL_Surface *bg_sheen = IMG_Load("res/bg_sheen.png");
+  renderer.load_texture("res/bg_sheen.png", bg_sheen);
+  SDL_DestroySurface(bg_sheen);
 
-  stretch_data.path = "res/stretch.png";
-  stretch_data.tiling = false;
+  bg_sheen_data.path = "res/bg_sheen.png";
+  bg_sheen_data.tiling = false;
 
   while (running) {
     uint32_t frame_tick = SDL_GetTicks();
@@ -637,6 +710,7 @@ int main(int argc, char *argv[]) {
 
     // std::cout << margin_container_scroll.y << std::endl;
 
+    uint16_t spacing = 5;
     Clay_BeginLayout();
     CLAY({
         .id = CLAY_ID("Root"),
@@ -647,32 +721,37 @@ int main(int argc, char *argv[]) {
                 .padding = CLAY_PADDING_ALL(0),
                 .layoutDirection = CLAY_TOP_TO_BOTTOM,
             },
+        .backgroundColor = COLOR_PURE_WHITE,
+        .image =
+            {
+                .imageData = static_cast<void *>(&carbon_fiber_data),
+            },
     }) {
+      // Image Grid
       CLAY({
-          .id = CLAY_ID("MenuBar"),
+          .id = CLAY_ID("ImageGrid"),
           .layout =
               {
-                  .sizing = {.width = CLAY_SIZING_GROW(0),
-                             .height = CLAY_SIZING_FIT(0)},
-                  .padding =
+                  .sizing =
                       {
-                          .left = 0,
-                          .right = 0,
-                          .top = 0,
-                          .bottom = 3,
+                          .width = CLAY_SIZING_GROW(0),
+                          .height = CLAY_SIZING_GROW(0),
                       },
+                  // .layoutDirection = CLAY_TOP_TO_BOTTOM,
               },
-          .backgroundColor = COLOR_WHITE,
-          .border =
+          .backgroundColor = COLOR_PURE_WHITE,
+          .image = // TODO: Move this after root
+          {
+              .imageData = static_cast<void *>(&vignette_data),
+          },
+          .clip =
               {
-                  .color = COLOR_BLACK,
-                  .width =
-                      {
-                          .left = 0,
-                          .right = 0,
-                          .top = 0,
-                          .bottom = 2,
-                      },
+                  .vertical = true,
+                  .childOffset =
+                      Clay_GetScrollOffset(), // Somehow this function
+                                              // resets the scroll to 0 when
+                                              // the overlay is first
+                                              // rendered
               },
       }) {
         CLAY({
@@ -683,60 +762,9 @@ int main(int argc, char *argv[]) {
                             .width = CLAY_SIZING_GROW(0),
                             .height = CLAY_SIZING_GROW(0),
                         },
-                    .padding = CLAY_PADDING_ALL(4),
-                    .childGap = 4,
-                },
-            .backgroundColor = {1.0f, 1.0f, 1.0f, 1.0f},
-            .image =
-                {
-                    .imageData = static_cast<void *>(&stretch_data),
-                },
-        }) {
-          MenuBarButton(CLAY_STRING("Session"), SessionDropdownMenu);
-          MenuBarButton(CLAY_STRING("Edit"), EditDropdownMenu);
-          MenuBarButton(CLAY_STRING("View"), ViewDropdownMenu);
-          MenuBarButton(CLAY_STRING("Help"), HelpDropdownMenu);
-        }
-      }
-      CLAY({
-          .id = CLAY_ID("MarginContainer1"),
-          .layout =
-              {
-                  .sizing = {.width = CLAY_SIZING_GROW(0),
-                             .height = CLAY_SIZING_GROW(0)},
-              },
-          .backgroundColor = {1.0f, 1.0f, 1.0f, 1.0f},
-          .image =
-              {
-                  .imageData = static_cast<void *>(&carbon_fiber_data),
-              },
-
-      }) {
-        CLAY({
-            .layout =
-                {
-                    .sizing =
-                        {
-                            .width = CLAY_SIZING_GROW(0),
-                            .height = CLAY_SIZING_GROW(0),
-                        },
-                    .padding = CLAY_PADDING_ALL(4),
+                    .padding = CLAY_PADDING_ALL(8),
                     .childGap = 4,
                     .layoutDirection = CLAY_TOP_TO_BOTTOM,
-                },
-            .backgroundColor = {1.0f, 1.0f, 1.0f, 1.0f},
-            .image =
-                {
-                    .imageData = static_cast<void *>(&vignette_data),
-                },
-            .clip =
-                {
-                    .vertical = true,
-                    .childOffset =
-                        Clay_GetScrollOffset(), // Somehow this function
-                                                // resets the scroll to 0 when
-                                                // the overlay is first
-                                                // rendered
                 },
         }) {
           for (int i = 0; i < 16 && image_counter < num_images; i++) {
@@ -761,6 +789,148 @@ int main(int argc, char *argv[]) {
                 }
               }
             }
+          }
+          // Spacer
+          CLAY({
+              .layout =
+                  {
+                      .sizing =
+                          {
+                              .width = CLAY_SIZING_GROW(0),
+                              .height = CLAY_SIZING_FIXED(52),
+                          },
+                  },
+          }) {}
+        }
+      }
+      // Bottom Bar
+      float bottom_bar_corner_radius = 38.0f;
+      CLAY({
+          .layout =
+              {
+                  .sizing =
+                      {
+                          .width = CLAY_SIZING_GROW(0),
+                          .height = CLAY_SIZING_FIT(0),
+                      },
+                  .padding =
+                      {
+                          .left = 3,
+                          .right = 3,
+                          .top = 3,
+                          .bottom = 0,
+                      },
+              },
+          .backgroundColor = COLOR_PURE_WHITE,
+          .cornerRadius =
+              {
+                  .topLeft = bottom_bar_corner_radius,
+                  .topRight = bottom_bar_corner_radius,
+                  .bottomLeft = 0,
+                  .bottomRight = 0,
+              },
+          .image =
+              {
+                  .imageData = static_cast<void *>(&edge_sheen_data),
+              },
+          .floating =
+              {
+                  .attachPoints =
+                      {
+                          .element = CLAY_ATTACH_POINT_CENTER_BOTTOM,
+                          .parent = CLAY_ATTACH_POINT_CENTER_BOTTOM,
+                      },
+                  .attachTo = CLAY_ATTACH_TO_PARENT,
+              },
+          .border =
+              {
+                  .color = COLOR_BLACK,
+                  .width =
+                      {
+                          .left = 2,
+                          .right = 2,
+                          .top = 2,
+                          .bottom = 0,
+                      },
+              },
+      }) {
+        CLAY({
+            .layout =
+                {
+                    .sizing =
+                        {
+                            .width = CLAY_SIZING_GROW(0),
+                            .height = CLAY_SIZING_GROW(0),
+                        },
+                    .padding =
+                        {
+                            .left = 4,
+                            .right = 4,
+                            .top = 4,
+                            .bottom = 4,
+                        },
+                },
+            .backgroundColor = COLOR_LIGHT_GREY,
+            .cornerRadius =
+                {
+                    .topLeft = bottom_bar_corner_radius - 3,
+                    .topRight = bottom_bar_corner_radius - 3,
+                    .bottomLeft = 0,
+                    .bottomRight = 0,
+                },
+            .image =
+                {
+                    .imageData = static_cast<void *>(&bg_sheen_data),
+                },
+        }) {
+          // Left Align
+          CLAY({
+              .layout =
+                  {
+                      .sizing =
+                          {
+                              .width = CLAY_SIZING_GROW(0),
+                              .height = CLAY_SIZING_GROW(0),
+                          },
+                  },
+          }) {
+            Button(CLAY_STRING("Open Folder"));
+          }
+          // Center Align
+          CLAY({
+              .layout =
+                  {
+                      .sizing =
+                          {
+                              .width = CLAY_SIZING_FIT(),
+                              .height = CLAY_SIZING_GROW(0),
+                          },
+                      .childAlignment =
+                          {
+                              .x = CLAY_ALIGN_X_CENTER,
+                          },
+                  },
+          }) {
+            Button(CLAY_STRING("Finalize"));
+          }
+          // Right Align
+          CLAY({
+              .layout =
+                  {
+                      .sizing =
+                          {
+                              .width = CLAY_SIZING_GROW(0),
+                              .height = CLAY_SIZING_GROW(0),
+                          },
+                      .childAlignment =
+                          {
+                              .x = CLAY_ALIGN_X_RIGHT,
+                          },
+                      .layoutDirection = CLAY_LEFT_TO_RIGHT,
+                  },
+          }) {
+            Button(CLAY_STRING("Sort"));
+            Button(CLAY_STRING("Filters"));
           }
         }
       }

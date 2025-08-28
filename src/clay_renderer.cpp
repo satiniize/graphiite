@@ -168,10 +168,10 @@ void render_commands(Renderer &renderer,
 
       // Get variables
       glm::vec4 modulate_color = {
-          render_data_image->backgroundColor.r,
-          render_data_image->backgroundColor.g,
-          render_data_image->backgroundColor.b,
-          render_data_image->backgroundColor.a,
+          render_data_image->backgroundColor.r / 255.0f,
+          render_data_image->backgroundColor.g / 255.0f,
+          render_data_image->backgroundColor.b / 255.0f,
+          render_data_image->backgroundColor.a / 255.0f,
       };
       ImageData *data_pointer =
           static_cast<ImageData *>(render_data_image->imageData); // Get pointer
