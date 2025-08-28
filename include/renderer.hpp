@@ -104,7 +104,7 @@ public:
   bool draw_texture_rect(std::string path, glm::vec2 position, glm::vec2 size,
                          glm::vec4 color, glm::vec4 corner_radius, bool tiling);
   bool draw_text(const char *text, int length, float point_size,
-                 glm::vec2 position);
+                 glm::vec2 position, glm::vec4 color);
   bool draw_arc(glm::vec2 position, float radius, float thickness,
                 float rotation, glm::vec4 color);
   bool begin_scissor_mode(glm::ivec2 pos, glm::ivec2 size);

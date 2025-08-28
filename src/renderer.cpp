@@ -450,7 +450,7 @@ bool Renderer::init() {
                 std::size(quad_vertices) * sizeof(Vertex), quad_indices,
                 std::size(quad_indices) * sizeof(Uint16));
 
-  std::string font_path = "res/SourceCodePro-SemiBold.ttf";
+  std::string font_path = "res/fonts/Doto_Rounded-Black.ttf";
   TTF_Font *font = TTF_OpenFont(font_path.c_str(), font_sample_point_size);
   if (!font) {
     SDL_Log("Failed to load font");
@@ -738,7 +738,7 @@ bool Renderer::draw_texture_rect(std::string path, glm::vec2 position,
 }
 
 bool Renderer::draw_text(const char *text, int length, float point_size,
-                         glm::vec2 position) {
+                         glm::vec2 position, glm::vec4 color) {
   // Bind graphics pipeline
   SDL_BindGPUGraphicsPipeline(_render_pass, graphics_pipelines["TEXT"]);
 
@@ -780,7 +780,7 @@ bool Renderer::draw_text(const char *text, int length, float point_size,
       continue;
     }
     // Calculate uniform values
-    text_fragment_uniform_buffer.modulate = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
+    text_fragment_uniform_buffer.modulate = color;
     float x = static_cast<float>((text[i] - 33) % 10) / 10.0f;
     float y = static_cast<float>((text[i] - 33) / 10) / 10.0f;
     text_fragment_uniform_buffer.uv_rect = glm::vec4(x, y, x + 0.1f, y + 0.1f);

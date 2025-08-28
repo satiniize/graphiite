@@ -6,6 +6,7 @@
 #include <filesystem>
 #include <format>
 #include <random>
+#include <sstream>
 #include <string>
 #include <sys/types.h>
 #include <vector>
@@ -35,8 +36,9 @@ const Clay_Color COLOR_GREY = {40, 40, 40, 255};
 const Clay_Color COLOR_DARK_GREY = {24, 24, 24, 255};
 const Clay_Color COLOR_PURE_WHITE = {255, 255, 255, 255};
 
-const Clay_Color COLOR_LIGHT_GREY = {128, 128, 128, 255};
+const Clay_Color COLOR_LIGHT_GREY = {160, 160, 160, 255};
 const Clay_Color COLOR_TRANSPARENT = {255, 255, 255, 0};
+const Clay_Color COLOR_SELECTED_GREEN = {127, 255, 0, 255};
 
 uint16_t shut_up_data[1];
 std::string test_image_path = "res/uv.bmp";
@@ -290,6 +292,7 @@ void HandleButtonInteraction(Clay_ElementId elementId,
   }
 }
 
+// TODO: Change hover to full photo rect, current selection is too small
 inline void PhotoItem(Photo &photo) {
   uint16_t corner_radius = 16;
   uint16_t checkbox_corner_radius = 5;
@@ -307,7 +310,8 @@ inline void PhotoItem(Photo &photo) {
                   },
               .layoutDirection = CLAY_TOP_TO_BOTTOM,
           },
-      .backgroundColor = COLOR_PURE_WHITE,
+      .backgroundColor =
+          photo.selected ? COLOR_SELECTED_GREEN : COLOR_PURE_WHITE,
       .cornerRadius = CLAY_CORNER_RADIUS(static_cast<float>(corner_radius)),
       .image =
           {
@@ -325,6 +329,7 @@ inline void PhotoItem(Photo &photo) {
                   },
           },
   }) {
+    Clay_OnHover(HandleButtonInteraction, (intptr_t)&photo);
     CLAY({
         .layout =
             {
@@ -370,7 +375,8 @@ inline void PhotoItem(Photo &photo) {
                       },
                   .padding = CLAY_PADDING_ALL(3),
               },
-          .backgroundColor = COLOR_PURE_WHITE,
+          .backgroundColor =
+              photo.selected ? COLOR_SELECTED_GREEN : COLOR_PURE_WHITE,
           .cornerRadius =
               CLAY_CORNER_RADIUS(static_cast<float>(checkbox_corner_radius)),
           .image =
@@ -398,8 +404,7 @@ inline void PhotoItem(Photo &photo) {
                             .height = CLAY_SIZING_GROW(0),
                         },
                 },
-            .backgroundColor =
-                Clay_Hovered() ? COLOR_PURE_WHITE : COLOR_LIGHT_GREY,
+            .backgroundColor = COLOR_PURE_WHITE,
             .cornerRadius = CLAY_CORNER_RADIUS(
                 static_cast<float>(checkbox_corner_radius - 3)),
             .image =
@@ -407,7 +412,6 @@ inline void PhotoItem(Photo &photo) {
                     .imageData = static_cast<void *>(&bg_sheen_data),
                 },
         }) {
-          Clay_OnHover(HandleButtonInteraction, (intptr_t)&photo);
           CLAY({
               .layout =
                   {
@@ -515,6 +519,83 @@ void Button(Clay_String label) {
                        }));
     }
   }
+}
+
+void Tally(Clay_String label) {
+  // Finalize button
+  uint16_t diameter = 48;
+  CLAY({
+      .layout =
+          {
+              .sizing =
+                  {
+                      .width = CLAY_SIZING_FIXED(static_cast<float>(diameter)),
+                      .height = CLAY_SIZING_FIXED(static_cast<float>(diameter)),
+                  },
+              .padding = CLAY_PADDING_ALL(3),
+          },
+      .backgroundColor = COLOR_SELECTED_GREEN,
+      .cornerRadius = CLAY_CORNER_RADIUS(diameter / 2.0f),
+      .image =
+          {
+              .imageData = static_cast<void *>(&edge_sheen_data),
+          },
+      .border =
+          {
+              .color = COLOR_BLACK,
+              .width =
+                  {
+                      .left = 2,
+                      .right = 2,
+                      .top = 2,
+                      .bottom = 2,
+                  },
+          },
+  }) {
+    CLAY({
+        .layout =
+            {
+                .sizing =
+                    {
+                        .width = CLAY_SIZING_GROW(0),
+                        .height = CLAY_SIZING_GROW(0),
+                    },
+                .padding =
+                    {
+                        .left = 0,
+                        .right = 0,
+                        .top = 0,
+                        .bottom = 0,
+                    },
+                .childAlignment =
+                    {
+                        .x = CLAY_ALIGN_X_CENTER,
+                        .y = CLAY_ALIGN_Y_CENTER,
+                    },
+            },
+        .backgroundColor = Clay_Hovered() ? COLOR_PURE_WHITE : COLOR_LIGHT_GREY,
+        .cornerRadius = CLAY_CORNER_RADIUS(diameter / 2.0f - 3.0f),
+        .image =
+            {
+                .imageData = static_cast<void *>(&bg_sheen_data),
+            },
+    }) {
+      CLAY_TEXT(label, CLAY_TEXT_CONFIG({
+                           .textColor = COLOR_SELECTED_GREEN,
+                           .fontSize = 20,
+                       }));
+    }
+  }
+}
+
+int get_selected_photos_count() {
+  int count = 0;
+  for (auto photo : photos) {
+    if (photo.selected) {
+      count++;
+    }
+  }
+  return count;
 }
 
 bool init() {
@@ -685,36 +766,54 @@ int main(int argc, char *argv[]) {
   check_data.path = "res/check.png";
   check_data.tiling = false;
 
+  float scroll_speed = 6.0f;
+
   while (running) {
+    std::stringstream ss;
+    ss << get_selected_photos_count();
+    std::string str = ss.str();
+
+    const char *c_str = str.c_str();
+    int len = strlen(c_str);
+
     uint32_t frame_tick = SDL_GetTicks();
     process_delta_time =
         static_cast<float>(frame_tick - prev_frame_tick) / 1000.0f;
     accumulator += process_delta_time;
     prev_frame_tick = frame_tick;
 
+    glm::vec2 cursor_pos;
+    float cursor_x;
+    float cursor_y;
+
     Clay_Vector2 mouse_scroll = {0.0f, 0.0f};
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
-      if (event.type == SDL_EVENT_QUIT) {
+      switch (event.type) {
+      case SDL_EVENT_QUIT:
         running = false;
-      }
-      if (event.type == SDL_EVENT_MOUSE_WHEEL) {
-        mouse_scroll.x = event.wheel.x;
-        mouse_scroll.y = event.wheel.y;
-      }
-      if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN) {
+        break;
+      case SDL_EVENT_MOUSE_WHEEL:
+        cursor_pos.x = event.wheel.mouse_x;
+        cursor_pos.y = event.wheel.mouse_y;
+
+        mouse_scroll.x = event.wheel.x * scroll_speed / renderer.viewport_scale;
+        mouse_scroll.y = event.wheel.y * scroll_speed / renderer.viewport_scale;
+        break;
+      case SDL_EVENT_MOUSE_MOTION:
+        cursor_pos.x = event.motion.x;
+        cursor_pos.y = event.motion.y;
+        break;
+      case SDL_EVENT_MOUSE_BUTTON_DOWN:
         is_mouse_down = true;
-      }
-      if (event.type == SDL_EVENT_MOUSE_BUTTON_UP) {
+        break;
+      case SDL_EVENT_MOUSE_BUTTON_UP:
         is_mouse_down = false;
+        break;
       }
     }
 
-    float cursor_x;
-    float cursor_y;
-    SDL_GetMouseState(&cursor_x, &cursor_y);
-
-    Clay_Vector2 mouse_position = {cursor_x, cursor_y};
+    Clay_Vector2 mouse_position = {cursor_pos.x, cursor_pos.y};
 
     // const bool *keystate = SDL_GetKeyboardState(NULL);
 
@@ -730,7 +829,7 @@ int main(int argc, char *argv[]) {
     }
 
     TransformComponent &cursor_transform = transform_components[amogus];
-    cursor_transform.position = glm::vec2(cursor_x, cursor_y);
+    cursor_transform.position = glm::vec2(cursor_pos.x, cursor_pos.y);
 
     int image_counter = 0;
 
@@ -746,19 +845,13 @@ int main(int argc, char *argv[]) {
     int image_minimum_width = 240 * renderer.viewport_scale;
     int photo_columns = renderer.width / image_minimum_width;
 
+    bool enable_drag_scrolling = false;
+
     // Clay foreplay
     Clay_SetLayoutDimensions(clay_dimensions);
     Clay_SetPointerState(mouse_position, is_mouse_down);
-    Clay_UpdateScrollContainers(true, mouse_scroll, process_delta_time);
-
-    // std::cout
-    //     <<
-    //     Clay_GetElementData(CLAY_ID("MarginContainer1")).boundingBox.height
-    //     << std::endl;
-
-    // std::cout << renderer.height / renderer.viewport_scale << std::endl;
-
-    // std::cout << margin_container_scroll.y << std::endl;
+    Clay_UpdateScrollContainers(enable_drag_scrolling, mouse_scroll,
+                                process_delta_time);
 
     uint16_t spacing = 5;
     Clay_BeginLayout();
@@ -942,9 +1035,30 @@ int main(int argc, char *argv[]) {
                               .width = CLAY_SIZING_GROW(0),
                               .height = CLAY_SIZING_GROW(0),
                           },
+                      .childAlignment =
+                          {
+                              .x = CLAY_ALIGN_X_LEFT,
+                              .y = CLAY_ALIGN_Y_CENTER,
+                          },
+                      .layoutDirection = CLAY_LEFT_TO_RIGHT,
                   },
           }) {
             Button(CLAY_STRING("Open Folder"));
+            CLAY({
+                .layout =
+                    {
+                        .sizing =
+                            {
+                                .width = CLAY_SIZING_GROW(0),
+                                .height = CLAY_SIZING_GROW(0),
+                            },
+                    },
+            }) {}
+            Tally((Clay_String){
+                // .isStaticallyAllocated = false,
+                .length = len,
+                .chars = c_str,
+            });
           }
           // Center Align
           CLAY({

@@ -54,8 +54,14 @@ void render_commands(Renderer &renderer,
           static_cast<uint32_t>(render_data_text->stringContents.length);
       uint16_t font_size = render_data_text->fontSize;
 
+      glm::vec4 color((float)render_data_text->textColor.r / 255.0f,
+                      (float)render_data_text->textColor.g / 255.0f,
+                      (float)render_data_text->textColor.b / 255.0f,
+                      (float)render_data_text->textColor.a / 255.0f);
+
       // Draw text
-      renderer.draw_text(chars, length, font_size, glm::vec2(rect.x, rect.y));
+      renderer.draw_text(chars, length, font_size, glm::vec2(rect.x, rect.y),
+                         color);
     } break;
     case CLAY_RENDER_COMMAND_TYPE_BORDER: {
       Clay_BorderRenderData *render_data_border =
