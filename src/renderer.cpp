@@ -737,7 +737,7 @@ bool Renderer::draw_texture_rect(std::string path, glm::vec2 position,
   return true;
 }
 
-bool Renderer::draw_text(const char *text, float point_size,
+bool Renderer::draw_text(const char *text, int length, float point_size,
                          glm::vec2 position) {
   // Bind graphics pipeline
   SDL_BindGPUGraphicsPipeline(_render_pass, graphics_pipelines["TEXT"]);
@@ -775,7 +775,7 @@ bool Renderer::draw_text(const char *text, float point_size,
 
   float scalar = point_size / font_sample_point_size;
 
-  for (size_t i = 0; i < strlen(text); i++) {
+  for (size_t i = 0; i < length; i++) {
     if ((text[i] - 33) == -1) {
       continue;
     }

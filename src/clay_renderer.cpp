@@ -55,7 +55,7 @@ void render_commands(Renderer &renderer,
       uint16_t font_size = render_data_text->fontSize;
 
       // Draw text
-      renderer.draw_text(chars, font_size, glm::vec2(rect.x, rect.y));
+      renderer.draw_text(chars, length, font_size, glm::vec2(rect.x, rect.y));
     } break;
     case CLAY_RENDER_COMMAND_TYPE_BORDER: {
       Clay_BorderRenderData *render_data_border =
@@ -147,7 +147,6 @@ void render_commands(Renderer &renderer,
         renderer.draw_arc(glm::vec2(centerX, centerY), clampedRadii.bottomRight,
                           render_data_border->width.bottom, 270.0f, color);
       }
-
     } break;
     case CLAY_RENDER_COMMAND_TYPE_SCISSOR_START: {
       // TODO: Investigate this weird off by one pixel error

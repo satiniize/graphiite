@@ -47,6 +47,7 @@ ImageData edge_sheen_data;
 ImageData carbon_fiber_data;
 ImageData vignette_data;
 ImageData bg_sheen_data;
+ImageData check_data;
 
 inline void DropDownMenuSeperator() {
   CLAY({
@@ -634,6 +635,13 @@ int main(int argc, char *argv[]) {
 
   bg_sheen_data.path = "res/bg_sheen.png";
   bg_sheen_data.tiling = false;
+
+  SDL_Surface *check = IMG_Load("res/check.png");
+  renderer.load_texture("res/check.png", check);
+  SDL_DestroySurface(check);
+
+  check_data.path = "res/check.png";
+  check_data.tiling = false;
 
   while (running) {
     uint32_t frame_tick = SDL_GetTicks();
