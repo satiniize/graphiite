@@ -53,8 +53,10 @@ ImageData check_data;
 struct Photo {
   ImageData image_data;
   bool selected;
+  std::filesystem::path file_path;
 };
 
+std::string photos_root_path = "res/FUJI/";
 std::vector<Photo> photos;
 
 // Technically very inefficient, not sure
@@ -66,6 +68,27 @@ int get_selected_photos_count() {
     }
   }
   return count;
+}
+
+bool seperate_photos(std::vector<Photo> &photos) {
+  std::filesystem::path root_path(photos_root_path);
+
+  std::filesystem::create_directories(root_path / "Curated");
+  std::filesystem::create_directories(root_path / "Discarded");
+
+  for (auto &photo : photos) {
+    if (photo.selected) {
+      std::filesystem::copy_file(
+          photo.file_path, root_path / "Curated" / photo.file_path.filename(),
+          std::filesystem::copy_options::overwrite_existing);
+    } else {
+      std::filesystem::copy_file(
+          photo.file_path, root_path / "Discarded" / photo.file_path.filename(),
+          std::filesystem::copy_options::overwrite_existing);
+    }
+    std::filesystem::remove(photo.file_path);
+  }
+  return true;
 }
 
 void handle_clay_errors(Clay_ErrorData errorData) {
@@ -100,6 +123,14 @@ void handle_photo_item_interaction(Clay_ElementId elementId,
     photo->selected = !photo->selected;
     // Do some click handling
     // NavigateTo(buttonData->link);
+  }
+}
+
+void handle_finalize_button_interaction(Clay_ElementId elementId,
+                                        Clay_PointerData pointerInfo,
+                                        intptr_t userData) {
+  if (pointerInfo.state == CLAY_POINTER_DATA_PRESSED_THIS_FRAME) {
+    seperate_photos(photos);
   }
 }
 
@@ -271,6 +302,7 @@ void Button(Clay_String label) {
                   },
           },
   }) {
+    Clay_OnHover(handle_finalize_button_interaction, NULL);
     CLAY({
         .layout =
             {
@@ -436,18 +468,6 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  uint32_t prev_frame_tick = SDL_GetTicks();
-  float physics_delta_time = 1.0f / physics_tick_rate;
-  float process_delta_time = 0.0f;
-  float accumulator = 0.0;
-
-  int physics_frame_count = 0;
-  int process_frame_count = 0;
-
-  float time_scale = 1.0f;
-
-  bool running = true;
-
   uint64_t total_memory_size = Clay_MinMemorySize();
   Clay_Arena clay_memory = Clay_CreateArenaWithCapacityAndMemory(
       total_memory_size, malloc(total_memory_size));
@@ -457,8 +477,6 @@ int main(int argc, char *argv[]) {
       clay_memory, clay_dimensions, (Clay_ErrorHandler){handle_clay_errors});
   shut_up_data[0] = 1;
   Clay_SetMeasureTextFunction(MeasureText, (void *)shut_up_data);
-
-  std::string photos_root_path = "res/FUJI/";
 
   if (!std::filesystem::exists(photos_root_path) &&
       std::filesystem::is_directory(photos_root_path)) {
@@ -479,6 +497,7 @@ int main(int argc, char *argv[]) {
       Photo photo{};
       photo.image_data = photo_image_data;
       photo.selected = false;
+      photo.file_path = entry.path();
 
       photos.push_back(photo);
 
@@ -743,11 +762,22 @@ int main(int argc, char *argv[]) {
   check_data.path = "res/check.png";
   check_data.tiling = false;
 
+  // Timing
+  uint32_t prev_frame_tick = SDL_GetTicks();
+  float physics_delta_time = 1.0f / physics_tick_rate;
+  float process_delta_time = 0.0f;
+  float accumulator = 0.0;
+
+  int physics_frame_count = 0;
+  int process_frame_count = 0;
+
+  float time_scale = 1.0f;
+
   float scroll_speed = 6.0f;
   int num_images = std::size(photos);
-
   bool is_mouse_down = false;
 
+  bool running = true;
   while (running) {
     std::stringstream ss;
     ss << get_selected_photos_count();
