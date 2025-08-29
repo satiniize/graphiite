@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <format>
+#include <fstream>
 #include <random>
 #include <sstream>
 #include <string>
@@ -16,7 +17,7 @@
 
 #include "clay_renderer.hpp"
 #include "config.hpp"
-#include "glm/glm.hpp"
+// #include "glm/glm.hpp"
 #include "renderer.hpp"
 #include "turbojpeg.h"
 
@@ -33,7 +34,7 @@
 
 const Clay_Color COLOR_WHITE = {192, 192, 192, 255};
 const Clay_Color COLOR_BLACK = {12, 12, 12, 255};
-const Clay_Color COLOR_GREY = {40, 40, 40, 255};
+const Clay_Color COLOR_GREY = {96, 96, 96, 255};
 const Clay_Color COLOR_DARK_GREY = {24, 24, 24, 255};
 const Clay_Color COLOR_PURE_WHITE = {255, 255, 255, 255};
 
@@ -74,7 +75,22 @@ void handle_clay_errors(Clay_ErrorData errorData) {
   // See the Clay_ErrorData struct for more information
   printf("%s", errorData.errorText.chars);
   switch (errorData.errorType) {
-    // etc
+  case CLAY_ERROR_TYPE_TEXT_MEASUREMENT_FUNCTION_NOT_PROVIDED:
+    break;
+  case CLAY_ERROR_TYPE_ARENA_CAPACITY_EXCEEDED:
+    break;
+  case CLAY_ERROR_TYPE_ELEMENTS_CAPACITY_EXCEEDED:
+    break;
+  case CLAY_ERROR_TYPE_TEXT_MEASUREMENT_CAPACITY_EXCEEDED:
+    break;
+  case CLAY_ERROR_TYPE_DUPLICATE_ID:
+    break;
+  case CLAY_ERROR_TYPE_FLOATING_CONTAINER_PARENT_NOT_FOUND:
+    break;
+  case CLAY_ERROR_TYPE_PERCENTAGE_OVER_1:
+    break;
+  case CLAY_ERROR_TYPE_INTERNAL_ERROR:
+    break;
   }
 }
 
@@ -461,63 +477,44 @@ int main(int argc, char *argv[]) {
     if (entry.is_regular_file()) {
       std::cout << "File: " << entry.path() << std::endl;
 
-      Photo photo{};
       ImageData photo_image_data{};
       photo_image_data.path = entry.path().string();
       photo_image_data.tiling = false;
 
+      Photo photo{};
       photo.image_data = photo_image_data;
       photo.selected = false;
 
       photos.push_back(photo);
 
-      FILE *jpegFile = NULL;
-      long size = 0;
-      size_t jpegSize;
-
-      unsigned char *jpegBuf = NULL;
-      tjhandle tjInstance = NULL;
-
-      // 1. Open and read JPEG file into jpegBuf
-      if ((jpegFile = fopen(entry.path().c_str(), "rb")) == NULL) {
+      std::ifstream jpegStream(entry.path());
+      if (!jpegStream.is_open()) {
         SDL_Log("ERROR: opening input file %s: %s", entry.path().c_str(),
                 strerror(errno));
-        // goto cleanup_loop;
       }
 
-      if (fseek(jpegFile, 0, SEEK_END) < 0 || ((size = ftell(jpegFile)) < 0) ||
-          fseek(jpegFile, 0, SEEK_SET) < 0) {
-        SDL_Log("ERROR: determining input file size for %s: %s",
-                entry.path().c_str(), strerror(errno));
-        // goto cleanup_loop;
-      }
+      jpegStream.seekg(0, std::ios::end);
+      std::streampos size = jpegStream.tellg();
       if (size == 0) {
-        SDL_Log("WARNING: Input file %s contains no data",
-                entry.path().c_str());
-        // goto cleanup_loop;
+        SDL_Log("WARNING: Input file contains no data");
       }
-      jpegSize = size;
+      jpegStream.seekg(0, std::ios::beg);
+      size_t jpegSize = static_cast<size_t>(size);
 
-      if ((jpegBuf = (unsigned char *)malloc(jpegSize)) == NULL) {
-        SDL_Log("ERROR: allocating JPEG buffer for %s: %s",
-                entry.path().c_str(), strerror(errno));
-        // goto cleanup_loop;
+      unsigned char *jpegBuf = (unsigned char *)malloc(jpegSize);
+      if (!jpegBuf) {
+        SDL_Log("ERROR: allocating JPEG buffer");
       }
 
-      if (fread(jpegBuf, jpegSize, 1, jpegFile) < 1) {
-        SDL_Log("ERROR: reading input file %s: %s", entry.path().c_str(),
-                strerror(errno));
-        // goto cleanup_loop;
-      }
+      jpegStream.read(reinterpret_cast<char *>(jpegBuf), jpegSize);
+      jpegStream.close();
 
-      fclose(jpegFile);
-      jpegFile = NULL; // Mark as closed
+      tjhandle tjInstance = NULL;
 
       // 2. Initialize TurboJPEG decompressor
       if ((tjInstance = tj3Init(TJINIT_DECOMPRESS)) == NULL) {
         SDL_Log("ERROR: creating TurboJPEG instance for %s: %s",
                 entry.path().c_str(), tj3GetErrorStr(nullptr));
-        // goto cleanup_loop;
       }
 
       // 3. Read JPEG header to get image info
@@ -525,8 +522,8 @@ int main(int argc, char *argv[]) {
       if (tj3DecompressHeader(tjInstance, jpegBuf, jpegSize) < 0) {
         SDL_Log("ERROR: reading JPEG header for %s: %s", entry.path().c_str(),
                 tj3GetErrorStr(tjInstance));
-        // goto cleanup_loop;
       }
+
       jpegWidth = tj3Get(tjInstance, TJPARAM_JPEGWIDTH);
       jpegHeight = tj3Get(tjInstance, TJPARAM_JPEGHEIGHT);
       jpegSubsamp = tj3Get(tjInstance, TJPARAM_SUBSAMP);
@@ -695,8 +692,8 @@ int main(int argc, char *argv[]) {
                            original_image_surface->h};
       SDL_Rect dst_rect = {0, 0, thumbWidth, thumbHeight};
 
-      if (SDL_BlitSurfaceScaled(original_image_surface, &src_rect, downsampled,
-                                &dst_rect, SDL_SCALEMODE_LINEAR) < 0) {
+      if (!SDL_BlitSurfaceScaled(original_image_surface, &src_rect, downsampled,
+                                 &dst_rect, SDL_SCALEMODE_LINEAR)) {
         SDL_Log("ERROR: Failed to scale surface for %s: %s",
                 entry.path().c_str(), SDL_GetError());
         SDL_DestroySurface(original_image_surface);
@@ -713,6 +710,8 @@ int main(int argc, char *argv[]) {
       free(decompressedBuf_8bit); // CRITICAL: Free the buffer that
                                   // original_image_surface pointed to
       SDL_DestroySurface(downsampled);
+      free(jpegBuf);
+      tj3Destroy(tjInstance);
     }
   }
 
@@ -1003,7 +1002,7 @@ int main(int argc, char *argv[]) {
                             .bottom = 4,
                         },
                 },
-            .backgroundColor = COLOR_LIGHT_GREY,
+            .backgroundColor = COLOR_GREY,
             .cornerRadius =
                 {
                     .topLeft = bottom_bar_corner_radius - 3,
