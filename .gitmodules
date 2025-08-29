@@ -10,3 +10,6 @@
 [submodule "lib/SDL_ttf"]
 	path = lib/SDL_ttf
 	url = https://github.com/libsdl-org/SDL_ttf.git
+[submodule "lib/libjpeg-turbo"]
+	path = lib/libjpeg-turbo
+	url = https://github.com/libjpeg-turbo/libjpeg-turbo.git

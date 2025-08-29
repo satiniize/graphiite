@@ -59,230 +59,27 @@ struct Photo {
 
 std::vector<Photo> photos;
 
-inline void DropDownMenuSeperator() {
-  CLAY({
-      .layout =
-          {
-              .sizing =
-                  {
-                      .width = CLAY_SIZING_GROW(0),
-                      .height = CLAY_SIZING_FIT(0),
-                  },
-              .padding =
-                  {
-                      .left = 0,
-                      .right = 0,
-                      .top = 2,
-                      .bottom = 2,
-                  },
-          },
-  }) {
-    CLAY({
-        .layout =
-            {
-                .sizing =
-                    {
-                        .width = CLAY_SIZING_GROW(0),
-                        .height = CLAY_SIZING_FIXED(1),
-                    },
-            },
-        .backgroundColor = COLOR_GREY,
-    }) {}
-  }
-}
-
-inline void DropDownMenuButton(Clay_String label) {
-  CLAY({
-      .layout =
-          {
-              .sizing =
-                  {
-                      .width = CLAY_SIZING_GROW(0),
-                      .height = CLAY_SIZING_FIT(0),
-                  },
-              .padding =
-                  {
-                      .left = 4,
-                      .right = 4,
-                      .top = 4,
-                      .bottom = 4,
-                  },
-              .childAlignment =
-                  {
-                      .x = CLAY_ALIGN_X_LEFT,
-                      .y = CLAY_ALIGN_Y_CENTER,
-                  },
-          },
-      .backgroundColor = Clay_Hovered() ? COLOR_GREY : COLOR_DARK_GREY,
-      .cornerRadius =
-          {
-              .topLeft = 3,
-              .topRight = 3,
-              .bottomLeft = 3,
-              .bottomRight = 3,
-          },
-  }) {
-    CLAY_TEXT(label, CLAY_TEXT_CONFIG({
-                         .textColor = {255, 255, 255, 255},
-                         .fontSize = 12,
-                     }));
-  }
-}
-
-inline void SessionDropdownMenu() {
-  DropDownMenuButton(CLAY_STRING("New Session"));
-  DropDownMenuButton(CLAY_STRING("Open Session..."));
-  DropDownMenuSeperator();
-  DropDownMenuButton(CLAY_STRING("Save Session"));
-  DropDownMenuButton(CLAY_STRING("Save Session As..."));
-  DropDownMenuSeperator();
-  DropDownMenuButton(CLAY_STRING("Close Session"));
-  DropDownMenuButton(CLAY_STRING("Exit"));
-}
-
-inline void EditDropdownMenu() {
-  DropDownMenuButton(CLAY_STRING("Undo"));
-  DropDownMenuButton(CLAY_STRING("Redo"));
-  DropDownMenuSeperator();
-  DropDownMenuButton(CLAY_STRING("Cut"));
-  DropDownMenuButton(CLAY_STRING("Copy"));
-  DropDownMenuButton(CLAY_STRING("Paste"));
-  DropDownMenuSeperator();
-  DropDownMenuButton(CLAY_STRING("Delete Selected"));
-  DropDownMenuButton(CLAY_STRING("Select All"));
-}
-
-inline void ViewDropdownMenu() {
-  DropDownMenuButton(CLAY_STRING("Zoom In"));
-  DropDownMenuButton(CLAY_STRING("Zoom Out"));
-  DropDownMenuButton(CLAY_STRING("Actual Size"));
-  DropDownMenuSeperator();
-  DropDownMenuButton(CLAY_STRING("Show Grid"));   // Toggle or submenu
-  DropDownMenuButton(CLAY_STRING("Show Rulers")); // Toggle or submenu
-  DropDownMenuSeperator();
-  DropDownMenuButton(CLAY_STRING("Fullscreen"));
-  DropDownMenuButton(CLAY_STRING("Preferences..."));
-}
-
-inline void HelpDropdownMenu() {
-  DropDownMenuButton(CLAY_STRING("View Help"));
-  DropDownMenuButton(CLAY_STRING("Keyboard Shortcuts"));
-  DropDownMenuSeperator();
-  DropDownMenuButton(CLAY_STRING("Check for Updates..."));
-  DropDownMenuSeperator();
-  DropDownMenuButton(CLAY_STRING("About PhotoSorter"));
-}
-
-inline void MenuBarButton(Clay_String label, void (*dropdown_menu)()) {
-  CLAY({
-      .id = CLAY_SIDI(label, 0),
-      .layout =
-          {
-              .sizing = {.width = CLAY_SIZING_FIT(0),
-                         .height = CLAY_SIZING_FIT(0)},
-              .padding =
-                  {
-                      .left = 4,
-                      .right = 4,
-                      .top = 4,
-                      .bottom = 4,
-                  },
-              .childAlignment =
-                  {
-                      .x = CLAY_ALIGN_X_CENTER,
-                      .y = CLAY_ALIGN_Y_CENTER,
-                  },
-          },
-      .backgroundColor = Clay_Hovered() ? COLOR_GREY : COLOR_DARK_GREY,
-      .cornerRadius =
-          {
-              .topLeft = 3,
-              .topRight = 3,
-              .bottomLeft = 3,
-              .bottomRight = 3,
-          },
-  }) {
-    CLAY_TEXT(label, CLAY_TEXT_CONFIG({
-                         .textColor = {255, 255, 255, 255},
-                         .fontSize = 12,
-                     }));
-
-    bool file_menu_visible =
-        Clay_PointerOver(Clay_GetElementIdWithIndex(label, 0)) ||
-        Clay_PointerOver(Clay_GetElementIdWithIndex(label, 1));
-
-    if (file_menu_visible) {
-      CLAY({
-          .id = CLAY_SIDI(label, 1),
-          .layout =
-              {
-                  .sizing =
-                      {
-                          .width = CLAY_SIZING_FIXED(192),
-                          .height = CLAY_SIZING_FIT(0),
-                      },
-                  .padding = CLAY_PADDING_ALL(3),
-              },
-          .backgroundColor = COLOR_WHITE,
-          .cornerRadius =
-              {
-                  .topLeft = 8,
-                  .topRight = 8,
-                  .bottomLeft = 8,
-                  .bottomRight = 8,
-              },
-          .floating =
-              {
-                  .zIndex = 1,
-                  .attachPoints =
-                      {
-                          .parent = CLAY_ATTACH_POINT_LEFT_BOTTOM,
-                      },
-                  .attachTo = CLAY_ATTACH_TO_PARENT,
-              },
-          .border =
-              {
-                  .color = COLOR_BLACK,
-                  .width =
-                      {
-                          .left = 2,
-                          .right = 2,
-                          .top = 2,
-                          .bottom = 2,
-                      },
-              },
-      }) {
-        CLAY({
-            .layout =
-                {
-                    .sizing =
-                        {
-                            .width = CLAY_SIZING_GROW(0),
-                            .height = CLAY_SIZING_GROW(0),
-                        },
-                    .padding = CLAY_PADDING_ALL(2),
-                    .layoutDirection = CLAY_TOP_TO_BOTTOM,
-                },
-            .backgroundColor = COLOR_DARK_GREY,
-            .cornerRadius =
-                {
-                    .topLeft = 5,
-                    .topRight = 5,
-                    .bottomLeft = 5,
-                    .bottomRight = 5,
-                },
-        }) {
-          dropdown_menu();
-        }
-      }
+int get_selected_photos_count() {
+  int count = 0;
+  for (auto photo : photos) {
+    if (photo.selected) {
+      count++;
     }
   }
+  return count;
 }
 
-std::string edge_sheen_path = "res/edge_sheen.png";
+void handle_clay_errors(Clay_ErrorData errorData) {
+  // See the Clay_ErrorData struct for more information
+  printf("%s", errorData.errorText.chars);
+  switch (errorData.errorType) {
+    // etc
+  }
+}
 
-void HandleButtonInteraction(Clay_ElementId elementId,
-                             Clay_PointerData pointerInfo, intptr_t userData) {
+void handle_photo_item_interaction(Clay_ElementId elementId,
+                                   Clay_PointerData pointerInfo,
+                                   intptr_t userData) {
   Photo *photo = (Photo *)userData;
   // Pointer state allows you to detect mouse down / hold / release
   if (pointerInfo.state == CLAY_POINTER_DATA_PRESSED_THIS_FRAME) {
@@ -329,7 +126,7 @@ inline void PhotoItem(Photo &photo) {
                   },
           },
   }) {
-    Clay_OnHover(HandleButtonInteraction, (intptr_t)&photo);
+    Clay_OnHover(handle_photo_item_interaction, (intptr_t)&photo);
     CLAY({
         .layout =
             {
@@ -422,7 +219,7 @@ inline void PhotoItem(Photo &photo) {
                           },
                   },
               .backgroundColor =
-                  photo.selected ? COLOR_PURE_WHITE : COLOR_TRANSPARENT,
+                  photo.selected ? COLOR_SELECTED_GREEN : COLOR_TRANSPARENT,
               .image =
                   {
                       .imageData = static_cast<void *>(&check_data),
@@ -433,25 +230,6 @@ inline void PhotoItem(Photo &photo) {
     }
   }
 }
-
-void handle_clay_errors(Clay_ErrorData errorData) {
-  // See the Clay_ErrorData struct for more information
-  printf("%s", errorData.errorText.chars);
-  switch (errorData.errorType) {
-    // etc
-  }
-}
-
-static inline Clay_Dimensions MeasureText(Clay_StringSlice text,
-                                          Clay_TextElementConfig *config,
-                                          void *userData) {
-  float scalar = config->fontSize / renderer.font_sample_point_size;
-  return (Clay_Dimensions){.width = (float)text.length * renderer.glyph_size.x *
-                                    scalar,
-                           .height = (float)renderer.glyph_size.y * scalar};
-}
-
-void ImageGrid() {}
 
 void Button(Clay_String label) {
   // Finalize button
@@ -588,14 +366,13 @@ void Tally(Clay_String label) {
   }
 }
 
-int get_selected_photos_count() {
-  int count = 0;
-  for (auto photo : photos) {
-    if (photo.selected) {
-      count++;
-    }
-  }
-  return count;
+static inline Clay_Dimensions MeasureText(Clay_StringSlice text,
+                                          Clay_TextElementConfig *config,
+                                          void *userData) {
+  float scalar = config->fontSize / renderer.font_sample_point_size;
+  return (Clay_Dimensions){.width = (float)text.length * renderer.glyph_size.x *
+                                    scalar,
+                           .height = (float)renderer.glyph_size.y * scalar};
 }
 
 bool init() {
