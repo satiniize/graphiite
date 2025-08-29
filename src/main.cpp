@@ -18,6 +18,7 @@
 #include "config.hpp"
 #include "glm/glm.hpp"
 #include "renderer.hpp"
+#include "turbojpeg.h"
 
 // Entities
 #include "component_storage.hpp"
@@ -147,11 +148,6 @@ inline void PhotoItem(Photo &photo) {
                 .imageData = static_cast<void *>(&photo.image_data),
             },
     }) {
-      // CLAY_TEXT(CLAY_STRING("IMGTEST.JPG"),
-      //           CLAY_TEXT_CONFIG({
-      //               .textColor = {255, 255, 255, 255},
-      //               .fontSize = 16,
-      //           }));
       CLAY({
           .layout =
               {
@@ -474,31 +470,248 @@ int main(int argc, char *argv[]) {
       photo.selected = false;
 
       photos.push_back(photo);
-      // photo_paths.push_back(image_data);
-      SDL_Log("Start IMG_Load");
-      SDL_Surface *image_data = IMG_Load(entry.path().c_str());
-      SDL_Log("End IMG_Load");
-      if (image_data == NULL) {
-        SDL_Log("Failed to load image! %s", entry.path().c_str());
+
+      FILE *jpegFile = NULL;
+      long size = 0;
+      size_t jpegSize;
+
+      unsigned char *jpegBuf = NULL;
+      tjhandle tjInstance = NULL;
+
+      // 1. Open and read JPEG file into jpegBuf
+      if ((jpegFile = fopen(entry.path().c_str(), "rb")) == NULL) {
+        SDL_Log("ERROR: opening input file %s: %s", entry.path().c_str(),
+                strerror(errno));
+        // goto cleanup_loop;
       }
 
-      SDL_Log("Start downsample");
+      if (fseek(jpegFile, 0, SEEK_END) < 0 || ((size = ftell(jpegFile)) < 0) ||
+          fseek(jpegFile, 0, SEEK_SET) < 0) {
+        SDL_Log("ERROR: determining input file size for %s: %s",
+                entry.path().c_str(), strerror(errno));
+        // goto cleanup_loop;
+      }
+      if (size == 0) {
+        SDL_Log("WARNING: Input file %s contains no data",
+                entry.path().c_str());
+        // goto cleanup_loop;
+      }
+      jpegSize = size;
+
+      if ((jpegBuf = (unsigned char *)malloc(jpegSize)) == NULL) {
+        SDL_Log("ERROR: allocating JPEG buffer for %s: %s",
+                entry.path().c_str(), strerror(errno));
+        // goto cleanup_loop;
+      }
+
+      if (fread(jpegBuf, jpegSize, 1, jpegFile) < 1) {
+        SDL_Log("ERROR: reading input file %s: %s", entry.path().c_str(),
+                strerror(errno));
+        // goto cleanup_loop;
+      }
+
+      fclose(jpegFile);
+      jpegFile = NULL; // Mark as closed
+
+      // 2. Initialize TurboJPEG decompressor
+      if ((tjInstance = tj3Init(TJINIT_DECOMPRESS)) == NULL) {
+        SDL_Log("ERROR: creating TurboJPEG instance for %s: %s",
+                entry.path().c_str(), tj3GetErrorStr(nullptr));
+        // goto cleanup_loop;
+      }
+
+      // 3. Read JPEG header to get image info
+      int jpegWidth, jpegHeight, jpegSubsamp, jpegColorspace, jpegPrecision;
+      if (tj3DecompressHeader(tjInstance, jpegBuf, jpegSize) < 0) {
+        SDL_Log("ERROR: reading JPEG header for %s: %s", entry.path().c_str(),
+                tj3GetErrorStr(tjInstance));
+        // goto cleanup_loop;
+      }
+      jpegWidth = tj3Get(tjInstance, TJPARAM_JPEGWIDTH);
+      jpegHeight = tj3Get(tjInstance, TJPARAM_JPEGHEIGHT);
+      jpegSubsamp = tj3Get(tjInstance, TJPARAM_SUBSAMP);
+      jpegColorspace = tj3Get(tjInstance, TJPARAM_COLORSPACE);
+      jpegPrecision = tj3Get(tjInstance, TJPARAM_PRECISION);
+
+      // --- Prepare for Decompression and SDL Surface Creation ---
+      // We'll target 8-bit per channel output for SDL_Surface compatibility.
+      // If the JPEG is higher precision, we'll convert it.
+
+      int tjDecompressFormat = TJPF_UNKNOWN;
+      SDL_PixelFormat sdlPixelFormat = SDL_PIXELFORMAT_BGRX8888;
+      int sdlPixelSize = 0; // Bytes per pixel for the final SDL_Surface
+
+      // For general compatibility, decompres to BGRX (32-bit per pixel)
+      tjDecompressFormat = TJPF_RGBA; // Blue, Green, Red, X (unused)
+      sdlPixelFormat = SDL_PIXELFORMAT_ABGR8888;
+      sdlPixelSize =
+          tjPixelSize[tjDecompressFormat]; // Will be 4 bytes for TJPF_BGRX
+
+      // Check for higher precision JPEGs
+      unsigned char *decompressedBuf_8bit =
+          NULL; // This will hold the final 8-bit data for SDL
+      void *tjOutputRawBuf = NULL; // Intermediate buffer if precision > 8
+      int tjOutputRawBufSize = 0;
+
+      if (jpegPrecision <= 8) {
+        tjOutputRawBufSize =
+            jpegWidth * jpegHeight * sdlPixelSize; // Size for 8-bit data
+        tjOutputRawBuf = malloc(tjOutputRawBufSize);
+        if (!tjOutputRawBuf) {
+          SDL_Log("ERROR: allocating 8-bit TurboJPEG output buffer for %s: %s",
+                  entry.path().c_str(), strerror(errno));
+          // goto cleanup_loop;
+        }
+        if (tj3Decompress8(tjInstance, jpegBuf, jpegSize,
+                           (unsigned char *)tjOutputRawBuf, 0,
+                           tjDecompressFormat) < 0) {
+          SDL_Log("ERROR: decompressing 8-bit JPEG image %s: %s",
+                  entry.path().c_str(), tj3GetErrorStr(tjInstance));
+          free(tjOutputRawBuf); // Decompression failed, free buffer
+          // goto cleanup_loop;
+        }
+        decompressedBuf_8bit =
+            (unsigned char *)tjOutputRawBuf; // Direct use for 8-bit
+        // SDL will take ownership of decompressedBuf_8bit later, so don't free
+        // it here
+        tjOutputRawBuf =
+            NULL; // Clear pointer to prevent double free via cleanup_loop
+      } else {    // Handle 12 or 16-bit JPEGs, convert to 8-bit for SDL
+        SDL_Log("WARNING: JPEG %s has precision %d > 8 bits. Converting to "
+                "8-bit per channel.",
+                entry.path().c_str(), jpegPrecision);
+
+        // TurboJPEG outputs unsigned short for precision > 8
+        int tjIntermediatePixelSize_16bit =
+            tjPixelSize[tjDecompressFormat] *
+            sizeof(unsigned short); // e.g., 4 channels * 2 bytes/channel = 8
+                                    // bytes/pixel
+        tjOutputRawBufSize =
+            jpegWidth * jpegHeight * tjIntermediatePixelSize_16bit;
+        tjOutputRawBuf = malloc(tjOutputRawBufSize);
+        if (!tjOutputRawBuf) {
+          SDL_Log("ERROR: allocating 16-bit TurboJPEG intermediate buffer for "
+                  "%s: %s",
+                  entry.path().c_str(), strerror(errno));
+          // goto cleanup_loop;
+        }
+
+        if (jpegPrecision <= 12) {
+          if (tj3Decompress12(tjInstance, jpegBuf, jpegSize,
+                              (short int *)tjOutputRawBuf, 0,
+                              tjDecompressFormat) < 0) {
+            SDL_Log("ERROR: decompressing 12-bit JPEG image %s: %s",
+                    entry.path().c_str(), tj3GetErrorStr(tjInstance));
+            free(tjOutputRawBuf);
+            // goto cleanup_loop;
+          }
+        } else { // Assume precision <= 16
+          if (tj3Decompress16(tjInstance, jpegBuf, jpegSize,
+                              (unsigned short *)tjOutputRawBuf, 0,
+                              tjDecompressFormat) < 0) {
+            SDL_Log("ERROR: decompressing 16-bit JPEG image %s: %s",
+                    entry.path().c_str(), tj3GetErrorStr(tjInstance));
+            free(tjOutputRawBuf);
+            // goto cleanup_loop;
+          }
+        }
+
+        // Now, convert the 16-bit (unsigned short) tjOutputRawBuf to 8-bit
+        // (unsigned char) decompressedBuf_8bit
+        decompressedBuf_8bit = (unsigned char *)malloc(
+            jpegWidth * jpegHeight * sdlPixelSize); // Final 8-bit size
+        if (!decompressedBuf_8bit) {
+          SDL_Log("ERROR: allocating 8-bit conversion buffer for %s: %s",
+                  entry.path().c_str(), strerror(errno));
+          free(tjOutputRawBuf);
+          // goto cleanup_loop;
+        }
+
+        unsigned short *src_ptr = (unsigned short *)tjOutputRawBuf;
+        unsigned char *dst_ptr = decompressedBuf_8bit;
+
+        // Loop through pixels and convert
+        for (int i = 0; i < jpegWidth * jpegHeight; ++i) {
+          // Assuming TJPF_BGRX output (4 channels per pixel)
+          *dst_ptr++ = (unsigned char)(*src_ptr++ >> 8); // B
+          *dst_ptr++ = (unsigned char)(*src_ptr++ >> 8); // G
+          *dst_ptr++ = (unsigned char)(*src_ptr++ >> 8); // R
+          *dst_ptr++ = (unsigned char)0xFF; // X/Alpha (fully opaque)
+        }
+        free(tjOutputRawBuf); // Free the intermediate 16-bit buffer
+        tjOutputRawBuf = NULL;
+      }
+
+      // 4. Create an SDL_Surface from the decompressed 8-bit data
+      // Using the new SDL3 function: SDL_CreateSurfaceFrom
+      SDL_Surface *original_image_surface = SDL_CreateSurfaceFrom(
+          jpegWidth,      // Width
+          jpegHeight,     // Height
+          sdlPixelFormat, // SDL Pixel Format (e.g., SDL_PIXELFORMAT_BGRX8888)
+          decompressedBuf_8bit,    // Pointer to existing pixel data (8-bit)
+          jpegWidth * sdlPixelSize // Pitch (bytes per row)
+      );
+
+      // Important: According to SDL3 wiki for SDL_CreateSurfaceFrom,
+      // "Pixel data is not managed automatically; you must free the surface
+      // before you free the pixel data."
+      // This means SDL *does NOT* take ownership of decompressedBuf_8bit,
+      // and we MUST free it ourselves *after* Destroying
+      // original_image_surface. This is a crucial change from SDL2's
+      // SDL_CreateRGBSurfaceWithFormatFrom!
+
+      if (original_image_surface == NULL) {
+        SDL_Log("ERROR: Failed to create SDL_Surface from decompressed data "
+                "for %s: %s",
+                entry.path().c_str(), SDL_GetError());
+        free(decompressedBuf_8bit); // SDL didn't take ownership, so we must
+                                    // free.
+        // goto cleanup_loop;
+      }
+
+      // 5. Downsample the image
       int downsample_factor = 8;
-      int width = image_data->w / downsample_factor;
-      int height = image_data->h / downsample_factor;
-      SDL_Surface *downsampled =
-          SDL_CreateSurface(width, height, image_data->format);
+      int thumbWidth = original_image_surface->w / downsample_factor;
+      int thumbHeight = original_image_surface->h / downsample_factor;
+      if (thumbWidth == 0)
+        thumbWidth = 1; // Ensure minimum 1 pixel
+      if (thumbHeight == 0)
+        thumbHeight = 1;
 
-      SDL_Rect src_rect = {0, 0, image_data->w, image_data->h};
-      SDL_Rect dst_rect = {0, 0, width, height};
-      SDL_BlitSurfaceScaled(image_data, &src_rect, downsampled, &dst_rect,
-                            SDL_SCALEMODE_LINEAR);
+      SDL_Surface *downsampled = SDL_CreateSurface(
+          thumbWidth, thumbHeight,
+          original_image_surface
+              ->format); // SDL_CreateSurface (new in SDL3 for simpler creation)
 
-      SDL_Log("End downsample");
-      SDL_Log("Start GPU upload");
+      if (downsampled == NULL) {
+        SDL_Log("ERROR: Failed to create downsampled SDL_Surface for %s: %s",
+                entry.path().c_str(), SDL_GetError());
+        SDL_DestroySurface(original_image_surface);
+        free(decompressedBuf_8bit); // Must free this explicitly!
+        // goto cleanup_loop;
+      }
+
+      SDL_Rect src_rect = {0, 0, original_image_surface->w,
+                           original_image_surface->h};
+      SDL_Rect dst_rect = {0, 0, thumbWidth, thumbHeight};
+
+      if (SDL_BlitSurfaceScaled(original_image_surface, &src_rect, downsampled,
+                                &dst_rect, SDL_SCALEMODE_LINEAR) < 0) {
+        SDL_Log("ERROR: Failed to scale surface for %s: %s",
+                entry.path().c_str(), SDL_GetError());
+        SDL_DestroySurface(original_image_surface);
+        free(decompressedBuf_8bit); // Must free this explicitly!
+        SDL_DestroySurface(downsampled);
+        // goto cleanup_loop;
+      }
+
+      // 6. Load texture into your renderer
       renderer.load_texture(entry.path(), downsampled);
-      SDL_Log("End GPU upload");
-      SDL_DestroySurface(image_data);
+
+      // 7. Clean up surfaces and TurboJPEG instance
+      SDL_DestroySurface(original_image_surface);
+      free(decompressedBuf_8bit); // CRITICAL: Free the buffer that
+                                  // original_image_surface pointed to
       SDL_DestroySurface(downsampled);
     }
   }

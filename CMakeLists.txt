@@ -5,41 +5,49 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-# set the output directory for built objects.
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/$<CONFIGURATION>")
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/$<CONFIGURATION>")
 
-# This assumes the SDL source is available in lib/SDL (as a submodule)
+set(LIBJPEG_TURBO_INSTALL_DIR "${CMAKE_BINARY_DIR}/libjpeg-turbo-install")
+
+include(ExternalProject)
+ExternalProject_Add(libjpeg_turbo
+		SOURCE_DIR ${CMAKE_SOURCE_DIR}/lib/libjpeg-turbo
+		CMAKE_ARGS
+				-DCMAKE_INSTALL_PREFIX=${LIBJPEG_TURBO_INSTALL_DIR}
+				-DENABLE_SHARED=OFF
+				-DENABLE_STATIC=ON
+				-DWITH_SIMD=ON
+)
+
+include_directories(${LIBJPEG_TURBO_INSTALL_DIR}/include)
+link_directories(${LIBJPEG_TURBO_INSTALL_DIR}/lib)
+
 add_subdirectory(lib/SDL EXCLUDE_FROM_ALL)
-
-# Add SDL_image as a submodule
 add_subdirectory(lib/SDL_image EXCLUDE_FROM_ALL)
-
 add_subdirectory(lib/glm EXCLUDE_FROM_ALL)
-
 add_subdirectory(lib/SDL_ttf EXCLUDE_FROM_ALL)
 
-# Source files for the project
 set(SR_SOURCES
-	src/main.cpp
-	src/sprite_system.cpp
-	src/renderer.cpp
-	src/clay_renderer.cpp
-	)
+		src/main.cpp
+		src/sprite_system.cpp
+		src/renderer.cpp
+		src/clay_renderer.cpp
+)
 
-# Create your game executable target as usual
 add_executable(software-renderer ${SR_SOURCES})
-target_include_directories(software-renderer PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+add_dependencies(software-renderer libjpeg_turbo)
 
-# Link to the actual SDL3 library.
-target_link_libraries(software-renderer PRIVATE SDL3::SDL3)
-# Link to SDL_image
-target_link_libraries(software-renderer PRIVATE SDL3_image::SDL3_image)
+target_include_directories(software-renderer PRIVATE
+		${CMAKE_CURRENT_SOURCE_DIR}/include
+		"${LIBJPEG_TURBO_INSTALL_DIR}/include"
+)
 
-target_link_libraries(software-renderer PRIVATE glm::glm)
-
-target_link_libraries(software-renderer PRIVATE SDL3_ttf::SDL3_ttf)
-
-target_link_libraries(software-renderer PRIVATE glm::glm)
-
-target_link_libraries(software-renderer PRIVATE SDL3_ttf::SDL3_ttf)
+target_link_libraries(software-renderer PRIVATE
+		SDL3::SDL3
+		SDL3_image::SDL3_image
+		SDL3_ttf::SDL3_ttf
+		glm::glm
+		"${LIBJPEG_TURBO_INSTALL_DIR}/lib/libjpeg.a"
+		"${LIBJPEG_TURBO_INSTALL_DIR}/lib/libturbojpeg.a"
+)
