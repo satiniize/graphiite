@@ -271,6 +271,8 @@ inline void PhotoItem(Photo &photo) {
   }
 }
 
+// TODO: Literally every button is using the finalize logic,
+// please seperate logic
 void Button(Clay_String label) {
   uint16_t button_height = 48;
   CLAY({
@@ -446,6 +448,11 @@ bool cleanup() {
   renderer.cleanup();
   return true;
 }
+
+// TODO: Create a landing page for when a folder has not been selected
+// TODO: Give feedback after submitting finalize button
+// TODO: Seperate components
+// TODO: Make scrolling image grid be 1 component easily swappable
 
 int main(int argc, char *argv[]) {
   EntityManager entity_manager;
