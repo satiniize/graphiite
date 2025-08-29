@@ -1,6 +1,6 @@
 #pragma once
 
-#include "glm/glm.hpp"
+#include "glm/vec2.hpp"
 
 struct TransformComponent {
   glm::vec2 position = glm::vec2(0.0f, 0.0f);

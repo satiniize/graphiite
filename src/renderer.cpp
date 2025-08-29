@@ -1,5 +1,8 @@
 #include "renderer.hpp"
+
 #include "SDL3/SDL_gpu.h"
+#include "SDL3_ttf/SDL_ttf.h"
+#include "glm/gtc/matrix_transform.hpp"
 
 // Helpers
 SDL_GPUShader *load_shader(SDL_GPUDevice *device, std::string path,
@@ -782,7 +785,7 @@ bool Renderer::draw_text(const char *text, int length, float point_size,
     // Calculate uniform values
     text_fragment_uniform_buffer.modulate = color;
     float x = static_cast<float>((text[i] - 33) % 10) / 10.0f;
-    float y = static_cast<float>((text[i] - 33) / 10) / 10.0f;
+    float y = static_cast<float>(static_cast<int>((text[i] - 33) / 10)) / 10.0f;
     text_fragment_uniform_buffer.uv_rect = glm::vec4(x, y, x + 0.1f, y + 0.1f);
     SDL_PushGPUFragmentUniformData(_command_buffer, 0,
                                    &text_fragment_uniform_buffer,

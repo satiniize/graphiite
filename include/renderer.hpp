@@ -1,15 +1,10 @@
 #pragma once
 
-#include <iterator>
 #include <string>
-#include <unordered_map>
-#include <vector>
 
-#include "SDL3/SDL.h"
-#include "SDL3_image/SDL_image.h"
-#include "SDL3_ttf/SDL_ttf.h"
-#include "glm/glm.hpp"
-#include "glm/gtc/matrix_transform.hpp"
+#include "SDL3/SDL_gpu.h"
+#include "SDL3/SDL_video.h"
+#include "glm/mat4x4.hpp"
 
 struct Context {
   SDL_Window *window;

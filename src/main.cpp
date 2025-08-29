@@ -1,12 +1,7 @@
-#include "SDL3/SDL_log.h"
-#include "SDL3/SDL_surface.h"
-#include "glm/common.hpp"
 #include <cmath>
 #include <cstdint>
 #include <filesystem>
-#include <format>
 #include <fstream>
-#include <random>
 #include <sstream>
 #include <string>
 #include <sys/types.h>
@@ -15,11 +10,14 @@
 #define CLAY_IMPLEMENTATION
 #include "clay.h"
 
+#include "SDL3/SDL_log.h"
+#include "SDL3/SDL_surface.h"
+#include "SDL3_image/SDL_image.h"
+#include "turbojpeg.h"
+
 #include "clay_renderer.hpp"
 #include "config.hpp"
-// #include "glm/glm.hpp"
 #include "renderer.hpp"
-#include "turbojpeg.h"
 
 // Entities
 #include "component_storage.hpp"
@@ -43,8 +41,6 @@ const Clay_Color COLOR_TRANSPARENT = {255, 255, 255, 0};
 const Clay_Color COLOR_SELECTED_GREEN = {127, 255, 0, 255};
 
 uint16_t shut_up_data[1];
-std::string test_image_path = "res/uv.bmp";
-std::string carbon_fiber_path = "res/carbon_fiber.png";
 
 Renderer renderer;
 
@@ -61,6 +57,7 @@ struct Photo {
 
 std::vector<Photo> photos;
 
+// Technically very inefficient, not sure
 int get_selected_photos_count() {
   int count = 0;
   for (auto photo : photos) {
@@ -244,7 +241,6 @@ inline void PhotoItem(Photo &photo) {
 }
 
 void Button(Clay_String label) {
-  // Finalize button
   uint16_t button_height = 48;
   CLAY({
       .layout =
@@ -312,7 +308,6 @@ void Button(Clay_String label) {
 }
 
 void Tally(Clay_String label) {
-  // Finalize button
   uint16_t diameter = 48;
   CLAY({
       .layout =
@@ -448,6 +443,7 @@ int main(int argc, char *argv[]) {
 
   int physics_frame_count = 0;
   int process_frame_count = 0;
+
   float time_scale = 1.0f;
 
   bool running = true;
@@ -470,12 +466,11 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  // std::vector<ImageData> photo_paths;
-
   for (const std::filesystem::directory_entry &entry :
        std::filesystem::directory_iterator(photos_root_path)) {
     if (entry.is_regular_file()) {
-      std::cout << "File: " << entry.path() << std::endl;
+      SDL_Log("Loading file: %s", entry.path().c_str());
+      // std::cout << "Loading file: " << entry.path() << std::endl;
 
       ImageData photo_image_data{};
       photo_image_data.path = entry.path().string();
@@ -509,12 +504,10 @@ int main(int argc, char *argv[]) {
       jpegStream.read(reinterpret_cast<char *>(jpegBuf), jpegSize);
       jpegStream.close();
 
-      tjhandle tjInstance = NULL;
-
       // 2. Initialize TurboJPEG decompressor
-      if ((tjInstance = tj3Init(TJINIT_DECOMPRESS)) == NULL) {
-        SDL_Log("ERROR: creating TurboJPEG instance for %s: %s",
-                entry.path().c_str(), tj3GetErrorStr(nullptr));
+      tjhandle tjInstance = tj3Init(TJINIT_DECOMPRESS);
+      if (!tjInstance) {
+        SDL_Log("ERROR: creating TurboJPEG instance");
       }
 
       // 3. Read JPEG header to get image info
@@ -534,14 +527,11 @@ int main(int argc, char *argv[]) {
       // We'll target 8-bit per channel output for SDL_Surface compatibility.
       // If the JPEG is higher precision, we'll convert it.
 
-      int tjDecompressFormat = TJPF_UNKNOWN;
-      SDL_PixelFormat sdlPixelFormat = SDL_PIXELFORMAT_BGRX8888;
-      int sdlPixelSize = 0; // Bytes per pixel for the final SDL_Surface
-
       // For general compatibility, decompres to BGRX (32-bit per pixel)
-      tjDecompressFormat = TJPF_RGBA; // Blue, Green, Red, X (unused)
-      sdlPixelFormat = SDL_PIXELFORMAT_ABGR8888;
-      sdlPixelSize =
+      // For some reason, the backwards thing here happens again
+      int tjDecompressFormat = TJPF_RGBA;
+      SDL_PixelFormat sdlPixelFormat = SDL_PIXELFORMAT_ABGR8888;
+      int sdlPixelSize =
           tjPixelSize[tjDecompressFormat]; // Will be 4 bytes for TJPF_BGRX
 
       // Check for higher precision JPEGs
@@ -550,6 +540,7 @@ int main(int argc, char *argv[]) {
       void *tjOutputRawBuf = NULL; // Intermediate buffer if precision > 8
       int tjOutputRawBufSize = 0;
 
+      // 8 Bit
       if (jpegPrecision <= 8) {
         tjOutputRawBufSize =
             jpegWidth * jpegHeight * sdlPixelSize; // Size for 8-bit data
@@ -593,6 +584,7 @@ int main(int argc, char *argv[]) {
           // goto cleanup_loop;
         }
 
+        // 12 Bit
         if (jpegPrecision <= 12) {
           if (tj3Decompress12(tjInstance, jpegBuf, jpegSize,
                               (short int *)tjOutputRawBuf, 0,
@@ -602,6 +594,7 @@ int main(int argc, char *argv[]) {
             free(tjOutputRawBuf);
             // goto cleanup_loop;
           }
+          // 12 Bit
         } else { // Assume precision <= 16
           if (tj3Decompress16(tjInstance, jpegBuf, jpegSize,
                               (unsigned short *)tjOutputRawBuf, 0,
@@ -667,7 +660,7 @@ int main(int argc, char *argv[]) {
       }
 
       // 5. Downsample the image
-      int downsample_factor = 8;
+      int downsample_factor = 10;
       int thumbWidth = original_image_surface->w / downsample_factor;
       int thumbHeight = original_image_surface->h / downsample_factor;
       if (thumbWidth == 0)
@@ -715,11 +708,6 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  int num_images = std::size(photos);
-  bool is_mouse_down = false;
-
-  // Clay_Vector2 margin_container_scroll = {0.0, 0.0};
-  // float scroll_speed = 4.0f;
   SDL_Surface *edge_sheen = IMG_Load("res/edge_sheen.png");
   renderer.load_texture("res/edge_sheen.png", edge_sheen);
   SDL_DestroySurface(edge_sheen);
@@ -756,6 +744,9 @@ int main(int argc, char *argv[]) {
   check_data.tiling = false;
 
   float scroll_speed = 6.0f;
+  int num_images = std::size(photos);
+
+  bool is_mouse_down = false;
 
   while (running) {
     std::stringstream ss;
@@ -772,10 +763,8 @@ int main(int argc, char *argv[]) {
     prev_frame_tick = frame_tick;
 
     glm::vec2 cursor_pos;
-    float cursor_x;
-    float cursor_y;
-
     Clay_Vector2 mouse_scroll = {0.0f, 0.0f};
+
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
       switch (event.type) {
@@ -1044,7 +1033,6 @@ int main(int argc, char *argv[]) {
                     },
             }) {}
             Tally((Clay_String){
-                // .isStaticallyAllocated = false,
                 .length = len,
                 .chars = c_str,
             });

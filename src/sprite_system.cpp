@@ -1,11 +1,9 @@
 #include "sprite_system.hpp"
-#include "component_storage.hpp"
-#include "sprite_component.hpp"
-#include "transform_component.hpp"
-#include <algorithm>
+
 #include <cmath>
-#include <cstdint>
-#include <vector>
+
+#include "component_storage.hpp"
+#include "transform_component.hpp"
 
 namespace SpriteSystem {
 

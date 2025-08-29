@@ -1,5 +1,8 @@
 #include "clay_renderer.hpp"
+
 #include <sys/types.h>
+
+#include "SDL3/SDL_log.h"
 
 namespace ClayRenderer {
 void render_commands(Renderer &renderer,
