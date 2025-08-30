@@ -56,6 +56,11 @@ Renderer::~Renderer() {}
 
 bool Renderer::load_texture(std::string path, SDL_Surface *image_data) {
   // TODO: Check if texture already exists
+  if (gpu_textures.find(path) != gpu_textures.end()) {
+    SDL_Log("Texture already loaded on GPU, skipping because I need to figure "
+            "out what to do");
+    return false;
+  }
   // Apparently its read backwards so ABGR(CPU) -> RGBA(GPU)
   if (image_data->format != SDL_PIXELFORMAT_ABGR8888) {
     SDL_Surface *converted =

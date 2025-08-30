@@ -76,7 +76,6 @@ int get_selected_photos_count() {
 }
 
 bool seperate_photos(std::vector<Photo> &photos) {
-  // std::filesystem::path root_path(photos_root_path);
   std::filesystem::path root_path(photos[0].file_path.parent_path());
 
   std::filesystem::create_directories(root_path / "Curated");
@@ -98,6 +97,11 @@ bool seperate_photos(std::vector<Photo> &photos) {
 }
 
 bool load_photos(std::filesystem::path path) {
+  if (!std::filesystem::exists(path) && std::filesystem::is_directory(path)) {
+    SDL_Log("Invalid photo path");
+    return 1;
+  }
+
   photos.clear();
 
   for (const std::filesystem::directory_entry &entry :
@@ -627,17 +631,6 @@ void PhotoGrid(std::vector<Photo> &photos, int image_minimum_width) {
           }
         }
       }
-      // Spacer
-      CLAY({
-          .layout =
-              {
-                  .sizing =
-                      {
-                          .width = CLAY_SIZING_GROW(0),
-                          .height = CLAY_SIZING_FIXED(52),
-                      },
-              },
-      }) {}
     }
   }
 }
@@ -823,6 +816,7 @@ void Tally(Clay_String label) {
 void BottomBar() {
   float bottom_bar_corner_radius = 38.0f;
   CLAY({
+      .id = CLAY_ID("BottomBar"),
       .layout =
           {
               .sizing =
@@ -985,8 +979,7 @@ static inline Clay_Dimensions MeasureText(Clay_StringSlice text,
 
 bool init() {
   renderer.init();
-  // For every sprite, add their paths to an array
-  // Send this array to renderer to load data and transfer to gpu
+
   std::vector<std::string> loaded_sprite_paths;
   for (auto &[entity_id, sprite_component] : sprite_components) {
     auto it = std::find(loaded_sprite_paths.begin(), loaded_sprite_paths.end(),
@@ -997,11 +990,12 @@ bool init() {
     }
 
     SDL_Surface *image_data = IMG_Load(sprite_component.path.c_str());
-    if (image_data == NULL) {
+    if (!image_data) {
       SDL_Log("Failed to load image! %s", sprite_component.path.c_str());
       return false;
     }
 
+    sprite_component.size = glm::ivec2(image_data->w, image_data->h);
     renderer.load_texture(sprite_component.path, image_data);
     SDL_DestroySurface(image_data);
     loaded_sprite_paths.push_back(sprite_component.path);
@@ -1016,10 +1010,7 @@ bool cleanup() {
   return true;
 }
 
-// TODO: Create a landing page for when a folder has not been selected
 // TODO: Give feedback after submitting finalize button
-// TODO: Seperate components
-// TODO: Make scrolling image grid be 1 component easily swappable
 // TODO: Reset screen when finalize is pressed
 
 int main(int argc, char *argv[]) {
@@ -1037,10 +1028,7 @@ int main(int argc, char *argv[]) {
   }
   strcat(lBuffer, tinyfd_response);
 
-  // tinyfd_messageBox("hello", lBuffer, "ok", "info", 0);
-
-  tinyfd_notifyPopup("the title", "the message\n\tfrom outer-space", "info");
-
+  // ECS
   EntityManager entity_manager;
 
   // Player Amogus
@@ -1052,7 +1040,7 @@ int main(int argc, char *argv[]) {
   // TODO: Get size of image
   TransformComponent transform_component = {
       .position = glm::vec2(64.0f, 64.0f),
-      .scale = glm::vec2(8.0f, 8.0f),
+      .scale = glm::vec2(1.0f, 1.0f),
   };
   transform_components[amogus] = transform_component;
 
@@ -1070,12 +1058,6 @@ int main(int argc, char *argv[]) {
       clay_memory, clay_dimensions, (Clay_ErrorHandler){handle_clay_errors});
   shut_up_data[0] = 1;
   Clay_SetMeasureTextFunction(MeasureText, (void *)shut_up_data);
-
-  if (!std::filesystem::exists(photos_root_path) &&
-      std::filesystem::is_directory(photos_root_path)) {
-    SDL_Log("Invalid photo path");
-    return 1;
-  }
 
   SDL_Surface *edge_sheen = IMG_Load("res/edge_sheen.png");
   renderer.load_texture("res/edge_sheen.png", edge_sheen);
@@ -1128,49 +1110,12 @@ int main(int argc, char *argv[]) {
 
   bool running = true;
   while (running) {
-    // Get tally count
-    std::stringstream ss;
-    ss << get_selected_photos_count();
-    tally_label = ss.str();
-
+    // Calculate delta time
     uint32_t frame_tick = SDL_GetTicks();
     process_delta_time =
         static_cast<float>(frame_tick - prev_frame_tick) / 1000.0f;
-    accumulator += process_delta_time;
     prev_frame_tick = frame_tick;
-
-    glm::vec2 cursor_pos;
-    Clay_Vector2 mouse_scroll = {0.0f, 0.0f};
-
-    SDL_Event event;
-    while (SDL_PollEvent(&event)) {
-      switch (event.type) {
-      case SDL_EVENT_QUIT:
-        running = false;
-        break;
-      case SDL_EVENT_MOUSE_WHEEL:
-        cursor_pos.x = event.wheel.mouse_x;
-        cursor_pos.y = event.wheel.mouse_y;
-
-        mouse_scroll.x = event.wheel.x * scroll_speed / renderer.viewport_scale;
-        mouse_scroll.y = event.wheel.y * scroll_speed / renderer.viewport_scale;
-        break;
-      case SDL_EVENT_MOUSE_MOTION:
-        cursor_pos.x = event.motion.x;
-        cursor_pos.y = event.motion.y;
-        break;
-      case SDL_EVENT_MOUSE_BUTTON_DOWN:
-        is_mouse_down = true;
-        break;
-      case SDL_EVENT_MOUSE_BUTTON_UP:
-        is_mouse_down = false;
-        break;
-      }
-    }
-
-    Clay_Vector2 mouse_position = {cursor_pos.x, cursor_pos.y};
-
-    // const bool *keystate = SDL_GetKeyboardState(NULL);
+    accumulator += process_delta_time;
 
     ++process_frame_count;
     if (accumulator >= (physics_delta_time / time_scale)) {
@@ -1183,26 +1128,64 @@ int main(int argc, char *argv[]) {
       }
     }
 
+    // Poll inputs
+    Clay_Vector2 mouse_position;
+    Clay_Vector2 mouse_scroll = {0.0f, 0.0f};
+
+    // const bool *keystate = SDL_GetKeyboardState(NULL);
+    SDL_Event event;
+    while (SDL_PollEvent(&event)) {
+      switch (event.type) {
+      case SDL_EVENT_QUIT:
+        running = false;
+        break;
+      case SDL_EVENT_MOUSE_WHEEL:
+        mouse_position.x = event.wheel.mouse_x;
+        mouse_position.y = event.wheel.mouse_y;
+
+        mouse_scroll.x = event.wheel.x * scroll_speed / renderer.viewport_scale;
+        mouse_scroll.y = event.wheel.y * scroll_speed / renderer.viewport_scale;
+        break;
+      case SDL_EVENT_MOUSE_MOTION:
+        mouse_position.x = event.motion.x;
+        mouse_position.y = event.motion.y;
+        break;
+      case SDL_EVENT_MOUSE_BUTTON_DOWN:
+        is_mouse_down = true;
+        break;
+      case SDL_EVENT_MOUSE_BUTTON_UP:
+        is_mouse_down = false;
+        break;
+      }
+    }
+
     TransformComponent &cursor_transform = transform_components[amogus];
-    cursor_transform.position = glm::vec2(cursor_pos.x, cursor_pos.y);
+    cursor_transform.position = glm::vec2(mouse_position.x, mouse_position.y);
 
-    renderer.begin_frame();
+    // Get tally count
+    // This is technically a bit redundant
+    // but is guaranteed to not be out of sync
+    std::stringstream ss;
+    ss << get_selected_photos_count();
+    tally_label = ss.str();
 
-    Clay_Dimensions clay_dimensions = {
-        .width = static_cast<float>(renderer.width) /
-                 static_cast<float>(renderer.viewport_scale),
-        .height = static_cast<float>(renderer.height) /
-                  static_cast<float>(renderer.viewport_scale)};
-
-    bool enable_drag_scrolling = false;
+    renderer.begin_frame(); // Start here to update window dimensions for clay
 
     // Clay foreplay
+    Clay_Dimensions clay_dimensions = {
+        .width = static_cast<float>(renderer.width) / renderer.viewport_scale,
+        .height =
+            static_cast<float>(renderer.height) / renderer.viewport_scale};
+    bool enable_drag_scrolling = false;
+    float bottom_bar_height =
+        Clay_GetElementData(CLAY_ID("BottomBar")).boundingBox.height;
+
     Clay_SetLayoutDimensions(clay_dimensions);
     Clay_SetPointerState(mouse_position, is_mouse_down);
     Clay_UpdateScrollContainers(enable_drag_scrolling, mouse_scroll,
                                 process_delta_time);
 
-    // uint16_t spacing = 5;
+    // Clay UI
     Clay_BeginLayout();
     CLAY({
         .id = CLAY_ID("Root"),
@@ -1227,12 +1210,14 @@ int main(int argc, char *argv[]) {
                           .width = CLAY_SIZING_GROW(0),
                           .height = CLAY_SIZING_GROW(0),
                       },
+                  .childGap = 0,
+                  .layoutDirection = CLAY_TOP_TO_BOTTOM,
               },
           .backgroundColor = COLOR_PURE_WHITE,
-          .image = // TODO: Move this after root
-          {
-              .imageData = static_cast<void *>(&vignette_data),
-          },
+          .image =
+              {
+                  .imageData = static_cast<void *>(&vignette_data),
+              },
       }) {
         // Image Grid
         if (folder_opened) {
@@ -1240,6 +1225,17 @@ int main(int argc, char *argv[]) {
         } else {
           Placeholder();
         }
+        // Spacer
+        CLAY({
+            .layout =
+                {
+                    .sizing =
+                        {
+                            .width = CLAY_SIZING_GROW(0),
+                            .height = CLAY_SIZING_FIXED(bottom_bar_height),
+                        },
+                },
+        }) {}
       }
       // Bottom Bar
       BottomBar();
