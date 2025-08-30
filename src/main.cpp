@@ -134,6 +134,30 @@ void handle_finalize_button_interaction(Clay_ElementId elementId,
   }
 }
 
+void handle_open_folder_button_interaction(Clay_ElementId elementId,
+                                           Clay_PointerData pointerInfo,
+                                           intptr_t userData) {
+  if (pointerInfo.state == CLAY_POINTER_DATA_PRESSED_THIS_FRAME) {
+    // seperate_photos(photos);
+  }
+}
+
+void handle_sort_button_interaction(Clay_ElementId elementId,
+                                    Clay_PointerData pointerInfo,
+                                    intptr_t userData) {
+  if (pointerInfo.state == CLAY_POINTER_DATA_PRESSED_THIS_FRAME) {
+    // seperate_photos(photos);
+  }
+}
+
+void handle_filters_button_interaction(Clay_ElementId elementId,
+                                       Clay_PointerData pointerInfo,
+                                       intptr_t userData) {
+  if (pointerInfo.state == CLAY_POINTER_DATA_PRESSED_THIS_FRAME) {
+    // seperate_photos(photos);
+  }
+}
+
 // TODO: Change hover to full photo rect, current selection is too small
 inline void PhotoItem(Photo &photo) {
   uint16_t corner_radius = 16;
@@ -273,7 +297,10 @@ inline void PhotoItem(Photo &photo) {
 
 // TODO: Literally every button is using the finalize logic,
 // please seperate logic
-void Button(Clay_String label) {
+void Button(Clay_String label,
+            void button_interaction(Clay_ElementId elementId,
+                                    Clay_PointerData pointerInfo,
+                                    intptr_t userData)) {
   uint16_t button_height = 48;
   CLAY({
       .layout =
@@ -304,7 +331,7 @@ void Button(Clay_String label) {
                   },
           },
   }) {
-    Clay_OnHover(handle_finalize_button_interaction, NULL);
+    Clay_OnHover(button_interaction, NULL);
     CLAY({
         .layout =
             {
@@ -1058,7 +1085,8 @@ int main(int argc, char *argv[]) {
                       .layoutDirection = CLAY_LEFT_TO_RIGHT,
                   },
           }) {
-            Button(CLAY_STRING("Open Folder"));
+            Button(CLAY_STRING("Open Folder"),
+                   handle_open_folder_button_interaction);
             CLAY({
                 .layout =
                     {
@@ -1089,7 +1117,7 @@ int main(int argc, char *argv[]) {
                           },
                   },
           }) {
-            Button(CLAY_STRING("Finalize"));
+            Button(CLAY_STRING("Finalize"), handle_finalize_button_interaction);
           }
           // Right Align
           CLAY({
@@ -1107,8 +1135,8 @@ int main(int argc, char *argv[]) {
                       .layoutDirection = CLAY_LEFT_TO_RIGHT,
                   },
           }) {
-            Button(CLAY_STRING("Sort"));
-            Button(CLAY_STRING("Filters"));
+            Button(CLAY_STRING("Sort"), handle_sort_button_interaction);
+            Button(CLAY_STRING("Filters"), handle_filters_button_interaction);
           }
         }
       }
