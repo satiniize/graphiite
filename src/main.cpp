@@ -58,6 +58,7 @@ struct Photo {
 
 std::string photos_root_path = "res/FUJI/";
 std::vector<Photo> photos;
+bool folder_opened = false;
 
 // Technically very inefficient, not sure
 int get_selected_photos_count() {
@@ -138,6 +139,7 @@ void handle_open_folder_button_interaction(Clay_ElementId elementId,
                                            Clay_PointerData pointerInfo,
                                            intptr_t userData) {
   if (pointerInfo.state == CLAY_POINTER_DATA_PRESSED_THIS_FRAME) {
+    folder_opened = true;
     // seperate_photos(photos);
   }
 }
@@ -310,13 +312,7 @@ void PhotoGrid(std::vector<Photo> &photos, int image_minimum_width) {
                       .width = CLAY_SIZING_GROW(0),
                       .height = CLAY_SIZING_GROW(0),
                   },
-              // .layoutDirection = CLAY_TOP_TO_BOTTOM,
           },
-      .backgroundColor = COLOR_PURE_WHITE,
-      .image = // TODO: Move this after root
-      {
-          .imageData = static_cast<void *>(&vignette_data),
-      },
       .clip =
           {
               .vertical = true,
@@ -373,6 +369,41 @@ void PhotoGrid(std::vector<Photo> &photos, int image_minimum_width) {
                       },
               },
       }) {}
+    }
+  }
+}
+
+void Placeholder() {
+  CLAY({
+      .layout =
+          {
+              .sizing =
+                  {
+                      .width = CLAY_SIZING_GROW(),
+                      .height = CLAY_SIZING_GROW(),
+                  },
+              .childAlignment =
+                  {
+                      .x = CLAY_ALIGN_X_CENTER,
+                      .y = CLAY_ALIGN_Y_CENTER,
+                  },
+          },
+  }) {
+    CLAY({
+        .layout =
+            {
+                .sizing =
+                    {
+                        .width = CLAY_SIZING_FIT(),
+                        .height = CLAY_SIZING_FIT(),
+                    },
+            },
+    }) {
+      CLAY_TEXT(CLAY_STRING("Looks like you haven't opened a folder yet."),
+                CLAY_TEXT_CONFIG({
+                    .textColor = COLOR_PURE_WHITE,
+                    .fontSize = 24,
+                }));
     }
   }
 }
@@ -986,8 +1017,28 @@ int main(int argc, char *argv[]) {
                 .imageData = static_cast<void *>(&carbon_fiber_data),
             },
     }) {
-      // Image Grid
-      PhotoGrid(photos, 240 * renderer.viewport_scale);
+      CLAY({
+          .layout =
+              {
+                  .sizing =
+                      {
+                          .width = CLAY_SIZING_GROW(0),
+                          .height = CLAY_SIZING_GROW(0),
+                      },
+              },
+          .backgroundColor = COLOR_PURE_WHITE,
+          .image = // TODO: Move this after root
+          {
+              .imageData = static_cast<void *>(&vignette_data),
+          },
+      }) {
+        // Image Grid
+        if (folder_opened) {
+          PhotoGrid(photos, 240 * renderer.viewport_scale);
+        } else {
+          Placeholder();
+        }
+      }
       // Bottom Bar
       float bottom_bar_corner_radius = 38.0f;
       CLAY({
