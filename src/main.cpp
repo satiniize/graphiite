@@ -60,6 +60,8 @@ std::string photos_root_path = "res/FUJI/";
 std::vector<Photo> photos;
 bool folder_opened = false;
 
+std::string tally_label;
+
 // Technically very inefficient, not sure
 int get_selected_photos_count() {
   int count = 0;
@@ -476,6 +478,8 @@ void Button(Clay_String label,
       CLAY_TEXT(label, CLAY_TEXT_CONFIG({
                            .textColor = {255, 255, 255, 255},
                            .fontSize = 20,
+                           .wrapMode = CLAY_TEXT_WRAP_NONE,
+                           .textAlignment = CLAY_TEXT_ALIGN_CENTER,
                        }));
     }
   }
@@ -545,6 +549,160 @@ void Tally(Clay_String label) {
                            .wrapMode = CLAY_TEXT_WRAP_NONE,
                            .textAlignment = CLAY_TEXT_ALIGN_CENTER,
                        }));
+    }
+  }
+}
+
+void BottomBar() {
+  float bottom_bar_corner_radius = 38.0f;
+  CLAY({
+      .layout =
+          {
+              .sizing =
+                  {
+                      .width = CLAY_SIZING_GROW(0),
+                      .height = CLAY_SIZING_FIT(0),
+                  },
+              .padding =
+                  {
+                      .left = 3,
+                      .right = 3,
+                      .top = 3,
+                      .bottom = 0,
+                  },
+          },
+      .backgroundColor = COLOR_PURE_WHITE,
+      .cornerRadius =
+          {
+              .topLeft = bottom_bar_corner_radius,
+              .topRight = bottom_bar_corner_radius,
+              .bottomLeft = 0,
+              .bottomRight = 0,
+          },
+      .image =
+          {
+              .imageData = static_cast<void *>(&edge_sheen_data),
+          },
+      .floating =
+          {
+              .attachPoints =
+                  {
+                      .element = CLAY_ATTACH_POINT_CENTER_BOTTOM,
+                      .parent = CLAY_ATTACH_POINT_CENTER_BOTTOM,
+                  },
+              .attachTo = CLAY_ATTACH_TO_PARENT,
+          },
+      .border =
+          {
+              .color = COLOR_BLACK,
+              .width =
+                  {
+                      .left = 2,
+                      .right = 2,
+                      .top = 2,
+                      .bottom = 0,
+                  },
+          },
+  }) {
+    CLAY({
+        .layout =
+            {
+                .sizing =
+                    {
+                        .width = CLAY_SIZING_GROW(0),
+                        .height = CLAY_SIZING_GROW(0),
+                    },
+                .padding =
+                    {
+                        .left = 4,
+                        .right = 4,
+                        .top = 4,
+                        .bottom = 4,
+                    },
+            },
+        .backgroundColor = COLOR_GREY,
+        .cornerRadius =
+            {
+                .topLeft = bottom_bar_corner_radius - 3,
+                .topRight = bottom_bar_corner_radius - 3,
+                .bottomLeft = 0,
+                .bottomRight = 0,
+            },
+        .image =
+            {
+                .imageData = static_cast<void *>(&bg_sheen_data),
+            },
+    }) {
+      // Left Align
+      CLAY({
+          .layout =
+              {
+                  .sizing =
+                      {
+                          .width = CLAY_SIZING_GROW(0),
+                          .height = CLAY_SIZING_GROW(0),
+                      },
+                  .childAlignment =
+                      {
+                          .x = CLAY_ALIGN_X_LEFT,
+                          .y = CLAY_ALIGN_Y_CENTER,
+                      },
+                  .layoutDirection = CLAY_LEFT_TO_RIGHT,
+              },
+      }) {
+        Button(CLAY_STRING("Open Folder"),
+               handle_open_folder_button_interaction);
+        CLAY({
+            .layout =
+                {
+                    .sizing =
+                        {
+                            .width = CLAY_SIZING_GROW(0),
+                            .height = CLAY_SIZING_GROW(0),
+                        },
+                },
+        }) {}
+        Tally((Clay_String){
+            .length = static_cast<int32_t>(tally_label.length()),
+            .chars = tally_label.c_str(),
+        });
+      }
+      // Center Align
+      CLAY({
+          .layout =
+              {
+                  .sizing =
+                      {
+                          .width = CLAY_SIZING_FIT(),
+                          .height = CLAY_SIZING_GROW(0),
+                      },
+                  .childAlignment =
+                      {
+                          .x = CLAY_ALIGN_X_CENTER,
+                      },
+              },
+      }) {
+        Button(CLAY_STRING("Finalize"), handle_finalize_button_interaction);
+      }
+      // Right Align
+      CLAY({
+          .layout =
+              {
+                  .sizing =
+                      {
+                          .width = CLAY_SIZING_GROW(0),
+                          .height = CLAY_SIZING_GROW(0),
+                      },
+                  .childAlignment =
+                      {
+                          .x = CLAY_ALIGN_X_RIGHT,
+                      },
+                  .layoutDirection = CLAY_LEFT_TO_RIGHT,
+              },
+      }) {
+        Button(CLAY_STRING("Sort"), handle_sort_button_interaction);
+        Button(CLAY_STRING("Filters"), handle_filters_button_interaction);
+      }
     }
   }
 }
@@ -930,10 +1088,7 @@ int main(int argc, char *argv[]) {
     // Get tally count
     std::stringstream ss;
     ss << get_selected_photos_count();
-    std::string str = ss.str();
-
-    const char *c_str = str.c_str();
-    int len = strlen(c_str);
+    tally_label = ss.str();
 
     uint32_t frame_tick = SDL_GetTicks();
     process_delta_time =
@@ -1044,157 +1199,7 @@ int main(int argc, char *argv[]) {
         }
       }
       // Bottom Bar
-      float bottom_bar_corner_radius = 38.0f;
-      CLAY({
-          .layout =
-              {
-                  .sizing =
-                      {
-                          .width = CLAY_SIZING_GROW(0),
-                          .height = CLAY_SIZING_FIT(0),
-                      },
-                  .padding =
-                      {
-                          .left = 3,
-                          .right = 3,
-                          .top = 3,
-                          .bottom = 0,
-                      },
-              },
-          .backgroundColor = COLOR_PURE_WHITE,
-          .cornerRadius =
-              {
-                  .topLeft = bottom_bar_corner_radius,
-                  .topRight = bottom_bar_corner_radius,
-                  .bottomLeft = 0,
-                  .bottomRight = 0,
-              },
-          .image =
-              {
-                  .imageData = static_cast<void *>(&edge_sheen_data),
-              },
-          .floating =
-              {
-                  .attachPoints =
-                      {
-                          .element = CLAY_ATTACH_POINT_CENTER_BOTTOM,
-                          .parent = CLAY_ATTACH_POINT_CENTER_BOTTOM,
-                      },
-                  .attachTo = CLAY_ATTACH_TO_PARENT,
-              },
-          .border =
-              {
-                  .color = COLOR_BLACK,
-                  .width =
-                      {
-                          .left = 2,
-                          .right = 2,
-                          .top = 2,
-                          .bottom = 0,
-                      },
-              },
-      }) {
-        CLAY({
-            .layout =
-                {
-                    .sizing =
-                        {
-                            .width = CLAY_SIZING_GROW(0),
-                            .height = CLAY_SIZING_GROW(0),
-                        },
-                    .padding =
-                        {
-                            .left = 4,
-                            .right = 4,
-                            .top = 4,
-                            .bottom = 4,
-                        },
-                },
-            .backgroundColor = COLOR_GREY,
-            .cornerRadius =
-                {
-                    .topLeft = bottom_bar_corner_radius - 3,
-                    .topRight = bottom_bar_corner_radius - 3,
-                    .bottomLeft = 0,
-                    .bottomRight = 0,
-                },
-            .image =
-                {
-                    .imageData = static_cast<void *>(&bg_sheen_data),
-                },
-        }) {
-          // Left Align
-          CLAY({
-              .layout =
-                  {
-                      .sizing =
-                          {
-                              .width = CLAY_SIZING_GROW(0),
-                              .height = CLAY_SIZING_GROW(0),
-                          },
-                      .childAlignment =
-                          {
-                              .x = CLAY_ALIGN_X_LEFT,
-                              .y = CLAY_ALIGN_Y_CENTER,
-                          },
-                      .layoutDirection = CLAY_LEFT_TO_RIGHT,
-                  },
-          }) {
-            Button(CLAY_STRING("Open Folder"),
-                   handle_open_folder_button_interaction);
-            CLAY({
-                .layout =
-                    {
-                        .sizing =
-                            {
-                                .width = CLAY_SIZING_GROW(0),
-                                .height = CLAY_SIZING_GROW(0),
-                            },
-                    },
-            }) {}
-            Tally((Clay_String){
-                .length = len,
-                .chars = c_str,
-            });
-          }
-          // Center Align
-          CLAY({
-              .layout =
-                  {
-                      .sizing =
-                          {
-                              .width = CLAY_SIZING_FIT(),
-                              .height = CLAY_SIZING_GROW(0),
-                          },
-                      .childAlignment =
-                          {
-                              .x = CLAY_ALIGN_X_CENTER,
-                          },
-                  },
-          }) {
-            Button(CLAY_STRING("Finalize"), handle_finalize_button_interaction);
-          }
-          // Right Align
-          CLAY({
-              .layout =
-                  {
-                      .sizing =
-                          {
-                              .width = CLAY_SIZING_GROW(0),
-                              .height = CLAY_SIZING_GROW(0),
-                          },
-                      .childAlignment =
-                          {
-                              .x = CLAY_ALIGN_X_RIGHT,
-                          },
-                      .layoutDirection = CLAY_LEFT_TO_RIGHT,
-                  },
-          }) {
-            Button(CLAY_STRING("Sort"), handle_sort_button_interaction);
-            Button(CLAY_STRING("Filters"), handle_filters_button_interaction);
-          }
-        }
-      }
+      BottomBar();
     }
     Clay_RenderCommandArray render_commands = Clay_EndLayout();
 
