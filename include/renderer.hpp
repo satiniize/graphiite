@@ -107,7 +107,7 @@ public:
   bool cleanup();
   glm::vec2 glyph_size;
   float font_sample_point_size = 64.0f;
-  int viewport_scale = 2;
+  float viewport_scale = 2.0f;
 
 private:
   Context context;

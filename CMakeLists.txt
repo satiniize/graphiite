@@ -33,6 +33,7 @@ set(SR_SOURCES
 		src/sprite_system.cpp
 		src/renderer.cpp
 		src/clay_renderer.cpp
+		src/tinyfiledialogs.c
 )
 
 add_executable(software-renderer ${SR_SOURCES})
