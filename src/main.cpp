@@ -403,6 +403,8 @@ void Placeholder() {
                 CLAY_TEXT_CONFIG({
                     .textColor = COLOR_PURE_WHITE,
                     .fontSize = 24,
+                    .wrapMode = CLAY_TEXT_WRAP_WORDS,
+                    .textAlignment = CLAY_TEXT_ALIGN_CENTER,
                 }));
     }
   }
@@ -540,6 +542,8 @@ void Tally(Clay_String label) {
       CLAY_TEXT(label, CLAY_TEXT_CONFIG({
                            .textColor = COLOR_SELECTED_GREEN,
                            .fontSize = 20,
+                           .wrapMode = CLAY_TEXT_WRAP_NONE,
+                           .textAlignment = CLAY_TEXT_ALIGN_CENTER,
                        }));
     }
   }
