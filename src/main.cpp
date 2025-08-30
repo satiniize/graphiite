@@ -400,6 +400,7 @@ void handle_open_folder_button_interaction(Clay_ElementId elementId,
     if (!lTheSelectFolderName) {
       tinyfd_messageBox("Error", "Select folder name is NULL", "ok", "error",
                         1);
+      return;
     }
 
     tinyfd_messageBox("The selected folder is", lTheSelectFolderName, "ok",
@@ -407,7 +408,6 @@ void handle_open_folder_button_interaction(Clay_ElementId elementId,
     folder_opened = true;
 
     std::filesystem::path folder_path(lTheSelectFolderName);
-    // photos_root_path = folder_path.string();
 
     load_photos(folder_path);
   }
@@ -1020,8 +1020,8 @@ bool cleanup() {
 // TODO: Give feedback after submitting finalize button
 // TODO: Seperate components
 // TODO: Make scrolling image grid be 1 component easily swappable
+// TODO: Reset screen when finalize is pressed
 
-// TODO: Scaling is incorrect for fractional scaling
 int main(int argc, char *argv[]) {
   char lBuffer[1024];
 
