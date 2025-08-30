@@ -295,8 +295,88 @@ inline void PhotoItem(Photo &photo) {
   }
 }
 
-// TODO: Literally every button is using the finalize logic,
-// please seperate logic
+void PhotoGrid(std::vector<Photo> &photos, int image_minimum_width) {
+  // Photo grid calculation
+  int image_counter = 0;
+  int photo_columns = renderer.width / image_minimum_width;
+
+  int num_images = std::size(photos);
+  CLAY({
+      .id = CLAY_ID("PhotoGrid"),
+      .layout =
+          {
+              .sizing =
+                  {
+                      .width = CLAY_SIZING_GROW(0),
+                      .height = CLAY_SIZING_GROW(0),
+                  },
+              // .layoutDirection = CLAY_TOP_TO_BOTTOM,
+          },
+      .backgroundColor = COLOR_PURE_WHITE,
+      .image = // TODO: Move this after root
+      {
+          .imageData = static_cast<void *>(&vignette_data),
+      },
+      .clip =
+          {
+              .vertical = true,
+              .childOffset = Clay_GetScrollOffset(), // Somehow this function
+                                                     // resets the scroll to 0
+                                                     // when the overlay is
+                                                     // first rendered
+          },
+  }) {
+    CLAY({
+        .layout =
+            {
+                .sizing =
+                    {
+                        .width = CLAY_SIZING_GROW(0),
+                        .height = CLAY_SIZING_GROW(0),
+                    },
+                .padding = CLAY_PADDING_ALL(8),
+                .childGap = 4,
+                .layoutDirection = CLAY_TOP_TO_BOTTOM,
+            },
+    }) {
+      for (int i = 0; i < 16 && image_counter < num_images; i++) {
+        CLAY({.layout = {
+                  .sizing = {.width = CLAY_SIZING_GROW(0),
+                             .height = CLAY_SIZING_FIT(0)},
+                  .childGap = 4,
+                  .layoutDirection = CLAY_LEFT_TO_RIGHT,
+              }}) {
+          for (int i = 0; i < photo_columns; i++) {
+            if (image_counter < num_images) {
+              PhotoItem(photos[image_counter]);
+              image_counter++;
+            } else {
+              CLAY({
+                  .layout =
+                      {
+                          .sizing = {.width = CLAY_SIZING_GROW(0),
+                                     .height = CLAY_SIZING_GROW(0)},
+                      },
+              }) {}
+            }
+          }
+        }
+      }
+      // Spacer
+      CLAY({
+          .layout =
+              {
+                  .sizing =
+                      {
+                          .width = CLAY_SIZING_GROW(0),
+                          .height = CLAY_SIZING_FIXED(52),
+                      },
+              },
+      }) {}
+    }
+  }
+}
+
 void Button(Clay_String label,
             void button_interaction(Clay_ElementId elementId,
                                     Clay_PointerData pointerInfo,
@@ -808,11 +888,11 @@ int main(int argc, char *argv[]) {
   float time_scale = 1.0f;
 
   float scroll_speed = 6.0f;
-  int num_images = std::size(photos);
   bool is_mouse_down = false;
 
   bool running = true;
   while (running) {
+    // Get tally count
     std::stringstream ss;
     ss << get_selected_photos_count();
     std::string str = ss.str();
@@ -873,8 +953,6 @@ int main(int argc, char *argv[]) {
     TransformComponent &cursor_transform = transform_components[amogus];
     cursor_transform.position = glm::vec2(cursor_pos.x, cursor_pos.y);
 
-    int image_counter = 0;
-
     renderer.begin_frame();
 
     Clay_Dimensions clay_dimensions = {
@@ -882,10 +960,6 @@ int main(int argc, char *argv[]) {
                  static_cast<float>(renderer.viewport_scale),
         .height = static_cast<float>(renderer.height) /
                   static_cast<float>(renderer.viewport_scale)};
-
-    // Photo grid calculation
-    int image_minimum_width = 240 * renderer.viewport_scale;
-    int photo_columns = renderer.width / image_minimum_width;
 
     bool enable_drag_scrolling = false;
 
@@ -895,7 +969,7 @@ int main(int argc, char *argv[]) {
     Clay_UpdateScrollContainers(enable_drag_scrolling, mouse_scroll,
                                 process_delta_time);
 
-    uint16_t spacing = 5;
+    // uint16_t spacing = 5;
     Clay_BeginLayout();
     CLAY({
         .id = CLAY_ID("Root"),
@@ -913,81 +987,7 @@ int main(int argc, char *argv[]) {
             },
     }) {
       // Image Grid
-      CLAY({
-          .id = CLAY_ID("ImageGrid"),
-          .layout =
-              {
-                  .sizing =
-                      {
-                          .width = CLAY_SIZING_GROW(0),
-                          .height = CLAY_SIZING_GROW(0),
-                      },
-                  // .layoutDirection = CLAY_TOP_TO_BOTTOM,
-              },
-          .backgroundColor = COLOR_PURE_WHITE,
-          .image = // TODO: Move this after root
-          {
-              .imageData = static_cast<void *>(&vignette_data),
-          },
-          .clip =
-              {
-                  .vertical = true,
-                  .childOffset =
-                      Clay_GetScrollOffset(), // Somehow this function
-                                              // resets the scroll to 0 when
-                                              // the overlay is first
-                                              // rendered
-              },
-      }) {
-        CLAY({
-            .layout =
-                {
-                    .sizing =
-                        {
-                            .width = CLAY_SIZING_GROW(0),
-                            .height = CLAY_SIZING_GROW(0),
-                        },
-                    .padding = CLAY_PADDING_ALL(8),
-                    .childGap = 4,
-                    .layoutDirection = CLAY_TOP_TO_BOTTOM,
-                },
-        }) {
-          for (int i = 0; i < 16 && image_counter < num_images; i++) {
-            CLAY({.layout = {
-                      .sizing = {.width = CLAY_SIZING_GROW(0),
-                                 .height = CLAY_SIZING_FIT(0)},
-                      .childGap = 4,
-                      .layoutDirection = CLAY_LEFT_TO_RIGHT,
-                  }}) {
-              for (int i = 0; i < photo_columns; i++) {
-                if (image_counter < num_images) {
-                  PhotoItem(photos[image_counter]);
-                  image_counter++;
-                } else {
-                  CLAY({
-                      .layout =
-                          {
-                              .sizing = {.width = CLAY_SIZING_GROW(0),
-                                         .height = CLAY_SIZING_GROW(0)},
-                          },
-                  }) {}
-                }
-              }
-            }
-          }
-          // Spacer
-          CLAY({
-              .layout =
-                  {
-                      .sizing =
-                          {
-                              .width = CLAY_SIZING_GROW(0),
-                              .height = CLAY_SIZING_FIXED(52),
-                          },
-                  },
-          }) {}
-        }
-      }
+      PhotoGrid(photos, 240 * renderer.viewport_scale);
       // Bottom Bar
       float bottom_bar_corner_radius = 38.0f;
       CLAY({
