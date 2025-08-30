@@ -58,7 +58,7 @@ struct Photo {
   std::filesystem::path file_path;
 };
 
-std::string photos_root_path = "res/FUJI/";
+// std::string photos_root_path = "res/FUJI/";
 std::vector<Photo> photos;
 bool folder_opened = false;
 
@@ -390,6 +390,8 @@ void handle_finalize_button_interaction(Clay_ElementId elementId,
                                         intptr_t userData) {
   if (pointerInfo.state == CLAY_POINTER_DATA_PRESSED_THIS_FRAME) {
     seperate_photos(photos);
+    folder_opened = false;
+    photos.clear();
   }
 }
 
@@ -398,17 +400,13 @@ void handle_open_folder_button_interaction(Clay_ElementId elementId,
                                            intptr_t userData) {
   if (pointerInfo.state == CLAY_POINTER_DATA_PRESSED_THIS_FRAME) {
 
-    char *lTheSelectFolderName =
-        tinyfd_selectFolderDialog("let us just select a directory", "../../");
+    char *lTheSelectFolderName = tinyfd_selectFolderDialog(
+        "Choose a folder containing your photos", "./");
 
     if (!lTheSelectFolderName) {
-      tinyfd_messageBox("Error", "Select folder name is NULL", "ok", "error",
-                        1);
       return;
     }
 
-    tinyfd_messageBox("The selected folder is", lTheSelectFolderName, "ok",
-                      "info", 1);
     folder_opened = true;
 
     std::filesystem::path folder_path(lTheSelectFolderName);
@@ -1037,7 +1035,6 @@ int main(int argc, char *argv[]) {
       .path = "res/uv.bmp",
   };
   sprite_components[amogus] = sprite_component;
-  // TODO: Get size of image
   TransformComponent transform_component = {
       .position = glm::vec2(64.0f, 64.0f),
       .scale = glm::vec2(1.0f, 1.0f),
