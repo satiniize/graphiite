@@ -64,12 +64,12 @@ add_dependencies(software-renderer libjpeg_turbo)
 
 target_include_directories(software-renderer PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/include
+  lib/glm
 )
 
 target_link_libraries(software-renderer PRIVATE
   SDL3::SDL3
   SDL3_image::SDL3_image
   SDL3_ttf::SDL3_ttf
-  glm::glm
   libjpeg_turbo
 )
