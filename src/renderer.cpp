@@ -1,8 +1,13 @@
 #include "renderer.hpp"
 
+#include "SDL3/SDL.h"
 #include "SDL3/SDL_gpu.h"
-#include "SDL3_ttf/SDL_ttf.h"
+// #include "SDL3_ttf/SDL_ttf.h"
 #include "glm/gtc/matrix_transform.hpp"
+#include <fstream>
+
+#define STB_TRUETYPE_IMPLEMENTATION
+#include "stb_truetype.h"
 
 // Helpers
 SDL_GPUShader *load_shader(SDL_GPUDevice *device, std::string path,
@@ -62,12 +67,12 @@ TextureID Renderer::load_texture(SDL_Surface *image_data) {
   //           "out what to do");
   //   return -1;
   // }
-  if (image_data->format != SDL_PIXELFORMAT_RGBA8888) {
-    SDL_Surface *converted =
-        SDL_ConvertSurface(image_data, SDL_PIXELFORMAT_RGBA8888);
-    SDL_DestroySurface(image_data);
-    image_data = converted;
-  }
+  // if (image_data->format != SDL_PIXELFORMAT_RGBA8888) {
+  //   SDL_Surface *converted =
+  //       SDL_ConvertSurface(image_data, SDL_PIXELFORMAT_RGBA8888);
+  //   SDL_DestroySurface(image_data);
+  //   image_data = converted;
+  // }
 
   SDL_GPUTextureCreateInfo texture_info{};
   texture_info.type = SDL_GPU_TEXTURETYPE_2D;
@@ -129,6 +134,73 @@ TextureID Renderer::load_texture(SDL_Surface *image_data) {
 
   SDL_ReleaseGPUTransferBuffer(this->context.device, texture_transfer_buffer);
   SDL_DestroySurface(image_data);
+
+  gpu_textures[next_texture_id] = texture;
+
+  // SDL_Log("Loaded texture: %s", path.c_str());
+
+  return next_texture_id++;
+}
+
+TextureID Renderer::load_texture(unsigned char *pixels, int w, int h) {
+  SDL_GPUTextureCreateInfo texture_info{};
+  texture_info.type = SDL_GPU_TEXTURETYPE_2D;
+  texture_info.format = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM;
+  texture_info.usage = SDL_GPU_TEXTUREUSAGE_SAMPLER;
+  texture_info.width = w;
+  texture_info.height = h;
+  texture_info.layer_count_or_depth = 1;
+  texture_info.num_levels = 1;
+  // sample_count
+  // TODO: GPUTexture should be able to be used as a render target
+  // Make use for pixel perfect scaling and post processing
+
+  // TODO: Valgrind error unitialised value create by heap allocation
+  SDL_GPUTexture *texture =
+      SDL_CreateGPUTexture(this->context.device, &texture_info);
+  if (!texture) {
+    SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
+                 "Failed to create GPU texture: %s", SDL_GetError());
+    return -1;
+  }
+
+  // Set up transfer buffer
+  SDL_GPUTransferBufferCreateInfo texture_transfer_create_info{};
+  texture_transfer_create_info.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD;
+  texture_transfer_create_info.size = w * h * 4; // 4 is RGBA8888
+  SDL_GPUTransferBuffer *texture_transfer_buffer = SDL_CreateGPUTransferBuffer(
+      this->context.device, &texture_transfer_create_info);
+
+  // Transfer data
+  void *texture_data_ptr = SDL_MapGPUTransferBuffer(
+      this->context.device, texture_transfer_buffer, false);
+  SDL_memcpy(texture_data_ptr, (void *)pixels, w * h * 4);
+
+  SDL_UnmapGPUTransferBuffer(this->context.device, texture_transfer_buffer);
+
+  // Start a copy pass
+  SDL_GPUCommandBuffer *_command_buffer =
+      SDL_AcquireGPUCommandBuffer(this->context.device);
+  SDL_GPUCopyPass *copyPass = SDL_BeginGPUCopyPass(_command_buffer);
+
+  // Upload texture data to the GPU texture
+  SDL_GPUTextureTransferInfo texture_transfer_info{};
+  texture_transfer_info.transfer_buffer = texture_transfer_buffer;
+  texture_transfer_info.offset = 0;
+  SDL_GPUTextureRegion texture_region{};
+  texture_region.texture = texture;
+  texture_region.w = w;
+  texture_region.h = h;
+  texture_region.d = 1; // Depth for 2D texture is 1
+  SDL_UploadToGPUTexture(copyPass, &texture_transfer_info, &texture_region,
+                         false);
+
+  // End copy pass
+  SDL_EndGPUCopyPass(copyPass);
+  SDL_SubmitGPUCommandBuffer(_command_buffer);
+
+  SDL_ReleaseGPUTransferBuffer(this->context.device, texture_transfer_buffer);
+  // SDL_DestroySurface(image_data);
 
   gpu_textures[next_texture_id] = texture;
 
@@ -335,10 +407,10 @@ bool Renderer::init() {
   }
   SDL_Log("SDL video driver: %s", SDL_GetCurrentVideoDriver());
 
-  if (!TTF_Init()) {
-    SDL_Log("Failed to initialize TTF");
-    SDL_Quit();
-  }
+  // if (!TTF_Init()) {
+  //   SDL_Log("Failed to initialize TTF");
+  //   SDL_Quit();
+  // }
 
   // Create GPU device
   this->context.device =
@@ -462,50 +534,91 @@ bool Renderer::init() {
                 std::size(quad_indices) * sizeof(Uint16));
 
   std::string font_path = "res/fonts/Doto_Rounded-Black.ttf";
-  TTF_Font *font = TTF_OpenFont(font_path.c_str(), font_sample_point_size);
-  if (!font) {
-    SDL_Log("Failed to load font");
-    SDL_Quit();
-  }
 
-  TTF_ImageType glyph_image_type;
-  static Uint32 W_UNICODE = 34;
-  SDL_Surface *test_glyph =
-      TTF_GetGlyphImage(font, W_UNICODE, &glyph_image_type);
+  std::ifstream fontFile(font_path, std::ios::binary | std::ios::ate);
+  std::streamsize size = fontFile.tellg();
+  fontFile.seekg(0, std::ios::beg);
 
-  int height = TTF_GetFontHeight(font);
-  int advance;
-  TTF_GetGlyphMetrics(font, W_UNICODE, NULL, NULL, NULL, NULL, &advance);
+  std::vector<uint8_t> font_buffer(size);
+  fontFile.read(reinterpret_cast<char *>(font_buffer.data()), size);
+
+  stbtt_fontinfo font_info;
+  stbtt_InitFont(&font_info, font_buffer.data(), 0);
+
+  float scale = stbtt_ScaleForPixelHeight(&font_info, 96.0f);
+
+  int ascent, descent, line_gap;
+  stbtt_GetFontVMetrics(&font_info, &ascent, &descent, &line_gap);
+  int ascent_px = (int)roundf(ascent * scale);
+  int descent_px = (int)roundf(descent * scale); // negative value
+  int height = ascent_px - descent_px;
+
+  // Use 'W' (same as your original) as the reference advance
+  int adv_raw, lsb;
+  stbtt_GetCodepointHMetrics(&font_info, 'W', &adv_raw, &lsb);
+  int advance = (int)roundf(adv_raw * scale);
+
+  // TTF_Font *font = TTF_OpenFont(font_path.c_str(), font_sample_point_size);
+  // if (!font) {
+  //   SDL_Log("Failed to load font");
+  //   SDL_Quit();
+  // }
+
+  // TTF_ImageType glyph_image_type;
+  // static Uint32 W_UNICODE = 34;
+  // SDL_Surface *test_glyph =
+  //     TTF_GetGlyphImage(font, W_UNICODE, &glyph_image_type);
+
+  // int height = TTF_GetFontHeight(font);
+  // int advance;
+  // TTF_GetGlyphMetrics(font, W_UNICODE, NULL, NULL, NULL, NULL, &advance);
 
   this->glyph_size = glm::vec2(advance, height);
 
-  SDL_Surface *ascii_glyph_atlas =
-      SDL_CreateSurface(advance * 10, height * 10, test_glyph->format);
-  SDL_DestroySurface(test_glyph);
+  int atlas_w = advance * 10;
+  int atlas_h = height * 10;
+  // RGBA atlas, zeroed (transparent black)
+  std::vector<uint8_t> atlas(atlas_w * atlas_h * 4, 0);
 
-  for (int i = 33; i <= 126; i++) {
-    int x = (i - 33) % 10;
-    int y = (i - 33) / 10;
-    // Draw test BG
-    // SDL_Rect bg = {x * advance, y * height, advance, height};
-    // SDL_FillSurfaceRect(ascii_glyph_atlas, &bg,
-    //                     (x + y) % 2 == 0 ? 0xFF0000FF : 0xFFFF0000);
-    SDL_Surface *glyph = TTF_GetGlyphImage(font, i, &glyph_image_type);
+  // SDL_Surface *ascii_glyph_atlas =
+  //     SDL_CreateSurface(advance * 10, height * 10, test_glyph->format);
+  // SDL_DestroySurface(test_glyph);
 
-    int min_x, max_x, min_y, max_y;
-    TTF_GetGlyphMetrics(font, i, &min_x, &max_x, &min_y, &max_y, NULL);
+  // Printable ascii characters (33 - 126)
+  for (int cp = 33; cp <= 126; cp++) {
+    int col = (cp - 33) % 10;
+    int row = (cp - 33) / 10;
 
-    SDL_Rect dest = {x * advance + min_x,
-                     (y + 1) * height - max_y + TTF_GetFontDescent(font), 0, 0};
-    SDL_BlitSurface(glyph, NULL, ascii_glyph_atlas, &dest);
+    int gw, gh, xoff, yoff;
+    uint8_t *bitmap = stbtt_GetCodepointBitmap(&font_info, 0, scale, cp, &gw,
+                                               &gh, &xoff, &yoff);
+    // yoff is offset from baseline (typically negative = above baseline)
 
-    SDL_DestroySurface(glyph);
+    int base_x = col * advance + xoff;
+    int base_y = row * height + ascent_px + yoff;
+
+    for (int gy = 0; gy < gh; gy++) {
+      for (int gx = 0; gx < gw; gx++) {
+        int ax = base_x + gx;
+        int ay = base_y + gy;
+        if (ax < 0 || ax >= atlas_w || ay < 0 || ay >= atlas_h)
+          continue;
+
+        int idx = (ay * atlas_w + ax) * 4;
+        atlas[idx + 0] = 255;                  // R
+        atlas[idx + 1] = 255;                  // G
+        atlas[idx + 2] = 255;                  // B
+        atlas[idx + 3] = bitmap[gy * gw + gx]; // A
+      }
+    }
+
+    stbtt_FreeBitmap(bitmap, nullptr);
   }
 
-  font_texture_id = this->load_texture(ascii_glyph_atlas);
+  font_texture_id = this->load_texture(atlas.data(), atlas_w, atlas_h);
 
-  SDL_DestroySurface(ascii_glyph_atlas);
-  TTF_CloseFont(font);
+  // SDL_DestroySurface(ascii_glyph_atlas);
+  // TTF_CloseFont(font);
 
   return true;
 }

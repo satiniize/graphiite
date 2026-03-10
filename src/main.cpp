@@ -755,19 +755,21 @@ std::queue<ImageData> texture_queue;
 ImageData load_and_upload_texture(std::string path, bool tiling = false) {
   int w, h, channels;
   unsigned char *pixels = stbi_load(path.c_str(), &w, &h, &channels, 4);
-
-  SDL_Surface *surface =
-      SDL_CreateSurfaceFrom(w, h, SDL_PIXELFORMAT_RGBA8888, pixels, w * 4);
-
-  TextureID texture_id = renderer.load_texture(surface);
-  SDL_DestroySurface(surface);
+  // TODO: Add error handling
+  TextureID texture_id = renderer.load_texture(pixels, w, h);
   stbi_image_free(pixels);
 
+  // This is used by clay renderer to tell renderer
+  // - Which texture to use
+  // - If the texture should be tiled
+  // Technically once the texture is uploaded, path isn't necessary
   ImageData image_data;
   image_data.path = path;
   image_data.tiling = tiling;
   image_data.id = texture_id;
+
   SDL_Log("Loaded texture %s with id %zu", path.c_str(), texture_id);
+
   return image_data;
 }
 

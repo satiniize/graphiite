@@ -77,6 +77,9 @@ static TextFragmentUniformBuffer text_fragment_uniform_buffer{};
 static ArcFragmentUniformBuffer arc_fragment_uniform_buffer{};
 
 using TextureID = std::size_t;
+using IndexBufferID = std::size_t;
+using VertexBufferID = std::size_t;
+using GraphicsPipelineID = std::size_t;
 
 class Renderer {
 public:
@@ -85,7 +88,9 @@ public:
 
   Renderer();
   ~Renderer();
+  // TextureID load_texture(SDL_Surface *image_data);
   TextureID load_texture(SDL_Surface *image_data);
+  TextureID load_texture(unsigned char *pixels, int w, int h);
   bool load_geometry(std::string path, const Vertex *vertices,
                      size_t vertex_size, const Uint16 *indices,
                      size_t index_size);
