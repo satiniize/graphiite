@@ -971,8 +971,8 @@ static inline Clay_Dimensions MeasureText(Clay_StringSlice text,
                                           void *userData) {
   float scalar = config->fontSize / renderer.font_sample_point_size;
   return Clay_Dimensions{.width = (float)text.length * renderer.glyph_size.x *
-                                    scalar,
-                           .height = (float)renderer.glyph_size.y * scalar};
+                                  scalar,
+                         .height = (float)renderer.glyph_size.y * scalar};
 }
 
 bool init() {
@@ -1109,6 +1109,7 @@ int main(int argc, char *argv[]) {
 
   Clay_Vector2 mouse_position = {0.0f, 0.0f};
 
+  // Do the one where it only updates when an event happens
   while (running) {
     // Calculate delta time
     uint32_t frame_tick = SDL_GetTicks();

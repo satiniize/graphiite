@@ -24,7 +24,7 @@ endif()
 
 ExternalProject_Add(libjpeg_turbo_project
     PREFIX "${LIBJPEG_TURBO_PREFIX}"
-    SOURCE_DIR ${CMAKE_SOURCE_DIR}/lib/libjpeg-turbo
+    SOURCE_DIR ${CMAKE_SOURCE_DIR}/external/libjpeg-turbo
     INSTALL_DIR "${LIBJPEG_TURBO_INSTALL_DIR}"
     CMAKE_ARGS
         -DCMAKE_INSTALL_PREFIX=${LIBJPEG_TURBO_INSTALL_DIR}
@@ -46,10 +46,10 @@ set_target_properties(libjpeg_turbo PROPERTIES
     INTERFACE_LINK_LIBRARIES "${LIBJPEG_TURBO_INSTALL_DIR}/lib/${LIB_JPEG_NAME}"
 )
 
-add_subdirectory(lib/SDL EXCLUDE_FROM_ALL)
-add_subdirectory(lib/SDL_image EXCLUDE_FROM_ALL)
-add_subdirectory(lib/glm EXCLUDE_FROM_ALL)
-add_subdirectory(lib/SDL_ttf EXCLUDE_FROM_ALL)
+add_subdirectory(external/SDL EXCLUDE_FROM_ALL)
+add_subdirectory(external/SDL_image EXCLUDE_FROM_ALL)
+add_subdirectory(external/glm EXCLUDE_FROM_ALL)
+add_subdirectory(external/SDL_ttf EXCLUDE_FROM_ALL)
 
 set(SR_SOURCES
   src/main.cpp
@@ -64,7 +64,7 @@ add_dependencies(software-renderer libjpeg_turbo)
 
 target_include_directories(software-renderer PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/include
-  lib/glm
+  external/glm
 )
 
 target_link_libraries(software-renderer PRIVATE
