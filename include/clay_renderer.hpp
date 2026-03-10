@@ -1,11 +1,14 @@
 #pragma once
 
-#include "SDL3/SDL.h"
-#include "SDL3_image/SDL_image.h"
+#include <unordered_map>
+
 #include "clay.h"
 #include "renderer.hpp"
-#include <iostream>
-#include <unordered_map>
+
+struct ImageData {
+  std::string path;
+  bool tiling;
+};
 
 namespace ClayRenderer {
 static int NUM_CIRCLE_SEGMENTS = 16;

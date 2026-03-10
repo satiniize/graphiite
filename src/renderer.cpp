@@ -1,5 +1,8 @@
 #include "renderer.hpp"
+
 #include "SDL3/SDL_gpu.h"
+#include "SDL3_ttf/SDL_ttf.h"
+#include "glm/gtc/matrix_transform.hpp"
 
 // Helpers
 SDL_GPUShader *load_shader(SDL_GPUDevice *device, std::string path,
@@ -52,6 +55,12 @@ Renderer::Renderer() {}
 Renderer::~Renderer() {}
 
 bool Renderer::load_texture(std::string path, SDL_Surface *image_data) {
+  // TODO: Check if texture already exists
+  if (gpu_textures.find(path) != gpu_textures.end()) {
+    SDL_Log("Texture already loaded on GPU, skipping because I need to figure "
+            "out what to do");
+    return false;
+  }
   // Apparently its read backwards so ABGR(CPU) -> RGBA(GPU)
   if (image_data->format != SDL_PIXELFORMAT_ABGR8888) {
     SDL_Surface *converted =
@@ -226,7 +235,7 @@ bool Renderer::create_graphics_pipeline(std::string path,
   pipeline_info.vertex_shader = vertex_shader;
   pipeline_info.fragment_shader = fragment_shader;
   // Vertex input state
-  static const u_int32_t num_vertex_buffers = 1;
+  static const uint32_t num_vertex_buffers = 1;
 
   SDL_GPUVertexBufferDescription
       vertex_buffer_descriptions[num_vertex_buffers] = {};
@@ -278,7 +287,7 @@ bool Renderer::create_graphics_pipeline(std::string path,
 
   // pipeline_info.multisample_state = multisample_state;
 
-  static const u_int32_t num_color_targets = 1;
+  static const uint32_t num_color_targets = 1;
 
   SDL_GPUColorTargetDescription color_target_descriptions[num_color_targets];
   color_target_descriptions[0] = {};
@@ -363,53 +372,76 @@ bool Renderer::init() {
   // Create shaders
   // TODO: Make this easier, read the file and see how many is needed
   // Basic vertex shader
-  SDL_GPUShader *vertex_shader = load_shader(
+  SDL_GPUShader *basic_vertex_shader = load_shader(
       this->context.device, "src/shaders/basic.vert.spv", 0, 0, 0, 1);
-
-  // Sprite fragment shader
-  SDL_GPUShader *sprite_fragment_shader = load_shader(
-      this->context.device, "src/shaders/sprite.frag.spv", 1, 0, 0, 1);
-
-  // UI rectangle fragment shader
-  SDL_GPUShader *ui_rect_fragment_shader = load_shader(
-      this->context.device, "src/shaders/ui_rect.frag.spv", 0, 0, 0, 1);
-
-  // Text fragment shader
-  SDL_GPUShader *text_fragment_shader = load_shader(
-      this->context.device, "src/shaders/text.frag.spv", 1, 0, 0, 1);
 
   // Text vertex shader
   SDL_GPUShader *text_vertex_shader = load_shader(
       this->context.device, "src/shaders/text.vert.spv", 0, 0, 0, 1);
 
-  SDL_GPUShader *rounded_corner_border_shader =
-      load_shader(this->context.device,
-                  "src/shaders/rounded_corner_border.frag.spv", 0, 0, 0, 1);
+  // Sprite fragment shader
+  SDL_GPUShader *sprite_fragment_shader = load_shader(
+      this->context.device, "src/shaders/sprite.frag.spv", 1, 0, 0, 1);
 
-  create_graphics_pipeline("SPRITE", vertex_shader, sprite_fragment_shader);
-  create_graphics_pipeline("UI_RECT", vertex_shader, ui_rect_fragment_shader);
+  // ColorRect fragment shader
+  SDL_GPUShader *color_rect_fragment_shader = load_shader(
+      this->context.device, "src/shaders/color_rect.frag.spv", 0, 0, 0, 1);
+
+  // TextureRect fragment shader
+  SDL_GPUShader *texture_rect_fragment_shader = load_shader(
+      this->context.device, "src/shaders/texture_rect.frag.spv", 1, 0, 0, 1);
+
+  // Text fragment shader
+  SDL_GPUShader *text_fragment_shader = load_shader(
+      this->context.device, "src/shaders/text.frag.spv", 1, 0, 0, 1);
+
+  // Arc fragment shader
+  SDL_GPUShader *arc_fragment_shader =
+      load_shader(this->context.device, "src/shaders/arc.frag.spv", 0, 0, 0, 1);
+
+  create_graphics_pipeline("SPRITE", basic_vertex_shader,
+                           sprite_fragment_shader);
+  create_graphics_pipeline("COLOR_RECT", basic_vertex_shader,
+                           color_rect_fragment_shader);
+  create_graphics_pipeline("TEXTURE_RECT", basic_vertex_shader,
+                           texture_rect_fragment_shader);
   create_graphics_pipeline("TEXT", text_vertex_shader, text_fragment_shader);
-  create_graphics_pipeline("ROUNDED_CORNER_BORDER", vertex_shader,
-                           rounded_corner_border_shader);
+  create_graphics_pipeline("ARC", basic_vertex_shader, arc_fragment_shader);
 
   // We don't need to store the shaders after creating the pipeline
-  SDL_ReleaseGPUShader(context.device, vertex_shader);
+  SDL_ReleaseGPUShader(context.device, basic_vertex_shader);
+  SDL_ReleaseGPUShader(context.device, text_vertex_shader);
   SDL_ReleaseGPUShader(context.device, sprite_fragment_shader);
-  SDL_ReleaseGPUShader(context.device, ui_rect_fragment_shader);
+  SDL_ReleaseGPUShader(context.device, color_rect_fragment_shader);
+  SDL_ReleaseGPUShader(context.device, texture_rect_fragment_shader);
   SDL_ReleaseGPUShader(context.device, text_fragment_shader);
-  SDL_ReleaseGPUShader(context.device, rounded_corner_border_shader);
+  SDL_ReleaseGPUShader(context.device, arc_fragment_shader);
 
   // Create gpu sampler
-  SDL_GPUSamplerCreateInfo sampler_info{};
-  sampler_info.mag_filter = SDL_GPU_FILTER_LINEAR;
-  sampler_info.min_filter = SDL_GPU_FILTER_LINEAR;
-  sampler_info.mipmap_mode = SDL_GPU_SAMPLERMIPMAPMODE_LINEAR;
-  sampler_info.address_mode_u = SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE;
-  sampler_info.address_mode_v = SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE;
-  sampler_info.address_mode_w = SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE;
+  SDL_GPUSamplerCreateInfo clamp_sampler_info{};
+  clamp_sampler_info.mag_filter = SDL_GPU_FILTER_LINEAR;
+  clamp_sampler_info.min_filter = SDL_GPU_FILTER_LINEAR;
+  clamp_sampler_info.mipmap_mode = SDL_GPU_SAMPLERMIPMAPMODE_LINEAR;
+  clamp_sampler_info.address_mode_u = SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE;
+  clamp_sampler_info.address_mode_v = SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE;
+  clamp_sampler_info.address_mode_w = SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE;
 
-  pixel_sampler = SDL_CreateGPUSampler(context.device, &sampler_info);
-  if (!pixel_sampler) {
+  clamp_sampler = SDL_CreateGPUSampler(context.device, &clamp_sampler_info);
+  if (!clamp_sampler) {
+    SDL_Log("Failed to create GPU sampler");
+    return false;
+  }
+
+  SDL_GPUSamplerCreateInfo wrap_sampler_info{};
+  wrap_sampler_info.mag_filter = SDL_GPU_FILTER_LINEAR;
+  wrap_sampler_info.min_filter = SDL_GPU_FILTER_LINEAR;
+  wrap_sampler_info.mipmap_mode = SDL_GPU_SAMPLERMIPMAPMODE_LINEAR;
+  wrap_sampler_info.address_mode_u = SDL_GPU_SAMPLERADDRESSMODE_REPEAT;
+  wrap_sampler_info.address_mode_v = SDL_GPU_SAMPLERADDRESSMODE_REPEAT;
+  wrap_sampler_info.address_mode_w = SDL_GPU_SAMPLERADDRESSMODE_REPEAT;
+
+  wrap_sampler = SDL_CreateGPUSampler(context.device, &wrap_sampler_info);
+  if (!wrap_sampler) {
     SDL_Log("Failed to create GPU sampler");
     return false;
   }
@@ -427,7 +459,7 @@ bool Renderer::init() {
                 std::size(quad_vertices) * sizeof(Vertex), quad_indices,
                 std::size(quad_indices) * sizeof(Uint16));
 
-  std::string font_path = "res/SourceCodePro-SemiBold.ttf";
+  std::string font_path = "res/fonts/Doto_Rounded-Black.ttf";
   TTF_Font *font = TTF_OpenFont(font_path.c_str(), font_sample_point_size);
   if (!font) {
     SDL_Log("Failed to load font");
@@ -492,7 +524,7 @@ bool Renderer::begin_frame() {
 
   SDL_GPUColorTargetInfo color_target_info{};
   color_target_info.texture = swapchain_texture;
-  color_target_info.clear_color = (SDL_FColor){1.0f, 0.0f, 1.0f, 1.0f};
+  color_target_info.clear_color = SDL_FColor{1.0f, 0.0f, 1.0f, 1.0f};
   color_target_info.load_op = SDL_GPU_LOADOP_CLEAR;
   color_target_info.store_op = SDL_GPU_STOREOP_STORE;
 
@@ -524,7 +556,7 @@ bool Renderer::end_frame() {
 // TODO: Add a queue_sprite_load() function to load in unavailable sprites
 // TODO: Add a destroy_XX() function to free unused resources
 bool Renderer::draw_sprite(std::string path, glm::vec2 translation,
-                           float rotation, glm::vec2 scale) {
+                           float rotation, glm::vec2 scale, glm::vec4 color) {
   // Bind graphics pipeline
   SDL_BindGPUGraphicsPipeline(_render_pass, graphics_pipelines["SPRITE"]);
 
@@ -552,7 +584,7 @@ bool Renderer::draw_sprite(std::string path, glm::vec2 translation,
   }
   SDL_GPUTextureSamplerBinding fragment_sampler_bindings{};
   fragment_sampler_bindings.texture = gpu_textures[path];
-  fragment_sampler_bindings.sampler = pixel_sampler;
+  fragment_sampler_bindings.sampler = clamp_sampler;
   SDL_BindGPUFragmentSamplers(_render_pass,
                               0, // The binding point for the sampler
                               &fragment_sampler_bindings,
@@ -561,7 +593,7 @@ bool Renderer::draw_sprite(std::string path, glm::vec2 translation,
 
   // Calculate uniform values
   sprite_fragment_uniform_buffer.time = SDL_GetTicksNS() / 1e9f;
-  sprite_fragment_uniform_buffer.modulate = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
+  sprite_fragment_uniform_buffer.modulate = color;
   SDL_PushGPUFragmentUniformData(_command_buffer, 0,
                                  &sprite_fragment_uniform_buffer,
                                  sizeof(SpriteFragmentUniformBuffer));
@@ -587,10 +619,10 @@ bool Renderer::draw_sprite(std::string path, glm::vec2 translation,
   return true;
 }
 
-bool Renderer::draw_rect(glm::vec2 position, glm::vec2 size, glm::vec4 color,
-                         glm::vec4 corner_radius) {
+bool Renderer::draw_color_rect(glm::vec2 position, glm::vec2 size,
+                               glm::vec4 color, glm::vec4 corner_radius) {
   // Bind graphics pipeline
-  SDL_BindGPUGraphicsPipeline(_render_pass, graphics_pipelines["UI_RECT"]);
+  SDL_BindGPUGraphicsPipeline(_render_pass, graphics_pipelines["COLOR_RECT"]);
 
   // Bind vertex buffer
   SDL_GPUBufferBinding vertex_buffer_bindings[1];
@@ -611,7 +643,7 @@ bool Renderer::draw_rect(glm::vec2 position, glm::vec2 size, glm::vec4 color,
   // TODO: conditional jump valgrind error?
   // SDL_GPUTextureSamplerBinding fragment_sampler_bindings{};
   // fragment_sampler_bindings.texture = gpu_textures[path];
-  // fragment_sampler_bindings.sampler = pixel_sampler;
+  // fragment_sampler_bindings.sampler = clamp_sampler;
   // SDL_BindGPUFragmentSamplers(_render_pass,
   //                             0, // The binding point for the sampler
   //                             &fragment_sampler_bindings,
@@ -620,12 +652,13 @@ bool Renderer::draw_rect(glm::vec2 position, glm::vec2 size, glm::vec4 color,
 
   // Calculate uniform values
   // ui_rect_fragment_uniform_buffer.time = SDL_GetTicksNS() / 1e9f;
-  ui_rect_fragment_uniform_buffer.modulate = color;
-  ui_rect_fragment_uniform_buffer.corner_radii = glm::vec4(corner_radius);
-  ui_rect_fragment_uniform_buffer.size = glm::vec4(size.x, size.y, 0.0f, 0.0f);
+  color_rect_fragment_uniform_buffer.modulate = color;
+  color_rect_fragment_uniform_buffer.corner_radii = glm::vec4(corner_radius);
+  color_rect_fragment_uniform_buffer.size =
+      glm::vec4(size.x, size.y, 0.0f, 0.0f);
   SDL_PushGPUFragmentUniformData(_command_buffer, 0,
-                                 &ui_rect_fragment_uniform_buffer,
-                                 sizeof(UIRectFragmentUniformBuffer));
+                                 &color_rect_fragment_uniform_buffer,
+                                 sizeof(ColorRectFragmentUniformBuffer));
 
   glm::mat4 model_matrix = glm::mat4(1.0f);
 
@@ -646,8 +679,75 @@ bool Renderer::draw_rect(glm::vec2 position, glm::vec2 size, glm::vec4 color,
   return true;
 };
 
-bool Renderer::draw_text(const char *text, float point_size,
-                         glm::vec2 position) {
+bool Renderer::draw_texture_rect(std::string path, glm::vec2 position,
+                                 glm::vec2 size, glm::vec4 color,
+                                 glm::vec4 corner_radius, bool tiling) {
+  // Bind graphics pipeline
+  SDL_BindGPUGraphicsPipeline(_render_pass, graphics_pipelines["TEXTURE_RECT"]);
+
+  // Bind vertex buffer
+  SDL_GPUBufferBinding vertex_buffer_bindings[1];
+  vertex_buffer_bindings[0].buffer = vertex_buffers["QUAD"];
+  vertex_buffer_bindings[0].offset = 0;
+
+  SDL_BindGPUVertexBuffers(_render_pass, 0, vertex_buffer_bindings, 1);
+
+  // Bind index buffer
+  SDL_GPUBufferBinding index_buffer_bindings[1];
+  index_buffer_bindings[0].buffer = index_buffers["QUAD"];
+  index_buffer_bindings[0].offset = 0;
+
+  SDL_BindGPUIndexBuffer(_render_pass, index_buffer_bindings,
+                         SDL_GPU_INDEXELEMENTSIZE_16BIT);
+
+  // Uniforms and samplers
+  // TODO: conditional jump valgrind error?
+  if (gpu_textures.find(path) == gpu_textures.end()) {
+    SDL_Log("Sprite not loaded");
+    SDL_Quit();
+    return false;
+  }
+  SDL_GPUTextureSamplerBinding fragment_sampler_bindings{};
+  fragment_sampler_bindings.texture = gpu_textures[path];
+  fragment_sampler_bindings.sampler = tiling ? wrap_sampler : clamp_sampler;
+  SDL_BindGPUFragmentSamplers(_render_pass,
+                              0, // The binding point for the sampler
+                              &fragment_sampler_bindings,
+                              1 // Number of textures/samplers to bind
+  );
+
+  // Calculate uniform values
+  texture_rect_fragment_uniform_buffer.modulate = color;
+  texture_rect_fragment_uniform_buffer.corner_radii = glm::vec4(corner_radius);
+  texture_rect_fragment_uniform_buffer.size =
+      glm::vec4(size.x, size.y, 0.0f, 0.0f);
+  texture_rect_fragment_uniform_buffer.tiling = tiling ? 1 : 0;
+
+  SDL_PushGPUFragmentUniformData(_command_buffer, 0,
+                                 &texture_rect_fragment_uniform_buffer,
+                                 sizeof(TextureRectFragmentUniformBuffer));
+
+  glm::mat4 model_matrix = glm::mat4(1.0f);
+
+  model_matrix = glm::translate(model_matrix,
+                                glm::vec3(position.x + size.x / 2.0f,
+                                          -(position.y + size.y / 2.0f), 0.0f));
+  model_matrix = glm::scale(model_matrix, glm::vec3(size, 1.0f));
+
+  basic_vertex_uniform_buffer.mvp_matrix =
+      this->projection_matrix * model_matrix;
+
+  SDL_PushGPUVertexUniformData(_command_buffer, 0, &basic_vertex_uniform_buffer,
+                               sizeof(BasicVertexUniformBuffer));
+
+  SDL_DrawGPUIndexedPrimitives(_render_pass, 6, 1, 0, 0,
+                               0); // TODO: Determine index count
+
+  return true;
+}
+
+bool Renderer::draw_text(const char *text, int length, float point_size,
+                         glm::vec2 position, glm::vec4 color) {
   // Bind graphics pipeline
   SDL_BindGPUGraphicsPipeline(_render_pass, graphics_pipelines["TEXT"]);
 
@@ -675,7 +775,7 @@ bool Renderer::draw_text(const char *text, float point_size,
   }
   SDL_GPUTextureSamplerBinding fragment_sampler_bindings{};
   fragment_sampler_bindings.texture = gpu_textures["FONT_GLYPH"];
-  fragment_sampler_bindings.sampler = pixel_sampler;
+  fragment_sampler_bindings.sampler = clamp_sampler;
   SDL_BindGPUFragmentSamplers(_render_pass,
                               0, // The binding point for the sampler
                               &fragment_sampler_bindings,
@@ -684,14 +784,14 @@ bool Renderer::draw_text(const char *text, float point_size,
 
   float scalar = point_size / font_sample_point_size;
 
-  for (size_t i = 0; i < strlen(text); i++) {
+  for (size_t i = 0; i < length; i++) {
     if ((text[i] - 33) == -1) {
       continue;
     }
     // Calculate uniform values
-    text_fragment_uniform_buffer.modulate = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
+    text_fragment_uniform_buffer.modulate = color;
     float x = static_cast<float>((text[i] - 33) % 10) / 10.0f;
-    float y = static_cast<float>((text[i] - 33) / 10) / 10.0f;
+    float y = static_cast<float>(static_cast<int>((text[i] - 33) / 10)) / 10.0f;
     text_fragment_uniform_buffer.uv_rect = glm::vec4(x, y, x + 0.1f, y + 0.1f);
     SDL_PushGPUFragmentUniformData(_command_buffer, 0,
                                    &text_fragment_uniform_buffer,
@@ -723,12 +823,10 @@ bool Renderer::draw_text(const char *text, float point_size,
   return true;
 }
 
-bool Renderer::draw_rounded_corner_border(glm::vec2 position, float radius,
-                                          float thickness, float rotation,
-                                          glm::vec4 color) {
+bool Renderer::draw_arc(glm::vec2 position, float radius, float thickness,
+                        float rotation, glm::vec4 color) {
   // Bind graphics pipeline
-  SDL_BindGPUGraphicsPipeline(_render_pass,
-                              graphics_pipelines["ROUNDED_CORNER_BORDER"]);
+  SDL_BindGPUGraphicsPipeline(_render_pass, graphics_pipelines["ARC"]);
 
   // Bind vertex buffer
   SDL_GPUBufferBinding vertex_buffer_bindings[1];
@@ -746,12 +844,12 @@ bool Renderer::draw_rounded_corner_border(glm::vec2 position, float radius,
                          SDL_GPU_INDEXELEMENTSIZE_16BIT);
 
   // Calculate uniform values
-  rounded_corner_border_fragment_uniform_buffer.modulate = color;
-  rounded_corner_border_fragment_uniform_buffer.relative_thickness =
-      thickness / radius;
-  SDL_PushGPUFragmentUniformData(
-      _command_buffer, 0, &rounded_corner_border_fragment_uniform_buffer,
-      sizeof(RoundedCornerBorderFragmentUniformBuffer));
+  arc_fragment_uniform_buffer.modulate = color;
+  arc_fragment_uniform_buffer.radius = radius;
+  arc_fragment_uniform_buffer.thickness = thickness;
+  SDL_PushGPUFragmentUniformData(_command_buffer, 0,
+                                 &arc_fragment_uniform_buffer,
+                                 sizeof(ArcFragmentUniformBuffer));
 
   glm::mat4 model_matrix = glm::mat4(1.0f);
 
@@ -786,7 +884,15 @@ bool Renderer::begin_scissor_mode(glm::ivec2 pos, glm::ivec2 size) {
 }
 
 bool Renderer::end_scissor_mode() {
-  SDL_SetGPUScissor(_render_pass, nullptr);
+  // Iffy fix
+  const SDL_Rect rect = {
+      0,
+      0,
+      static_cast<int>(this->width),
+      static_cast<int>(this->height),
+  };
+  SDL_SetGPUScissor(_render_pass, &rect);
+  // SDL_SetGPUScissor(_render_pass, nullptr);
   return true;
 }
 
@@ -808,7 +914,7 @@ bool Renderer::cleanup() {
     SDL_ReleaseGPUBuffer(context.device, buffer);
   }
 
-  SDL_ReleaseGPUSampler(context.device, pixel_sampler);
+  SDL_ReleaseGPUSampler(context.device, clamp_sampler);
 
   SDL_ReleaseWindowFromGPUDevice(context.device, context.window);
   SDL_DestroyGPUDevice(context.device);

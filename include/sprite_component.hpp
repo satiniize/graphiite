@@ -2,8 +2,9 @@
 
 #include <string>
 
-#include "SDL3/SDL.h"
+#include "glm/vec2.hpp"
 
 struct SpriteComponent {
   std::string path;
+  glm::ivec2 size;
 };
