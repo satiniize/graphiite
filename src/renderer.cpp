@@ -235,7 +235,7 @@ bool Renderer::create_graphics_pipeline(std::string path,
   pipeline_info.vertex_shader = vertex_shader;
   pipeline_info.fragment_shader = fragment_shader;
   // Vertex input state
-  static const u_int32_t num_vertex_buffers = 1;
+  static const uint32_t num_vertex_buffers = 1;
 
   SDL_GPUVertexBufferDescription
       vertex_buffer_descriptions[num_vertex_buffers] = {};
@@ -287,7 +287,7 @@ bool Renderer::create_graphics_pipeline(std::string path,
 
   // pipeline_info.multisample_state = multisample_state;
 
-  static const u_int32_t num_color_targets = 1;
+  static const uint32_t num_color_targets = 1;
 
   SDL_GPUColorTargetDescription color_target_descriptions[num_color_targets];
   color_target_descriptions[0] = {};
@@ -524,7 +524,7 @@ bool Renderer::begin_frame() {
 
   SDL_GPUColorTargetInfo color_target_info{};
   color_target_info.texture = swapchain_texture;
-  color_target_info.clear_color = (SDL_FColor){1.0f, 0.0f, 1.0f, 1.0f};
+  color_target_info.clear_color = SDL_FColor{1.0f, 0.0f, 1.0f, 1.0f};
   color_target_info.load_op = SDL_GPU_LOADOP_CLEAR;
   color_target_info.store_op = SDL_GPU_STOREOP_STORE;
 

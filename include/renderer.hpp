@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <cstdint>
 
 #include "SDL3/SDL_gpu.h"
 #include "SDL3/SDL_video.h"

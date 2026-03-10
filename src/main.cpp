@@ -335,7 +335,7 @@ bool load_photos(std::filesystem::path path) {
       }
 
       // 6. Load texture into your renderer
-      renderer.load_texture(entry.path(), downsampled);
+      renderer.load_texture(entry.path().string(), downsampled);
 
       // 7. Clean up surfaces and TurboJPEG instance
       SDL_DestroySurface(original_image_surface);
@@ -921,7 +921,7 @@ void BottomBar() {
                         },
                 },
         }) {}
-        Tally((Clay_String){
+        Tally(Clay_String{
             .length = static_cast<int32_t>(tally_label.length()),
             .chars = tally_label.c_str(),
         });
@@ -970,7 +970,7 @@ static inline Clay_Dimensions MeasureText(Clay_StringSlice text,
                                           Clay_TextElementConfig *config,
                                           void *userData) {
   float scalar = config->fontSize / renderer.font_sample_point_size;
-  return (Clay_Dimensions){.width = (float)text.length * renderer.glyph_size.x *
+  return Clay_Dimensions{.width = (float)text.length * renderer.glyph_size.x *
                                     scalar,
                            .height = (float)renderer.glyph_size.y * scalar};
 }
@@ -1052,7 +1052,7 @@ int main(int argc, char *argv[]) {
   Clay_Dimensions clay_dimensions = {.width = (float)WIDTH,
                                      .height = (float)HEIGHT};
   Clay_Context *clayContextBottom = Clay_Initialize(
-      clay_memory, clay_dimensions, (Clay_ErrorHandler){handle_clay_errors});
+      clay_memory, clay_dimensions, Clay_ErrorHandler{handle_clay_errors});
   shut_up_data[0] = 1;
   Clay_SetMeasureTextFunction(MeasureText, (void *)shut_up_data);
 
@@ -1106,6 +1106,9 @@ int main(int argc, char *argv[]) {
   bool is_mouse_down = false;
 
   bool running = true;
+
+  Clay_Vector2 mouse_position = {0.0f, 0.0f};
+
   while (running) {
     // Calculate delta time
     uint32_t frame_tick = SDL_GetTicks();
@@ -1126,7 +1129,6 @@ int main(int argc, char *argv[]) {
     }
 
     // Poll inputs
-    Clay_Vector2 mouse_position;
     Clay_Vector2 mouse_scroll = {0.0f, 0.0f};
 
     // const bool *keystate = SDL_GetKeyboardState(NULL);
