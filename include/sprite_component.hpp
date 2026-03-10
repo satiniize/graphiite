@@ -7,4 +7,5 @@
 struct SpriteComponent {
   std::string path;
   glm::ivec2 size;
+  size_t texture_id;
 };

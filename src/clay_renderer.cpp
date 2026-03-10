@@ -196,7 +196,7 @@ void render_commands(Renderer &renderer,
       //     / 2.0f), 0.0f, glm::vec2(rect.w, rect.h), glm::vec4(1.0f));
 
       // Draw the image
-      renderer.draw_texture_rect(image_data.path, glm::vec2(rect.x, rect.y),
+      renderer.draw_texture_rect(image_data.id, glm::vec2(rect.x, rect.y),
                                  glm::vec2(rect.w, rect.h), modulate_color,
                                  corner_radii, image_data.tiling);
     } break;

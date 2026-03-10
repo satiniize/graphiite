@@ -12,9 +12,10 @@ void draw_all(Renderer &renderer) {
     auto it = transform_components.find(entity);
     if (it != transform_components.end()) {
       TransformComponent transform = it->second;
-      renderer.draw_sprite(sprite.path, transform.position, transform.rotation,
-                           transform.scale * glm::vec2(sprite.size),
-                           glm::vec4(1.0f, 1.0f, 1.0f, 1.0f));
+      // renderer.draw_sprite(sprite.path, transform.position,
+      // transform.rotation,
+      //                      transform.scale * glm::vec2(sprite.size),
+      //                      glm::vec4(1.0f, 1.0f, 1.0f, 1.0f));
     }
   }
 }

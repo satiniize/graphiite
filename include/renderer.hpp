@@ -1,7 +1,7 @@
 #pragma once
 
-#include <string>
 #include <cstdint>
+#include <string>
 
 #include "SDL3/SDL_gpu.h"
 #include "SDL3/SDL_video.h"
@@ -76,6 +76,8 @@ static TextureRectFragmentUniformBuffer texture_rect_fragment_uniform_buffer{};
 static TextFragmentUniformBuffer text_fragment_uniform_buffer{};
 static ArcFragmentUniformBuffer arc_fragment_uniform_buffer{};
 
+using TextureID = std::size_t;
+
 class Renderer {
 public:
   Uint32 width;
@@ -83,7 +85,7 @@ public:
 
   Renderer();
   ~Renderer();
-  bool load_texture(std::string path, SDL_Surface *image_data);
+  TextureID load_texture(SDL_Surface *image_data);
   bool load_geometry(std::string path, const Vertex *vertices,
                      size_t vertex_size, const Uint16 *indices,
                      size_t index_size);
@@ -93,12 +95,13 @@ public:
   bool begin_frame();
   bool end_frame();
   // Drawing functions
-  bool draw_sprite(std::string path, glm::vec2 translation, float rotation,
+  bool draw_sprite(TextureID texture_id, glm::vec2 translation, float rotation,
                    glm::vec2 scale, glm::vec4 color);
   bool draw_color_rect(glm::vec2 position, glm::vec2 size, glm::vec4 color,
                        glm::vec4 corner_radius);
-  bool draw_texture_rect(std::string path, glm::vec2 position, glm::vec2 size,
-                         glm::vec4 color, glm::vec4 corner_radius, bool tiling);
+  bool draw_texture_rect(TextureID texture_id, glm::vec2 position,
+                         glm::vec2 size, glm::vec4 color,
+                         glm::vec4 corner_radius, bool tiling);
   bool draw_text(const char *text, int length, float point_size,
                  glm::vec2 position, glm::vec4 color);
   bool draw_arc(glm::vec2 position, float radius, float thickness,
@@ -116,7 +119,7 @@ private:
   std::unordered_map<std::string, SDL_GPUGraphicsPipeline *> graphics_pipelines;
   std::unordered_map<std::string, SDL_GPUBuffer *> vertex_buffers;
   std::unordered_map<std::string, SDL_GPUBuffer *> index_buffers;
-  std::unordered_map<std::string, SDL_GPUTexture *> gpu_textures;
+  std::unordered_map<TextureID, SDL_GPUTexture *> gpu_textures;
 
   // TODO: Have support for multiple samplers
   SDL_GPUSampler *clamp_sampler;
@@ -126,4 +129,7 @@ private:
   SDL_GPUCommandBuffer *_command_buffer;
 
   glm::mat4 projection_matrix;
+
+  TextureID next_texture_id = 0;
+  TextureID font_texture_id = -1;
 };

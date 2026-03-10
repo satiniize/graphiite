@@ -8,6 +8,7 @@
 struct ImageData {
   std::string path;
   bool tiling;
+  size_t id;
 };
 
 namespace ClayRenderer {

@@ -54,17 +54,17 @@ Renderer::Renderer() {}
 
 Renderer::~Renderer() {}
 
-bool Renderer::load_texture(std::string path, SDL_Surface *image_data) {
+TextureID Renderer::load_texture(SDL_Surface *image_data) {
   // TODO: Check if texture already exists
-  if (gpu_textures.find(path) != gpu_textures.end()) {
-    SDL_Log("Texture already loaded on GPU, skipping because I need to figure "
-            "out what to do");
-    return false;
-  }
-  // Apparently its read backwards so ABGR(CPU) -> RGBA(GPU)
-  if (image_data->format != SDL_PIXELFORMAT_ABGR8888) {
+  // if (gpu_textures.find(path) != gpu_textures.end()) {
+  //   SDL_Log("Texture already loaded on GPU, skipping because I need to figure
+  //   "
+  //           "out what to do");
+  //   return -1;
+  // }
+  if (image_data->format != SDL_PIXELFORMAT_RGBA8888) {
     SDL_Surface *converted =
-        SDL_ConvertSurface(image_data, SDL_PIXELFORMAT_ABGR8888);
+        SDL_ConvertSurface(image_data, SDL_PIXELFORMAT_RGBA8888);
     SDL_DestroySurface(image_data);
     image_data = converted;
   }
@@ -87,7 +87,7 @@ bool Renderer::load_texture(std::string path, SDL_Surface *image_data) {
   if (!texture) {
     SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
                  "Failed to create GPU texture: %s", SDL_GetError());
-    return false;
+    return -1;
   }
 
   // Set up transfer buffer
@@ -130,9 +130,11 @@ bool Renderer::load_texture(std::string path, SDL_Surface *image_data) {
   SDL_ReleaseGPUTransferBuffer(this->context.device, texture_transfer_buffer);
   SDL_DestroySurface(image_data);
 
-  gpu_textures[path] = texture;
+  gpu_textures[next_texture_id] = texture;
 
-  return true;
+  // SDL_Log("Loaded texture: %s", path.c_str());
+
+  return next_texture_id++;
 }
 
 bool Renderer::load_geometry(std::string path, const Vertex *vertices,
@@ -500,7 +502,7 @@ bool Renderer::init() {
     SDL_DestroySurface(glyph);
   }
 
-  this->load_texture("FONT_GLYPH", ascii_glyph_atlas);
+  font_texture_id = this->load_texture(ascii_glyph_atlas);
 
   SDL_DestroySurface(ascii_glyph_atlas);
   TTF_CloseFont(font);
@@ -555,7 +557,7 @@ bool Renderer::end_frame() {
 
 // TODO: Add a queue_sprite_load() function to load in unavailable sprites
 // TODO: Add a destroy_XX() function to free unused resources
-bool Renderer::draw_sprite(std::string path, glm::vec2 translation,
+bool Renderer::draw_sprite(TextureID texture_id, glm::vec2 translation,
                            float rotation, glm::vec2 scale, glm::vec4 color) {
   // Bind graphics pipeline
   SDL_BindGPUGraphicsPipeline(_render_pass, graphics_pipelines["SPRITE"]);
@@ -577,13 +579,13 @@ bool Renderer::draw_sprite(std::string path, glm::vec2 translation,
 
   // Uniforms and samplers
   // TODO: conditional jump valgrind error?
-  if (gpu_textures.find(path) == gpu_textures.end()) {
+  if (gpu_textures.find(texture_id) == gpu_textures.end()) {
     SDL_Log("Sprite not loaded");
     SDL_Quit();
     return false;
   }
   SDL_GPUTextureSamplerBinding fragment_sampler_bindings{};
-  fragment_sampler_bindings.texture = gpu_textures[path];
+  fragment_sampler_bindings.texture = gpu_textures[texture_id];
   fragment_sampler_bindings.sampler = clamp_sampler;
   SDL_BindGPUFragmentSamplers(_render_pass,
                               0, // The binding point for the sampler
@@ -679,7 +681,7 @@ bool Renderer::draw_color_rect(glm::vec2 position, glm::vec2 size,
   return true;
 };
 
-bool Renderer::draw_texture_rect(std::string path, glm::vec2 position,
+bool Renderer::draw_texture_rect(TextureID texture_id, glm::vec2 position,
                                  glm::vec2 size, glm::vec4 color,
                                  glm::vec4 corner_radius, bool tiling) {
   // Bind graphics pipeline
@@ -702,13 +704,13 @@ bool Renderer::draw_texture_rect(std::string path, glm::vec2 position,
 
   // Uniforms and samplers
   // TODO: conditional jump valgrind error?
-  if (gpu_textures.find(path) == gpu_textures.end()) {
+  if (gpu_textures.find(texture_id) == gpu_textures.end()) {
     SDL_Log("Sprite not loaded");
     SDL_Quit();
     return false;
   }
   SDL_GPUTextureSamplerBinding fragment_sampler_bindings{};
-  fragment_sampler_bindings.texture = gpu_textures[path];
+  fragment_sampler_bindings.texture = gpu_textures[texture_id];
   fragment_sampler_bindings.sampler = tiling ? wrap_sampler : clamp_sampler;
   SDL_BindGPUFragmentSamplers(_render_pass,
                               0, // The binding point for the sampler
@@ -768,13 +770,13 @@ bool Renderer::draw_text(const char *text, int length, float point_size,
 
   // Uniforms and samplers
   // TODO: conditional jump valgrind error?
-  if (gpu_textures.find("FONT_GLYPH") == gpu_textures.end()) {
+  if (gpu_textures.find(font_texture_id) == gpu_textures.end()) {
     SDL_Log("Sprite not loaded");
     SDL_Quit();
     return false;
   }
   SDL_GPUTextureSamplerBinding fragment_sampler_bindings{};
-  fragment_sampler_bindings.texture = gpu_textures["FONT_GLYPH"];
+  fragment_sampler_bindings.texture = gpu_textures[font_texture_id];
   fragment_sampler_bindings.sampler = clamp_sampler;
   SDL_BindGPUFragmentSamplers(_render_pass,
                               0, // The binding point for the sampler

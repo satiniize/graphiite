@@ -1,16 +1,19 @@
 #include <cmath>
+#include <cstddef>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
+#include <mutex>
+#include <queue>
 #include <sstream>
 #include <string>
 #include <sys/types.h>
 #include <vector>
 
 // Libraries
-#include "SDL3/SDL_log.h"
-#include "SDL3/SDL_surface.h"
-#include "SDL3_image/SDL_image.h"
+#include "SDL3/SDL.h"
+// #include "SDL3/SDL_log.h"
+// #include "SDL3/SDL_surface.h"
 #include "turbojpeg.h"
 
 #define CLAY_IMPLEMENTATION
@@ -31,6 +34,9 @@
 // Components
 #include "sprite_component.hpp"
 #include "transform_component.hpp"
+
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
 
 const Clay_Color COLOR_WHITE = {192, 192, 192, 255};
 const Clay_Color COLOR_BLACK = {12, 12, 12, 255};
@@ -63,292 +69,6 @@ std::vector<Photo> photos;
 bool folder_opened = false;
 
 std::string tally_label;
-
-// Technically very inefficient, not sure
-int get_selected_photos_count() {
-  int count = 0;
-  for (auto photo : photos) {
-    if (photo.selected) {
-      count++;
-    }
-  }
-  return count;
-}
-
-bool seperate_photos(std::vector<Photo> &photos) {
-  std::filesystem::path root_path(photos[0].file_path.parent_path());
-
-  std::filesystem::create_directories(root_path / "Curated");
-  std::filesystem::create_directories(root_path / "Discarded");
-
-  for (auto &photo : photos) {
-    if (photo.selected) {
-      std::filesystem::copy_file(
-          photo.file_path, root_path / "Curated" / photo.file_path.filename(),
-          std::filesystem::copy_options::overwrite_existing);
-    } else {
-      std::filesystem::copy_file(
-          photo.file_path, root_path / "Discarded" / photo.file_path.filename(),
-          std::filesystem::copy_options::overwrite_existing);
-    }
-    std::filesystem::remove(photo.file_path);
-  }
-  return true;
-}
-
-bool load_photos(std::filesystem::path path) {
-  if (!std::filesystem::exists(path) && std::filesystem::is_directory(path)) {
-    SDL_Log("Invalid photo path");
-    return 1;
-  }
-
-  photos.clear();
-
-  for (const std::filesystem::directory_entry &entry :
-       std::filesystem::directory_iterator(path)) {
-    if (entry.is_regular_file()) {
-      SDL_Log("Loading file: %s", entry.path().c_str());
-      // std::cout << "Loading file: " << entry.path() << std::endl;
-
-      ImageData photo_image_data{};
-      photo_image_data.path = entry.path().string();
-      photo_image_data.tiling = false;
-
-      Photo photo{};
-      photo.image_data = photo_image_data;
-      photo.selected = false;
-      photo.file_path = entry.path();
-
-      photos.push_back(photo);
-
-      std::ifstream jpegStream(entry.path());
-      if (!jpegStream.is_open()) {
-        SDL_Log("ERROR: opening input file %s: %s", entry.path().c_str(),
-                strerror(errno));
-      }
-
-      jpegStream.seekg(0, std::ios::end);
-      std::streampos size = jpegStream.tellg();
-      if (size == 0) {
-        SDL_Log("WARNING: Input file contains no data");
-      }
-      jpegStream.seekg(0, std::ios::beg);
-      size_t jpegSize = static_cast<size_t>(size);
-
-      unsigned char *jpegBuf = (unsigned char *)malloc(jpegSize);
-      if (!jpegBuf) {
-        SDL_Log("ERROR: allocating JPEG buffer");
-      }
-
-      jpegStream.read(reinterpret_cast<char *>(jpegBuf), jpegSize);
-      jpegStream.close();
-
-      // 2. Initialize TurboJPEG decompressor
-      tjhandle tjInstance = tj3Init(TJINIT_DECOMPRESS);
-      if (!tjInstance) {
-        SDL_Log("ERROR: creating TurboJPEG instance");
-      }
-
-      // 3. Read JPEG header to get image info
-      int jpegWidth, jpegHeight, jpegSubsamp, jpegColorspace, jpegPrecision;
-      if (tj3DecompressHeader(tjInstance, jpegBuf, jpegSize) < 0) {
-        SDL_Log("ERROR: reading JPEG header for %s: %s", entry.path().c_str(),
-                tj3GetErrorStr(tjInstance));
-      }
-
-      jpegWidth = tj3Get(tjInstance, TJPARAM_JPEGWIDTH);
-      jpegHeight = tj3Get(tjInstance, TJPARAM_JPEGHEIGHT);
-      jpegSubsamp = tj3Get(tjInstance, TJPARAM_SUBSAMP);
-      jpegColorspace = tj3Get(tjInstance, TJPARAM_COLORSPACE);
-      jpegPrecision = tj3Get(tjInstance, TJPARAM_PRECISION);
-
-      // --- Prepare for Decompression and SDL Surface Creation ---
-      // We'll target 8-bit per channel output for SDL_Surface compatibility.
-      // If the JPEG is higher precision, we'll convert it.
-
-      // For general compatibility, decompres to BGRX (32-bit per pixel)
-      // For some reason, the backwards thing here happens again
-      int tjDecompressFormat = TJPF_RGBA;
-      SDL_PixelFormat sdlPixelFormat = SDL_PIXELFORMAT_ABGR8888;
-      int sdlPixelSize =
-          tjPixelSize[tjDecompressFormat]; // Will be 4 bytes for TJPF_BGRX
-
-      // Check for higher precision JPEGs
-      unsigned char *decompressedBuf_8bit =
-          NULL; // This will hold the final 8-bit data for SDL
-      void *tjOutputRawBuf = NULL; // Intermediate buffer if precision > 8
-      int tjOutputRawBufSize = 0;
-
-      // 8 Bit
-      if (jpegPrecision <= 8) {
-        tjOutputRawBufSize =
-            jpegWidth * jpegHeight * sdlPixelSize; // Size for 8-bit data
-        tjOutputRawBuf = malloc(tjOutputRawBufSize);
-        if (!tjOutputRawBuf) {
-          SDL_Log("ERROR: allocating 8-bit TurboJPEG output buffer for %s: %s",
-                  entry.path().c_str(), strerror(errno));
-          // goto cleanup_loop;
-        }
-        if (tj3Decompress8(tjInstance, jpegBuf, jpegSize,
-                           (unsigned char *)tjOutputRawBuf, 0,
-                           tjDecompressFormat) < 0) {
-          SDL_Log("ERROR: decompressing 8-bit JPEG image %s: %s",
-                  entry.path().c_str(), tj3GetErrorStr(tjInstance));
-          free(tjOutputRawBuf); // Decompression failed, free buffer
-          // goto cleanup_loop;
-        }
-        decompressedBuf_8bit =
-            (unsigned char *)tjOutputRawBuf; // Direct use for 8-bit
-        // SDL will take ownership of decompressedBuf_8bit later, so don't free
-        // it here
-        tjOutputRawBuf =
-            NULL; // Clear pointer to prevent double free via cleanup_loop
-      } else {    // Handle 12 or 16-bit JPEGs, convert to 8-bit for SDL
-        SDL_Log("WARNING: JPEG %s has precision %d > 8 bits. Converting to "
-                "8-bit per channel.",
-                entry.path().c_str(), jpegPrecision);
-
-        // TurboJPEG outputs unsigned short for precision > 8
-        int tjIntermediatePixelSize_16bit =
-            tjPixelSize[tjDecompressFormat] *
-            sizeof(unsigned short); // e.g., 4 channels * 2 bytes/channel = 8
-                                    // bytes/pixel
-        tjOutputRawBufSize =
-            jpegWidth * jpegHeight * tjIntermediatePixelSize_16bit;
-        tjOutputRawBuf = malloc(tjOutputRawBufSize);
-        if (!tjOutputRawBuf) {
-          SDL_Log("ERROR: allocating 16-bit TurboJPEG intermediate buffer for "
-                  "%s: %s",
-                  entry.path().c_str(), strerror(errno));
-          // goto cleanup_loop;
-        }
-
-        // 12 Bit
-        if (jpegPrecision <= 12) {
-          if (tj3Decompress12(tjInstance, jpegBuf, jpegSize,
-                              (short int *)tjOutputRawBuf, 0,
-                              tjDecompressFormat) < 0) {
-            SDL_Log("ERROR: decompressing 12-bit JPEG image %s: %s",
-                    entry.path().c_str(), tj3GetErrorStr(tjInstance));
-            free(tjOutputRawBuf);
-            // goto cleanup_loop;
-          }
-          // 12 Bit
-        } else { // Assume precision <= 16
-          if (tj3Decompress16(tjInstance, jpegBuf, jpegSize,
-                              (unsigned short *)tjOutputRawBuf, 0,
-                              tjDecompressFormat) < 0) {
-            SDL_Log("ERROR: decompressing 16-bit JPEG image %s: %s",
-                    entry.path().c_str(), tj3GetErrorStr(tjInstance));
-            free(tjOutputRawBuf);
-            // goto cleanup_loop;
-          }
-        }
-
-        // Now, convert the 16-bit (unsigned short) tjOutputRawBuf to 8-bit
-        // (unsigned char) decompressedBuf_8bit
-        decompressedBuf_8bit = (unsigned char *)malloc(
-            jpegWidth * jpegHeight * sdlPixelSize); // Final 8-bit size
-        if (!decompressedBuf_8bit) {
-          SDL_Log("ERROR: allocating 8-bit conversion buffer for %s: %s",
-                  entry.path().c_str(), strerror(errno));
-          free(tjOutputRawBuf);
-          // goto cleanup_loop;
-        }
-
-        unsigned short *src_ptr = (unsigned short *)tjOutputRawBuf;
-        unsigned char *dst_ptr = decompressedBuf_8bit;
-
-        // Loop through pixels and convert
-        for (int i = 0; i < jpegWidth * jpegHeight; ++i) {
-          // Assuming TJPF_BGRX output (4 channels per pixel)
-          *dst_ptr++ = (unsigned char)(*src_ptr++ >> 8); // B
-          *dst_ptr++ = (unsigned char)(*src_ptr++ >> 8); // G
-          *dst_ptr++ = (unsigned char)(*src_ptr++ >> 8); // R
-          *dst_ptr++ = (unsigned char)0xFF; // X/Alpha (fully opaque)
-        }
-        free(tjOutputRawBuf); // Free the intermediate 16-bit buffer
-        tjOutputRawBuf = NULL;
-      }
-
-      // 4. Create an SDL_Surface from the decompressed 8-bit data
-      // Using the new SDL3 function: SDL_CreateSurfaceFrom
-      SDL_Surface *original_image_surface = SDL_CreateSurfaceFrom(
-          jpegWidth,      // Width
-          jpegHeight,     // Height
-          sdlPixelFormat, // SDL Pixel Format (e.g., SDL_PIXELFORMAT_BGRX8888)
-          decompressedBuf_8bit,    // Pointer to existing pixel data (8-bit)
-          jpegWidth * sdlPixelSize // Pitch (bytes per row)
-      );
-
-      // Important: According to SDL3 wiki for SDL_CreateSurfaceFrom,
-      // "Pixel data is not managed automatically; you must free the surface
-      // before you free the pixel data."
-      // This means SDL *does NOT* take ownership of decompressedBuf_8bit,
-      // and we MUST free it ourselves *after* Destroying
-      // original_image_surface. This is a crucial change from SDL2's
-      // SDL_CreateRGBSurfaceWithFormatFrom!
-
-      if (original_image_surface == NULL) {
-        SDL_Log("ERROR: Failed to create SDL_Surface from decompressed data "
-                "for %s: %s",
-                entry.path().c_str(), SDL_GetError());
-        free(decompressedBuf_8bit); // SDL didn't take ownership, so we must
-                                    // free.
-        // goto cleanup_loop;
-      }
-
-      // 5. Downsample the image
-      int downsample_factor = 10;
-      int thumbWidth = original_image_surface->w / downsample_factor;
-      int thumbHeight = original_image_surface->h / downsample_factor;
-      if (thumbWidth == 0)
-        thumbWidth = 1; // Ensure minimum 1 pixel
-      if (thumbHeight == 0)
-        thumbHeight = 1;
-
-      SDL_Surface *downsampled = SDL_CreateSurface(
-          thumbWidth, thumbHeight,
-          original_image_surface
-              ->format); // SDL_CreateSurface (new in SDL3 for simpler creation)
-
-      if (downsampled == NULL) {
-        SDL_Log("ERROR: Failed to create downsampled SDL_Surface for %s: %s",
-                entry.path().c_str(), SDL_GetError());
-        SDL_DestroySurface(original_image_surface);
-        free(decompressedBuf_8bit); // Must free this explicitly!
-        // goto cleanup_loop;
-      }
-
-      SDL_Rect src_rect = {0, 0, original_image_surface->w,
-                           original_image_surface->h};
-      SDL_Rect dst_rect = {0, 0, thumbWidth, thumbHeight};
-
-      if (!SDL_BlitSurfaceScaled(original_image_surface, &src_rect, downsampled,
-                                 &dst_rect, SDL_SCALEMODE_LINEAR)) {
-        SDL_Log("ERROR: Failed to scale surface for %s: %s",
-                entry.path().c_str(), SDL_GetError());
-        SDL_DestroySurface(original_image_surface);
-        free(decompressedBuf_8bit); // Must free this explicitly!
-        SDL_DestroySurface(downsampled);
-        // goto cleanup_loop;
-      }
-
-      // 6. Load texture into your renderer
-      renderer.load_texture(entry.path().string(), downsampled);
-
-      // 7. Clean up surfaces and TurboJPEG instance
-      SDL_DestroySurface(original_image_surface);
-      free(decompressedBuf_8bit); // CRITICAL: Free the buffer that
-                                  // original_image_surface pointed to
-      SDL_DestroySurface(downsampled);
-      free(jpegBuf);
-      tj3Destroy(tjInstance);
-    }
-  }
-
-  return true;
-}
 
 void handle_clay_errors(Clay_ErrorData errorData) {
   // See the Clay_ErrorData struct for more information
@@ -389,9 +109,9 @@ void handle_finalize_button_interaction(Clay_ElementId elementId,
                                         Clay_PointerData pointerInfo,
                                         intptr_t userData) {
   if (pointerInfo.state == CLAY_POINTER_DATA_PRESSED_THIS_FRAME) {
-    seperate_photos(photos);
-    folder_opened = false;
-    photos.clear();
+    // seperate_photos(photos);
+    // folder_opened = false;
+    // photos.clear();
   }
 }
 
@@ -407,11 +127,12 @@ void handle_open_folder_button_interaction(Clay_ElementId elementId,
       return;
     }
 
-    folder_opened = true;
+    // folder_opened = true;
 
     std::filesystem::path folder_path(lTheSelectFolderName);
 
-    load_photos(folder_path);
+    // TODO: for a later date
+    // load_photos(folder_path);
   }
 }
 
@@ -987,16 +708,17 @@ bool init() {
       continue;
     }
 
-    SDL_Surface *image_data = IMG_Load(sprite_component.path.c_str());
-    if (!image_data) {
-      SDL_Log("Failed to load image! %s", sprite_component.path.c_str());
-      return false;
-    }
+    // SDL_Surface *image_data = IMG_Load(sprite_component.path.c_str());
+    // if (!image_data) {
+    //   SDL_Log("Failed to load image! %s", sprite_component.path.c_str());
+    //   return false;
+    // }
 
-    sprite_component.size = glm::ivec2(image_data->w, image_data->h);
-    renderer.load_texture(sprite_component.path, image_data);
-    SDL_DestroySurface(image_data);
-    loaded_sprite_paths.push_back(sprite_component.path);
+    // sprite_component.size = glm::ivec2(image_data->w, image_data->h);
+    // TextureID texture_id = renderer.load_texture(image_data);
+    // sprite_component.texture_id = texture_id;
+    // SDL_DestroySurface(image_data);
+    // loaded_sprite_paths.push_back(sprite_component.path);
   }
   return true;
 }
@@ -1010,6 +732,48 @@ bool cleanup() {
 
 // TODO: Give feedback after submitting finalize button
 // TODO: Reset screen when finalize is pressed
+
+std::mutex texture_queue_mutex;
+std::queue<ImageData> texture_queue;
+
+// void load_worker(std::string path, bool tiling) {
+//   int w, h, channels;
+//   unsigned char *pixels = stbi_load(path.c_str(), &w, &h, &channels, 4);
+
+//   {
+//     std::lock_guard<std::mutex> lock(texture_queue_mutex);
+//     texture_queue.push({path, pixels, w, h, tiling});
+//   }
+
+//   // wake main thread
+//   SDL_Event event;
+//   SDL_zero(event);
+//   event.type = SDL_EVENT_USER;
+//   SDL_PushEvent(&event);
+// }
+
+ImageData load_and_upload_texture(std::string path, bool tiling = false) {
+  int w, h, channels;
+  unsigned char *pixels = stbi_load(path.c_str(), &w, &h, &channels, 4);
+
+  SDL_Surface *surface =
+      SDL_CreateSurfaceFrom(w, h, SDL_PIXELFORMAT_RGBA8888, pixels, w * 4);
+
+  TextureID texture_id = renderer.load_texture(surface);
+  SDL_DestroySurface(surface);
+  stbi_image_free(pixels);
+
+  ImageData image_data;
+  image_data.path = path;
+  image_data.tiling = tiling;
+  image_data.id = texture_id;
+  SDL_Log("Loaded texture %s with id %zu", path.c_str(), texture_id);
+  return image_data;
+}
+
+// Multi threading notes
+// Uploading to GPUTexture should ONLY be done on main thread
+// That means
 
 int main(int argc, char *argv[]) {
   char lBuffer[1024];
@@ -1027,69 +791,42 @@ int main(int argc, char *argv[]) {
   strcat(lBuffer, tinyfd_response);
 
   // ECS
-  EntityManager entity_manager;
+  // EntityManager entity_manager;
 
   // Player Amogus
-  EntityID amogus = entity_manager.create();
-  SpriteComponent sprite_component = {
-      .path = "res/uv.bmp",
-  };
-  sprite_components[amogus] = sprite_component;
-  TransformComponent transform_component = {
-      .position = glm::vec2(64.0f, 64.0f),
-      .scale = glm::vec2(1.0f, 1.0f),
-  };
-  transform_components[amogus] = transform_component;
+  // EntityID amogus = entity_manager.create();
+  // SpriteComponent sprite_component = {
+  //     .path = "res/uv.bmp",
+  // };
+  // sprite_components[amogus] = sprite_component;
+  // TransformComponent transform_component = {
+  //     .position = glm::vec2(64.0f, 64.0f),
+  //     .scale = glm::vec2(1.0f, 1.0f),
+  // };
+  // transform_components[amogus] = transform_component;
 
   // Init(texture uploading) must be after entities are created
   if (!init()) {
     return 1;
   }
 
-  uint64_t total_memory_size = Clay_MinMemorySize();
+  size_t total_memory_size = Clay_MinMemorySize();
   Clay_Arena clay_memory = Clay_CreateArenaWithCapacityAndMemory(
       total_memory_size, malloc(total_memory_size));
   Clay_Dimensions clay_dimensions = {.width = (float)WIDTH,
                                      .height = (float)HEIGHT};
   Clay_Context *clayContextBottom = Clay_Initialize(
       clay_memory, clay_dimensions, Clay_ErrorHandler{handle_clay_errors});
+
+  // TODO: WTF is this
   shut_up_data[0] = 1;
   Clay_SetMeasureTextFunction(MeasureText, (void *)shut_up_data);
 
-  SDL_Surface *edge_sheen = IMG_Load("res/edge_sheen.png");
-  renderer.load_texture("res/edge_sheen.png", edge_sheen);
-  SDL_DestroySurface(edge_sheen);
-
-  edge_sheen_data.path = "res/edge_sheen.png";
-  edge_sheen_data.tiling = false;
-
-  SDL_Surface *carbon_fiber = IMG_Load("res/carbon_fiber.png");
-  renderer.load_texture("res/carbon_fiber.png", carbon_fiber);
-  SDL_DestroySurface(carbon_fiber);
-
-  carbon_fiber_data.path = "res/carbon_fiber.png";
-  carbon_fiber_data.tiling = true;
-
-  SDL_Surface *vignette = IMG_Load("res/vignette.png");
-  renderer.load_texture("res/vignette.png", vignette);
-  SDL_DestroySurface(vignette);
-
-  vignette_data.path = "res/vignette.png";
-  vignette_data.tiling = false;
-
-  SDL_Surface *bg_sheen = IMG_Load("res/bg_sheen.png");
-  renderer.load_texture("res/bg_sheen.png", bg_sheen);
-  SDL_DestroySurface(bg_sheen);
-
-  bg_sheen_data.path = "res/bg_sheen.png";
-  bg_sheen_data.tiling = false;
-
-  SDL_Surface *check = IMG_Load("res/check.png");
-  renderer.load_texture("res/check.png", check);
-  SDL_DestroySurface(check);
-
-  check_data.path = "res/check.png";
-  check_data.tiling = false;
+  edge_sheen_data = load_and_upload_texture("res/edge_sheen.png");
+  carbon_fiber_data = load_and_upload_texture("res/carbon_fiber.png", true);
+  vignette_data = load_and_upload_texture("res/vignette.png");
+  bg_sheen_data = load_and_upload_texture("res/bg_sheen.png");
+  check_data = load_and_upload_texture("res/check.png");
 
   // Timing
   uint32_t prev_frame_tick = SDL_GetTicks();
@@ -1156,17 +893,35 @@ int main(int argc, char *argv[]) {
       case SDL_EVENT_MOUSE_BUTTON_UP:
         is_mouse_down = false;
         break;
+        // case SDL_EVENT_USER:
+        //   std::lock_guard<std::mutex> lock(texture_queue_mutex);
+        //   while (!texture_queue.empty()) {
+        //     auto &item = texture_queue.front();
+
+        //     SDL_Surface *surface = SDL_CreateSurfaceFrom(
+        //         item.w, item.h, SDL_PIXELFORMAT_RGBA32, item.pixels, item.w *
+        //         4);
+        //     TextureID id = renderer.load_texture(surface);
+        //     SDL_DestroySurface(surface);
+        //     stbi_image_free(item.pixels);
+
+        //     // store ImageData wherever you need it...
+
+        //     texture_queue.pop();
+        //   }
+        //   break;
       }
     }
 
-    TransformComponent &cursor_transform = transform_components[amogus];
-    cursor_transform.position = glm::vec2(mouse_position.x, mouse_position.y);
+    // TransformComponent &cursor_transform = transform_components[amogus];
+    // cursor_transform.position = glm::vec2(mouse_position.x,
+    // mouse_position.y);
 
     // Get tally count
     // This is technically a bit redundant
     // but is guaranteed to not be out of sync
     std::stringstream ss;
-    ss << get_selected_photos_count();
+    // ss << get_selected_photos_count();
     tally_label = ss.str();
 
     renderer.begin_frame(); // Start here to update window dimensions for clay
