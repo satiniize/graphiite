@@ -35,8 +35,12 @@
 #include "sprite_component.hpp"
 #include "transform_component.hpp"
 
-#define STB_IMAGE_IMPLEMENTATION
-#include "stb_image.h"
+// #define STB_IMAGE_IMPLEMENTATION
+// #include "stb_image.h"
+
+#include "image.hpp"
+#include "image_loader.hpp"
+#include "texture.hpp"
 
 const Clay_Color COLOR_WHITE = {192, 192, 192, 255};
 const Clay_Color COLOR_BLACK = {12, 12, 12, 255};
@@ -52,14 +56,14 @@ uint16_t shut_up_data[1];
 
 Renderer renderer;
 
-ImageData edge_sheen_data;
-ImageData carbon_fiber_data;
-ImageData vignette_data;
-ImageData bg_sheen_data;
-ImageData check_data;
+Texture edge_sheen_data;
+Texture carbon_fiber_data;
+Texture vignette_data;
+Texture bg_sheen_data;
+Texture check_data;
 
 struct Photo {
-  ImageData image_data;
+  Texture image_data;
   bool selected;
   std::filesystem::path file_path;
 };
@@ -456,7 +460,7 @@ void Button(Clay_String label,
     }) {
       CLAY_TEXT(label, CLAY_TEXT_CONFIG({
                            .textColor = {255, 255, 255, 255},
-                           .fontSize = 20,
+                           .fontSize = 24,
                            .wrapMode = CLAY_TEXT_WRAP_NONE,
                            .textAlignment = CLAY_TEXT_ALIGN_CENTER,
                        }));
@@ -733,65 +737,31 @@ bool cleanup() {
 // TODO: Give feedback after submitting finalize button
 // TODO: Reset screen when finalize is pressed
 
-std::mutex texture_queue_mutex;
-std::queue<ImageData> texture_queue;
+Texture load_and_upload_texture(std::string path, bool tiling = false) {
+  // int w, h, channels;
+  // unsigned char *pixels = stbi_load(path.c_str(), &w, &h, &channels, 4);
+  // TextureID texture_id = renderer.load_texture(pixels, w, h);
+  // stbi_image_free(pixels);
 
-// void load_worker(std::string path, bool tiling) {
-//   int w, h, channels;
-//   unsigned char *pixels = stbi_load(path.c_str(), &w, &h, &channels, 4);
-
-//   {
-//     std::lock_guard<std::mutex> lock(texture_queue_mutex);
-//     texture_queue.push({path, pixels, w, h, tiling});
-//   }
-
-//   // wake main thread
-//   SDL_Event event;
-//   SDL_zero(event);
-//   event.type = SDL_EVENT_USER;
-//   SDL_PushEvent(&event);
-// }
-
-ImageData load_and_upload_texture(std::string path, bool tiling = false) {
-  int w, h, channels;
-  unsigned char *pixels = stbi_load(path.c_str(), &w, &h, &channels, 4);
-  // TODO: Add error handling
-  TextureID texture_id = renderer.load_texture(pixels, w, h);
-  stbi_image_free(pixels);
+  Image image = ImageLoader::load(path);
+  TextureID texture_id =
+      renderer.load_texture(image.pixels.data(), image.width, image.height);
 
   // This is used by clay renderer to tell renderer
   // - Which texture to use
   // - If the texture should be tiled
   // Technically once the texture is uploaded, path isn't necessary
-  ImageData image_data;
-  image_data.path = path;
-  image_data.tiling = tiling;
-  image_data.id = texture_id;
+  Texture texture_data;
+  texture_data.path = path;
+  texture_data.tiling = tiling;
+  texture_data.id = texture_id;
 
   SDL_Log("Loaded texture %s with id %zu", path.c_str(), texture_id);
 
-  return image_data;
+  return texture_data;
 }
 
-// Multi threading notes
-// Uploading to GPUTexture should ONLY be done on main thread
-// That means
-
 int main(int argc, char *argv[]) {
-  char lBuffer[1024];
-
-  tinyfd_beep();
-  char *lWillBeGraphicMode = tinyfd_inputBox("tinyfd_query", NULL, NULL);
-
-  strcpy(lBuffer, "tinyfiledialogs\nv");
-  strcat(lBuffer, tinyfd_version);
-  if (lWillBeGraphicMode) {
-    strcat(lBuffer, "\ngraphic mode: ");
-  } else {
-    strcat(lBuffer, "\nconsole mode: ");
-  }
-  strcat(lBuffer, tinyfd_response);
-
   // ECS
   // EntityManager entity_manager;
 
@@ -820,9 +790,7 @@ int main(int argc, char *argv[]) {
   Clay_Context *clayContextBottom = Clay_Initialize(
       clay_memory, clay_dimensions, Clay_ErrorHandler{handle_clay_errors});
 
-  // TODO: WTF is this
-  shut_up_data[0] = 1;
-  Clay_SetMeasureTextFunction(MeasureText, (void *)shut_up_data);
+  Clay_SetMeasureTextFunction(MeasureText, nullptr);
 
   edge_sheen_data = load_and_upload_texture("res/edge_sheen.png");
   carbon_fiber_data = load_and_upload_texture("res/carbon_fiber.png", true);
@@ -895,23 +863,6 @@ int main(int argc, char *argv[]) {
       case SDL_EVENT_MOUSE_BUTTON_UP:
         is_mouse_down = false;
         break;
-        // case SDL_EVENT_USER:
-        //   std::lock_guard<std::mutex> lock(texture_queue_mutex);
-        //   while (!texture_queue.empty()) {
-        //     auto &item = texture_queue.front();
-
-        //     SDL_Surface *surface = SDL_CreateSurfaceFrom(
-        //         item.w, item.h, SDL_PIXELFORMAT_RGBA32, item.pixels, item.w *
-        //         4);
-        //     TextureID id = renderer.load_texture(surface);
-        //     SDL_DestroySurface(surface);
-        //     stbi_image_free(item.pixels);
-
-        //     // store ImageData wherever you need it...
-
-        //     texture_queue.pop();
-        //   }
-        //   break;
       }
     }
 
@@ -998,23 +949,6 @@ int main(int argc, char *argv[]) {
       BottomBar();
     }
     Clay_RenderCommandArray render_commands = Clay_EndLayout();
-
-    // TODO: Anything outside of renderer should first collate commands
-    // This should allow for unloaded sprites to be identified, allowing
-    // renderer to load them in first before trying to render them, instead
-    // of rendering them on the next frame.
-    //
-    // This should also help if there are many draw calls, and it also
-    // should facilitate objects which use the same resources
-    //
-    // Best implementation of these would make the draw_X commands internal,
-    // and instead provide an exposed "draw" function that instead
-    // adds the draw command to a staging array.
-
-    // TODO: Clay renderer should have an id: data unordered map to allow
-    // for basic animations like css
-    // Would also probably need to make a Tween class or just lerp it.
-
     ClayRenderer::render_commands(renderer, render_commands);
     SpriteSystem::draw_all(renderer);
     renderer.end_frame();

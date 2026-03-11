@@ -533,9 +533,7 @@ bool Renderer::init() {
                 std::size(quad_vertices) * sizeof(Vertex), quad_indices,
                 std::size(quad_indices) * sizeof(Uint16));
 
-  std::string font_path = "res/fonts/Doto_Rounded-Black.ttf";
-
-  std::ifstream fontFile(font_path, std::ios::binary | std::ios::ate);
+  std::ifstream fontFile(default_font_path, std::ios::binary | std::ios::ate);
   std::streamsize size = fontFile.tellg();
   fontFile.seekg(0, std::ios::beg);
 
@@ -545,7 +543,7 @@ bool Renderer::init() {
   stbtt_fontinfo font_info;
   stbtt_InitFont(&font_info, font_buffer.data(), 0);
 
-  float scale = stbtt_ScaleForPixelHeight(&font_info, 96.0f);
+  float scale = stbtt_ScaleForPixelHeight(&font_info, font_sample_point_size);
 
   int ascent, descent, line_gap;
   stbtt_GetFontVMetrics(&font_info, &ascent, &descent, &line_gap);

@@ -5,11 +5,11 @@
 #include "clay.h"
 #include "renderer.hpp"
 
-struct ImageData {
-  std::string path;
-  bool tiling;
-  size_t id;
-};
+// struct ImageData {
+//   std::string path;
+//   bool tiling;
+//   size_t id;
+// };
 
 namespace ClayRenderer {
 static int NUM_CIRCLE_SEGMENTS = 16;

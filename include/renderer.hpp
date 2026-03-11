@@ -7,6 +7,8 @@
 #include "SDL3/SDL_video.h"
 #include "glm/mat4x4.hpp"
 
+#include "texture.hpp"
+
 struct Context {
   SDL_Window *window;
   SDL_GPUDevice *device;
@@ -76,7 +78,6 @@ static TextureRectFragmentUniformBuffer texture_rect_fragment_uniform_buffer{};
 static TextFragmentUniformBuffer text_fragment_uniform_buffer{};
 static ArcFragmentUniformBuffer arc_fragment_uniform_buffer{};
 
-using TextureID = std::size_t;
 using IndexBufferID = std::size_t;
 using VertexBufferID = std::size_t;
 using GraphicsPipelineID = std::size_t;
@@ -137,4 +138,6 @@ private:
 
   TextureID next_texture_id = 0;
   TextureID font_texture_id = -1;
+
+  const std::string default_font_path = "res/fonts/SourceCodePro-Regular.ttf";
 };

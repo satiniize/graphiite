@@ -47,9 +47,9 @@ set_target_properties(libjpeg_turbo PROPERTIES
 )
 
 add_subdirectory(external/SDL EXCLUDE_FROM_ALL)
-add_subdirectory(external/SDL_image EXCLUDE_FROM_ALL)
+# add_subdirectory(external/SDL_image EXCLUDE_FROM_ALL)
 add_subdirectory(external/glm EXCLUDE_FROM_ALL)
-add_subdirectory(external/SDL_ttf EXCLUDE_FROM_ALL)
+# add_subdirectory(external/SDL_ttf EXCLUDE_FROM_ALL)
 
 set(SR_SOURCES
   src/main.cpp
@@ -57,6 +57,7 @@ set(SR_SOURCES
   src/renderer.cpp
   src/clay_renderer.cpp
   src/tinyfiledialogs.c
+  src/image_loader.cpp
 )
 
 add_executable(software-renderer ${SR_SOURCES})
@@ -69,7 +70,7 @@ target_include_directories(software-renderer PRIVATE
 
 target_link_libraries(software-renderer PRIVATE
   SDL3::SDL3
-  SDL3_image::SDL3_image
-  SDL3_ttf::SDL3_ttf
+  # SDL3_image::SDL3_image
+  # SDL3_ttf::SDL3_ttf
   libjpeg_turbo
 )

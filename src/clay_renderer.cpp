@@ -181,9 +181,9 @@ void render_commands(Renderer &renderer,
           render_data_image->backgroundColor.b / 255.0f,
           render_data_image->backgroundColor.a / 255.0f,
       };
-      ImageData *data_pointer =
-          static_cast<ImageData *>(render_data_image->imageData); // Get pointer
-      ImageData image_data = *data_pointer; // Dereference pointer
+      Texture *data_pointer =
+          static_cast<Texture *>(render_data_image->imageData); // Get pointer
+      Texture image_data = *data_pointer; // Dereference pointer
       glm::vec4 corner_radii = {
           render_data_image->cornerRadius.topLeft,
           render_data_image->cornerRadius.topRight,
