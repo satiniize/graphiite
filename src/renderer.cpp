@@ -2,7 +2,6 @@
 
 #include "SDL3/SDL.h"
 #include "SDL3/SDL_gpu.h"
-// #include "SDL3_ttf/SDL_ttf.h"
 #include "glm/gtc/matrix_transform.hpp"
 #include <fstream>
 
@@ -55,91 +54,233 @@ SDL_GPUShader *load_shader(SDL_GPUDevice *device, std::string path,
   return shader;
 }
 
-Renderer::Renderer() {}
+Renderer::Renderer(uint32_t width, uint32_t height) {
+  this->width = width;
+  this->height = height;
 
-Renderer::~Renderer() {}
+  this->context = Context{};
+  this->context.title = "Software Renderer";
 
-TextureID Renderer::load_texture(SDL_Surface *image_data) {
-  // TODO: Check if texture already exists
-  // if (gpu_textures.find(path) != gpu_textures.end()) {
-  //   SDL_Log("Texture already loaded on GPU, skipping because I need to figure
-  //   "
-  //           "out what to do");
-  //   return -1;
-  // }
-  // if (image_data->format != SDL_PIXELFORMAT_RGBA8888) {
-  //   SDL_Surface *converted =
-  //       SDL_ConvertSurface(image_data, SDL_PIXELFORMAT_RGBA8888);
-  //   SDL_DestroySurface(image_data);
-  //   image_data = converted;
-  // }
+  // SDL setup
+  if (!SDL_Init(SDL_INIT_VIDEO)) {
+    SDL_Log("Couldn't initialize SDL: %s", SDL_GetError());
+    return;
+  }
+  SDL_Log("SDL video driver: %s", SDL_GetCurrentVideoDriver());
 
-  SDL_GPUTextureCreateInfo texture_info{};
-  texture_info.type = SDL_GPU_TEXTURETYPE_2D;
-  texture_info.format = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM;
-  texture_info.usage = SDL_GPU_TEXTUREUSAGE_SAMPLER;
-  texture_info.width = image_data->w;
-  texture_info.height = image_data->h;
-  texture_info.layer_count_or_depth = 1;
-  texture_info.num_levels = 1;
-  // sample_count
-  // TODO: GPUTexture should be able to be used as a render target
-  // Make use for pixel perfect scaling and post processing
-
-  // TODO: Valgrind error unitialised value create by heap allocation
-  SDL_GPUTexture *texture =
-      SDL_CreateGPUTexture(this->context.device, &texture_info);
-  if (!texture) {
-    SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
-                 "Failed to create GPU texture: %s", SDL_GetError());
-    return -1;
+  // Create GPU device
+  this->context.device =
+      SDL_CreateGPUDevice(SDL_GPU_SHADERFORMAT_SPIRV, true, NULL);
+  if (this->context.device == NULL) {
+    SDL_Log("GPUCreateDevice failed");
+    return;
   }
 
-  // Set up transfer buffer
-  SDL_GPUTransferBufferCreateInfo texture_transfer_create_info{};
-  texture_transfer_create_info.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD;
-  texture_transfer_create_info.size =
-      image_data->w * image_data->h * 4; // 4 is RGBA8888
-  SDL_GPUTransferBuffer *texture_transfer_buffer = SDL_CreateGPUTransferBuffer(
-      this->context.device, &texture_transfer_create_info);
+  // Create window
+  SDL_WindowFlags flags =
+      SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY;
+  this->context.window =
+      SDL_CreateWindow(this->context.title, width, height, flags);
+  if (!this->context.window) {
+    SDL_Log("Couldn't create window: %s", SDL_GetError());
+    return;
+  }
 
-  // Transfer data
-  void *texture_data_ptr = SDL_MapGPUTransferBuffer(
-      this->context.device, texture_transfer_buffer, false);
-  SDL_memcpy(texture_data_ptr, (void *)image_data->pixels,
-             image_data->w * image_data->h * 4);
+  // Claim window and GPU device
+  if (!SDL_ClaimWindowForGPUDevice(this->context.device,
+                                   this->context.window)) {
+    SDL_Log("GPUClaimWindow failed");
+    return;
+  }
 
-  SDL_UnmapGPUTransferBuffer(this->context.device, texture_transfer_buffer);
+  // Disable V Sync for FPS testing
+  // Doesn't seem to work in wayland
+  // SDL_SetGPUSwapchainParameters(this->context.device, this->context.window,
+  //                               SDL_GPU_SWAPCHAINCOMPOSITION_SDR,
+  //                               SDL_GPU_PRESENTMODE_IMMEDIATE);
 
-  // Start a copy pass
-  SDL_GPUCommandBuffer *_command_buffer =
-      SDL_AcquireGPUCommandBuffer(this->context.device);
-  SDL_GPUCopyPass *copyPass = SDL_BeginGPUCopyPass(_command_buffer);
+  // Create shaders
+  // TODO: Make this easier, read the file and see how many is needed
+  // Basic vertex shader
+  SDL_GPUShader *basic_vertex_shader = load_shader(
+      this->context.device, "src/shaders/basic.vert.spv", 0, 0, 0, 1);
 
-  // Upload texture data to the GPU texture
-  SDL_GPUTextureTransferInfo texture_transfer_info{};
-  texture_transfer_info.transfer_buffer = texture_transfer_buffer;
-  texture_transfer_info.offset = 0;
-  SDL_GPUTextureRegion texture_region{};
-  texture_region.texture = texture;
-  texture_region.w = image_data->w;
-  texture_region.h = image_data->h;
-  texture_region.d = 1; // Depth for 2D texture is 1
-  SDL_UploadToGPUTexture(copyPass, &texture_transfer_info, &texture_region,
-                         false);
+  // Text vertex shader
+  SDL_GPUShader *text_vertex_shader = load_shader(
+      this->context.device, "src/shaders/text.vert.spv", 0, 0, 0, 1);
 
-  // End copy pass
-  SDL_EndGPUCopyPass(copyPass);
-  SDL_SubmitGPUCommandBuffer(_command_buffer);
+  // Sprite fragment shader
+  SDL_GPUShader *sprite_fragment_shader = load_shader(
+      this->context.device, "src/shaders/sprite.frag.spv", 1, 0, 0, 1);
 
-  SDL_ReleaseGPUTransferBuffer(this->context.device, texture_transfer_buffer);
-  SDL_DestroySurface(image_data);
+  // ColorRect fragment shader
+  SDL_GPUShader *color_rect_fragment_shader = load_shader(
+      this->context.device, "src/shaders/color_rect.frag.spv", 0, 0, 0, 1);
 
-  gpu_textures[next_texture_id] = texture;
+  // TextureRect fragment shader
+  SDL_GPUShader *texture_rect_fragment_shader = load_shader(
+      this->context.device, "src/shaders/texture_rect.frag.spv", 1, 0, 0, 1);
 
-  // SDL_Log("Loaded texture: %s", path.c_str());
+  // Text fragment shader
+  SDL_GPUShader *text_fragment_shader = load_shader(
+      this->context.device, "src/shaders/text.frag.spv", 1, 0, 0, 1);
 
-  return next_texture_id++;
+  // Arc fragment shader
+  SDL_GPUShader *arc_fragment_shader =
+      load_shader(this->context.device, "src/shaders/arc.frag.spv", 0, 0, 0, 1);
+
+  create_graphics_pipeline("SPRITE", basic_vertex_shader,
+                           sprite_fragment_shader);
+  create_graphics_pipeline("COLOR_RECT", basic_vertex_shader,
+                           color_rect_fragment_shader);
+  create_graphics_pipeline("TEXTURE_RECT", basic_vertex_shader,
+                           texture_rect_fragment_shader);
+  create_graphics_pipeline("TEXT", text_vertex_shader, text_fragment_shader);
+  create_graphics_pipeline("ARC", basic_vertex_shader, arc_fragment_shader);
+
+  // We don't need to store the shaders after creating the pipeline
+  SDL_ReleaseGPUShader(context.device, basic_vertex_shader);
+  SDL_ReleaseGPUShader(context.device, text_vertex_shader);
+  SDL_ReleaseGPUShader(context.device, sprite_fragment_shader);
+  SDL_ReleaseGPUShader(context.device, color_rect_fragment_shader);
+  SDL_ReleaseGPUShader(context.device, texture_rect_fragment_shader);
+  SDL_ReleaseGPUShader(context.device, text_fragment_shader);
+  SDL_ReleaseGPUShader(context.device, arc_fragment_shader);
+
+  // Create gpu sampler
+  SDL_GPUSamplerCreateInfo clamp_sampler_info{};
+  clamp_sampler_info.mag_filter = SDL_GPU_FILTER_LINEAR;
+  clamp_sampler_info.min_filter = SDL_GPU_FILTER_LINEAR;
+  clamp_sampler_info.mipmap_mode = SDL_GPU_SAMPLERMIPMAPMODE_LINEAR;
+  clamp_sampler_info.address_mode_u = SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE;
+  clamp_sampler_info.address_mode_v = SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE;
+  clamp_sampler_info.address_mode_w = SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE;
+
+  clamp_sampler = SDL_CreateGPUSampler(context.device, &clamp_sampler_info);
+  if (!clamp_sampler) {
+    SDL_Log("Failed to create GPU sampler");
+    return;
+  }
+
+  SDL_GPUSamplerCreateInfo wrap_sampler_info{};
+  wrap_sampler_info.mag_filter = SDL_GPU_FILTER_LINEAR;
+  wrap_sampler_info.min_filter = SDL_GPU_FILTER_LINEAR;
+  wrap_sampler_info.mipmap_mode = SDL_GPU_SAMPLERMIPMAPMODE_LINEAR;
+  wrap_sampler_info.address_mode_u = SDL_GPU_SAMPLERADDRESSMODE_REPEAT;
+  wrap_sampler_info.address_mode_v = SDL_GPU_SAMPLERADDRESSMODE_REPEAT;
+  wrap_sampler_info.address_mode_w = SDL_GPU_SAMPLERADDRESSMODE_REPEAT;
+
+  wrap_sampler = SDL_CreateGPUSampler(context.device, &wrap_sampler_info);
+  if (!wrap_sampler) {
+    SDL_Log("Failed to create GPU sampler");
+    return;
+  }
+
+  static Vertex quad_vertices[]{
+      {-0.5f, 0.5f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f},  // top left
+      {0.5f, 0.5f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f},   // top right
+      {-0.5f, -0.5f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f, 1.0f}, // bottom left
+      {0.5f, -0.5f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f}   // bottom right
+  };
+
+  static Uint16 quad_indices[]{0, 1, 2, 2, 1, 3};
+
+  load_geometry("QUAD", quad_vertices,
+                std::size(quad_vertices) * sizeof(Vertex), quad_indices,
+                std::size(quad_indices) * sizeof(Uint16));
+
+  std::ifstream fontFile(default_font_path, std::ios::binary | std::ios::ate);
+  std::streamsize size = fontFile.tellg();
+  fontFile.seekg(0, std::ios::beg);
+
+  std::vector<uint8_t> font_buffer(size);
+  fontFile.read(reinterpret_cast<char *>(font_buffer.data()), size);
+
+  stbtt_fontinfo font_info;
+  stbtt_InitFont(&font_info, font_buffer.data(), 0);
+
+  float scale = stbtt_ScaleForPixelHeight(&font_info, font_sample_point_size);
+
+  int ascent, descent, line_gap;
+  stbtt_GetFontVMetrics(&font_info, &ascent, &descent, &line_gap);
+  int ascent_px = (int)roundf(ascent * scale);
+  int descent_px = (int)roundf(descent * scale); // negative value
+  int glyph_height = ascent_px - descent_px;
+
+  // Use 'W' (same as your original) as the reference advance
+  int adv_raw, lsb;
+  stbtt_GetCodepointHMetrics(&font_info, 'W', &adv_raw, &lsb);
+  int advance = (int)roundf(adv_raw * scale);
+
+  this->glyph_size = glm::vec2(advance, glyph_height);
+
+  int atlas_w = advance * 10;
+  int atlas_h = glyph_height * 10;
+  // RGBA atlas, zeroed (transparent black)
+  std::vector<uint8_t> atlas(atlas_w * atlas_h * 4, 0);
+
+  // Printable ascii characters (33 - 126)
+  for (int cp = 33; cp <= 126; cp++) {
+    int col = (cp - 33) % 10;
+    int row = (cp - 33) / 10;
+
+    int gw, gh, xoff, yoff;
+    uint8_t *bitmap = stbtt_GetCodepointBitmap(&font_info, 0, scale, cp, &gw,
+                                               &gh, &xoff, &yoff);
+    // yoff is offset from baseline (typically negative = above baseline)
+
+    int base_x = col * advance + xoff;
+    int base_y = row * glyph_height + ascent_px + yoff;
+
+    for (int gy = 0; gy < gh; gy++) {
+      for (int gx = 0; gx < gw; gx++) {
+        int ax = base_x + gx;
+        int ay = base_y + gy;
+        if (ax < 0 || ax >= atlas_w || ay < 0 || ay >= atlas_h)
+          continue;
+
+        int idx = (ay * atlas_w + ax) * 4;
+        atlas[idx + 0] = 255;                  // R
+        atlas[idx + 1] = 255;                  // G
+        atlas[idx + 2] = 255;                  // B
+        atlas[idx + 3] = bitmap[gy * gw + gx]; // A
+      }
+    }
+
+    stbtt_FreeBitmap(bitmap, nullptr);
+  }
+
+  font_texture_id = this->load_texture(atlas.data(), atlas_w, atlas_h);
+
+  return;
+}
+
+Renderer::~Renderer() {
+  for (auto &[path, graphics_pipeline] : graphics_pipelines) {
+    SDL_ReleaseGPUGraphicsPipeline(context.device, graphics_pipeline);
+  }
+
+  for (auto &[path, texture] : gpu_textures) {
+    SDL_ReleaseGPUTexture(context.device, texture);
+  }
+
+  for (auto &[name, buffer] : vertex_buffers) {
+    SDL_ReleaseGPUBuffer(context.device, buffer);
+  }
+
+  for (auto &[name, buffer] : index_buffers) {
+    SDL_ReleaseGPUBuffer(context.device, buffer);
+  }
+
+  SDL_ReleaseGPUSampler(context.device, clamp_sampler);
+
+  SDL_ReleaseWindowFromGPUDevice(context.device, context.window);
+  SDL_DestroyGPUDevice(context.device);
+  SDL_DestroyWindow(context.window);
+
+  SDL_Quit();
+
+  return;
 }
 
 TextureID Renderer::load_texture(unsigned char *pixels, int w, int h) {
@@ -396,233 +537,7 @@ bool Renderer::create_graphics_pipeline(std::string path,
   return true;
 }
 
-bool Renderer::init() {
-  this->context = Context{};
-  this->context.title = "Software Renderer";
-
-  // SDL setup
-  if (!SDL_Init(SDL_INIT_VIDEO)) {
-    SDL_Log("Couldn't initialize SDL: %s", SDL_GetError());
-    return false;
-  }
-  SDL_Log("SDL video driver: %s", SDL_GetCurrentVideoDriver());
-
-  // if (!TTF_Init()) {
-  //   SDL_Log("Failed to initialize TTF");
-  //   SDL_Quit();
-  // }
-
-  // Create GPU device
-  this->context.device =
-      SDL_CreateGPUDevice(SDL_GPU_SHADERFORMAT_SPIRV, true, NULL);
-  if (this->context.device == NULL) {
-    SDL_Log("GPUCreateDevice failed");
-    return false;
-  }
-
-  // Create window
-  SDL_WindowFlags flags =
-      SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY;
-  this->context.window =
-      SDL_CreateWindow(this->context.title, WIDTH, HEIGHT, flags);
-  if (!this->context.window) {
-    SDL_Log("Couldn't create window: %s", SDL_GetError());
-    return false;
-  }
-
-  // Claim window and GPU device
-  if (!SDL_ClaimWindowForGPUDevice(this->context.device,
-                                   this->context.window)) {
-    SDL_Log("GPUClaimWindow failed");
-    return false;
-  }
-
-  // Disable V Sync for FPS testing
-  // Doesn't seem to work in wayland
-  // SDL_SetGPUSwapchainParameters(this->context.device, this->context.window,
-  //                               SDL_GPU_SWAPCHAINCOMPOSITION_SDR,
-  //                               SDL_GPU_PRESENTMODE_IMMEDIATE);
-
-  // Create shaders
-  // TODO: Make this easier, read the file and see how many is needed
-  // Basic vertex shader
-  SDL_GPUShader *basic_vertex_shader = load_shader(
-      this->context.device, "src/shaders/basic.vert.spv", 0, 0, 0, 1);
-
-  // Text vertex shader
-  SDL_GPUShader *text_vertex_shader = load_shader(
-      this->context.device, "src/shaders/text.vert.spv", 0, 0, 0, 1);
-
-  // Sprite fragment shader
-  SDL_GPUShader *sprite_fragment_shader = load_shader(
-      this->context.device, "src/shaders/sprite.frag.spv", 1, 0, 0, 1);
-
-  // ColorRect fragment shader
-  SDL_GPUShader *color_rect_fragment_shader = load_shader(
-      this->context.device, "src/shaders/color_rect.frag.spv", 0, 0, 0, 1);
-
-  // TextureRect fragment shader
-  SDL_GPUShader *texture_rect_fragment_shader = load_shader(
-      this->context.device, "src/shaders/texture_rect.frag.spv", 1, 0, 0, 1);
-
-  // Text fragment shader
-  SDL_GPUShader *text_fragment_shader = load_shader(
-      this->context.device, "src/shaders/text.frag.spv", 1, 0, 0, 1);
-
-  // Arc fragment shader
-  SDL_GPUShader *arc_fragment_shader =
-      load_shader(this->context.device, "src/shaders/arc.frag.spv", 0, 0, 0, 1);
-
-  create_graphics_pipeline("SPRITE", basic_vertex_shader,
-                           sprite_fragment_shader);
-  create_graphics_pipeline("COLOR_RECT", basic_vertex_shader,
-                           color_rect_fragment_shader);
-  create_graphics_pipeline("TEXTURE_RECT", basic_vertex_shader,
-                           texture_rect_fragment_shader);
-  create_graphics_pipeline("TEXT", text_vertex_shader, text_fragment_shader);
-  create_graphics_pipeline("ARC", basic_vertex_shader, arc_fragment_shader);
-
-  // We don't need to store the shaders after creating the pipeline
-  SDL_ReleaseGPUShader(context.device, basic_vertex_shader);
-  SDL_ReleaseGPUShader(context.device, text_vertex_shader);
-  SDL_ReleaseGPUShader(context.device, sprite_fragment_shader);
-  SDL_ReleaseGPUShader(context.device, color_rect_fragment_shader);
-  SDL_ReleaseGPUShader(context.device, texture_rect_fragment_shader);
-  SDL_ReleaseGPUShader(context.device, text_fragment_shader);
-  SDL_ReleaseGPUShader(context.device, arc_fragment_shader);
-
-  // Create gpu sampler
-  SDL_GPUSamplerCreateInfo clamp_sampler_info{};
-  clamp_sampler_info.mag_filter = SDL_GPU_FILTER_LINEAR;
-  clamp_sampler_info.min_filter = SDL_GPU_FILTER_LINEAR;
-  clamp_sampler_info.mipmap_mode = SDL_GPU_SAMPLERMIPMAPMODE_LINEAR;
-  clamp_sampler_info.address_mode_u = SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE;
-  clamp_sampler_info.address_mode_v = SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE;
-  clamp_sampler_info.address_mode_w = SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE;
-
-  clamp_sampler = SDL_CreateGPUSampler(context.device, &clamp_sampler_info);
-  if (!clamp_sampler) {
-    SDL_Log("Failed to create GPU sampler");
-    return false;
-  }
-
-  SDL_GPUSamplerCreateInfo wrap_sampler_info{};
-  wrap_sampler_info.mag_filter = SDL_GPU_FILTER_LINEAR;
-  wrap_sampler_info.min_filter = SDL_GPU_FILTER_LINEAR;
-  wrap_sampler_info.mipmap_mode = SDL_GPU_SAMPLERMIPMAPMODE_LINEAR;
-  wrap_sampler_info.address_mode_u = SDL_GPU_SAMPLERADDRESSMODE_REPEAT;
-  wrap_sampler_info.address_mode_v = SDL_GPU_SAMPLERADDRESSMODE_REPEAT;
-  wrap_sampler_info.address_mode_w = SDL_GPU_SAMPLERADDRESSMODE_REPEAT;
-
-  wrap_sampler = SDL_CreateGPUSampler(context.device, &wrap_sampler_info);
-  if (!wrap_sampler) {
-    SDL_Log("Failed to create GPU sampler");
-    return false;
-  }
-
-  static Vertex quad_vertices[]{
-      {-0.5f, 0.5f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f},  // top left
-      {0.5f, 0.5f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f},   // top right
-      {-0.5f, -0.5f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f, 1.0f}, // bottom left
-      {0.5f, -0.5f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f}   // bottom right
-  };
-
-  static Uint16 quad_indices[]{0, 1, 2, 2, 1, 3};
-
-  load_geometry("QUAD", quad_vertices,
-                std::size(quad_vertices) * sizeof(Vertex), quad_indices,
-                std::size(quad_indices) * sizeof(Uint16));
-
-  std::ifstream fontFile(default_font_path, std::ios::binary | std::ios::ate);
-  std::streamsize size = fontFile.tellg();
-  fontFile.seekg(0, std::ios::beg);
-
-  std::vector<uint8_t> font_buffer(size);
-  fontFile.read(reinterpret_cast<char *>(font_buffer.data()), size);
-
-  stbtt_fontinfo font_info;
-  stbtt_InitFont(&font_info, font_buffer.data(), 0);
-
-  float scale = stbtt_ScaleForPixelHeight(&font_info, font_sample_point_size);
-
-  int ascent, descent, line_gap;
-  stbtt_GetFontVMetrics(&font_info, &ascent, &descent, &line_gap);
-  int ascent_px = (int)roundf(ascent * scale);
-  int descent_px = (int)roundf(descent * scale); // negative value
-  int height = ascent_px - descent_px;
-
-  // Use 'W' (same as your original) as the reference advance
-  int adv_raw, lsb;
-  stbtt_GetCodepointHMetrics(&font_info, 'W', &adv_raw, &lsb);
-  int advance = (int)roundf(adv_raw * scale);
-
-  // TTF_Font *font = TTF_OpenFont(font_path.c_str(), font_sample_point_size);
-  // if (!font) {
-  //   SDL_Log("Failed to load font");
-  //   SDL_Quit();
-  // }
-
-  // TTF_ImageType glyph_image_type;
-  // static Uint32 W_UNICODE = 34;
-  // SDL_Surface *test_glyph =
-  //     TTF_GetGlyphImage(font, W_UNICODE, &glyph_image_type);
-
-  // int height = TTF_GetFontHeight(font);
-  // int advance;
-  // TTF_GetGlyphMetrics(font, W_UNICODE, NULL, NULL, NULL, NULL, &advance);
-
-  this->glyph_size = glm::vec2(advance, height);
-
-  int atlas_w = advance * 10;
-  int atlas_h = height * 10;
-  // RGBA atlas, zeroed (transparent black)
-  std::vector<uint8_t> atlas(atlas_w * atlas_h * 4, 0);
-
-  // SDL_Surface *ascii_glyph_atlas =
-  //     SDL_CreateSurface(advance * 10, height * 10, test_glyph->format);
-  // SDL_DestroySurface(test_glyph);
-
-  // Printable ascii characters (33 - 126)
-  for (int cp = 33; cp <= 126; cp++) {
-    int col = (cp - 33) % 10;
-    int row = (cp - 33) / 10;
-
-    int gw, gh, xoff, yoff;
-    uint8_t *bitmap = stbtt_GetCodepointBitmap(&font_info, 0, scale, cp, &gw,
-                                               &gh, &xoff, &yoff);
-    // yoff is offset from baseline (typically negative = above baseline)
-
-    int base_x = col * advance + xoff;
-    int base_y = row * height + ascent_px + yoff;
-
-    for (int gy = 0; gy < gh; gy++) {
-      for (int gx = 0; gx < gw; gx++) {
-        int ax = base_x + gx;
-        int ay = base_y + gy;
-        if (ax < 0 || ax >= atlas_w || ay < 0 || ay >= atlas_h)
-          continue;
-
-        int idx = (ay * atlas_w + ax) * 4;
-        atlas[idx + 0] = 255;                  // R
-        atlas[idx + 1] = 255;                  // G
-        atlas[idx + 2] = 255;                  // B
-        atlas[idx + 3] = bitmap[gy * gw + gx]; // A
-      }
-    }
-
-    stbtt_FreeBitmap(bitmap, nullptr);
-  }
-
-  font_texture_id = this->load_texture(atlas.data(), atlas_w, atlas_h);
-
-  // SDL_DestroySurface(ascii_glyph_atlas);
-  // TTF_CloseFont(font);
-
-  return true;
-}
-
-bool Renderer::begin_frame() {
-  // TODO: Value create by heap allocation valgrind error
+bool Renderer::update_swapchain_texture() {
   _command_buffer = SDL_AcquireGPUCommandBuffer(context.device);
 
   if (!_command_buffer) {
@@ -630,13 +545,29 @@ bool Renderer::begin_frame() {
     return false;
   }
 
-  SDL_GPUTexture *swapchain_texture;
   SDL_WaitAndAcquireGPUSwapchainTexture(_command_buffer, context.window,
-                                        &swapchain_texture, &this->width,
+                                        &this->swapchain_texture, &this->width,
                                         &this->height);
 
+  return true;
+}
+
+bool Renderer::begin_frame() {
+  // TODO: Value create by heap allocation valgrind error
+  // _command_buffer = SDL_AcquireGPUCommandBuffer(context.device);
+
+  // if (!_command_buffer) {
+  //   SDL_Log("Failed to acquire GPU command buffer");
+  //   return false;
+  // }
+
+  // SDL_GPUTexture *swapchain_texture;
+  // SDL_WaitAndAcquireGPUSwapchainTexture(_command_buffer, context.window,
+  //                                       &swapchain_texture, &this->width,
+  //                                       &this->height);
+
   SDL_GPUColorTargetInfo color_target_info{};
-  color_target_info.texture = swapchain_texture;
+  color_target_info.texture = this->swapchain_texture;
   color_target_info.clear_color = SDL_FColor{1.0f, 0.0f, 1.0f, 1.0f};
   color_target_info.load_op = SDL_GPU_LOADOP_CLEAR;
   color_target_info.store_op = SDL_GPU_STOREOP_STORE;
@@ -997,7 +928,6 @@ bool Renderer::begin_scissor_mode(glm::ivec2 pos, glm::ivec2 size) {
 }
 
 bool Renderer::end_scissor_mode() {
-  // Iffy fix
   const SDL_Rect rect = {
       0,
       0,
@@ -1005,35 +935,5 @@ bool Renderer::end_scissor_mode() {
       static_cast<int>(this->height),
   };
   SDL_SetGPUScissor(_render_pass, &rect);
-  // SDL_SetGPUScissor(_render_pass, nullptr);
-  return true;
-}
-
-bool Renderer::cleanup() {
-  // SDL_ReleaseGPUGraphicsPipeline(context.device, graphics_pipeline);
-  for (auto &[path, graphics_pipeline] : graphics_pipelines) {
-    SDL_ReleaseGPUGraphicsPipeline(context.device, graphics_pipeline);
-  }
-
-  for (auto &[path, texture] : gpu_textures) {
-    SDL_ReleaseGPUTexture(context.device, texture);
-  }
-
-  for (auto &[name, buffer] : vertex_buffers) {
-    SDL_ReleaseGPUBuffer(context.device, buffer);
-  }
-
-  for (auto &[name, buffer] : index_buffers) {
-    SDL_ReleaseGPUBuffer(context.device, buffer);
-  }
-
-  SDL_ReleaseGPUSampler(context.device, clamp_sampler);
-
-  SDL_ReleaseWindowFromGPUDevice(context.device, context.window);
-  SDL_DestroyGPUDevice(context.device);
-  SDL_DestroyWindow(context.window);
-
-  SDL_Quit();
-
   return true;
 }

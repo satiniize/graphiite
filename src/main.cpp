@@ -2,9 +2,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
-#include <fstream>
-#include <mutex>
-#include <queue>
 #include <sstream>
 #include <string>
 #include <sys/types.h>
@@ -12,49 +9,27 @@
 
 // Libraries
 #include "SDL3/SDL.h"
-// #include "SDL3/SDL_log.h"
-// #include "SDL3/SDL_surface.h"
-#include "turbojpeg.h"
 
 #define CLAY_IMPLEMENTATION
 #include "clay.h"
 #include "tinyfiledialogs.h"
 
 #include "clay_renderer.hpp"
-#include "config.hpp"
 #include "renderer.hpp"
 
-// Entities
-#include "component_storage.hpp"
+// ECS
 #include "entity_manager.hpp"
-
-// Systems
-#include "sprite_system.hpp"
-
 // Components
 #include "sprite_component.hpp"
 #include "transform_component.hpp"
-
-// #define STB_IMAGE_IMPLEMENTATION
-// #include "stb_image.h"
+// Systems
+#include "image_loader.hpp"
+#include "sprite_renderer.hpp"
 
 #include "image.hpp"
-#include "image_loader.hpp"
 #include "texture.hpp"
 
-const Clay_Color COLOR_WHITE = {192, 192, 192, 255};
-const Clay_Color COLOR_BLACK = {12, 12, 12, 255};
-const Clay_Color COLOR_GREY = {96, 96, 96, 255};
-const Clay_Color COLOR_DARK_GREY = {24, 24, 24, 255};
-const Clay_Color COLOR_PURE_WHITE = {255, 255, 255, 255};
-
-const Clay_Color COLOR_LIGHT_GREY = {160, 160, 160, 255};
-const Clay_Color COLOR_TRANSPARENT = {255, 255, 255, 0};
-const Clay_Color COLOR_SELECTED_GREEN = {127, 255, 0, 255};
-
-uint16_t shut_up_data[1];
-
-Renderer renderer;
+#include "theme.hpp"
 
 Texture edge_sheen_data;
 Texture carbon_fiber_data;
@@ -175,7 +150,7 @@ inline void PhotoItem(Photo &photo) {
               .layoutDirection = CLAY_TOP_TO_BOTTOM,
           },
       .backgroundColor =
-          photo.selected ? COLOR_SELECTED_GREEN : COLOR_PURE_WHITE,
+          photo.selected ? COLOR::SELECTED_GREEN : COLOR::PURE_WHITE,
       .cornerRadius = CLAY_CORNER_RADIUS(static_cast<float>(corner_radius)),
       .image =
           {
@@ -183,7 +158,7 @@ inline void PhotoItem(Photo &photo) {
           },
       .border =
           {
-              .color = COLOR_BLACK,
+              .color = COLOR::BLACK,
               .width =
                   {
                       .left = 2,
@@ -202,7 +177,7 @@ inline void PhotoItem(Photo &photo) {
                 .padding = CLAY_PADDING_ALL(static_cast<uint16_t>(
                     corner_radius - 3 - checkbox_corner_radius)),
             },
-        .backgroundColor = COLOR_PURE_WHITE,
+        .backgroundColor = COLOR::PURE_WHITE,
         .cornerRadius =
             CLAY_CORNER_RADIUS(static_cast<float>(corner_radius - 3)),
         .aspectRatio =
@@ -235,7 +210,7 @@ inline void PhotoItem(Photo &photo) {
                   .padding = CLAY_PADDING_ALL(3),
               },
           .backgroundColor =
-              photo.selected ? COLOR_SELECTED_GREEN : COLOR_PURE_WHITE,
+              photo.selected ? COLOR::SELECTED_GREEN : COLOR::PURE_WHITE,
           .cornerRadius =
               CLAY_CORNER_RADIUS(static_cast<float>(checkbox_corner_radius)),
           .image =
@@ -244,7 +219,7 @@ inline void PhotoItem(Photo &photo) {
               },
           .border =
               {
-                  .color = COLOR_BLACK,
+                  .color = COLOR::BLACK,
                   .width =
                       {
                           .left = 2,
@@ -263,7 +238,7 @@ inline void PhotoItem(Photo &photo) {
                             .height = CLAY_SIZING_GROW(0),
                         },
                 },
-            .backgroundColor = COLOR_PURE_WHITE,
+            .backgroundColor = COLOR::PURE_WHITE,
             .cornerRadius = CLAY_CORNER_RADIUS(
                 static_cast<float>(checkbox_corner_radius - 3)),
             .image =
@@ -281,7 +256,7 @@ inline void PhotoItem(Photo &photo) {
                           },
                   },
               .backgroundColor =
-                  photo.selected ? COLOR_SELECTED_GREEN : COLOR_TRANSPARENT,
+                  photo.selected ? COLOR::SELECTED_GREEN : COLOR::TRANSPARENT,
               .image =
                   {
                       .imageData = static_cast<void *>(&check_data),
@@ -296,7 +271,8 @@ inline void PhotoItem(Photo &photo) {
 void PhotoGrid(std::vector<Photo> &photos, int image_minimum_width) {
   // Photo grid calculation
   int image_counter = 0;
-  int photo_columns = renderer.width / image_minimum_width;
+  // int photo_columns = renderer.width / image_minimum_width;
+  int photo_columns = 1080 / image_minimum_width;
 
   int num_images = std::size(photos);
   CLAY({
@@ -386,7 +362,7 @@ void Placeholder() {
     }) {
       CLAY_TEXT(CLAY_STRING("Looks like you haven't opened a folder yet."),
                 CLAY_TEXT_CONFIG({
-                    .textColor = COLOR_PURE_WHITE,
+                    .textColor = COLOR::PURE_WHITE,
                     .fontSize = 24,
                     .wrapMode = CLAY_TEXT_WRAP_WORDS,
                     .textAlignment = CLAY_TEXT_ALIGN_CENTER,
@@ -411,7 +387,7 @@ void Button(Clay_String label,
                   },
               .padding = CLAY_PADDING_ALL(3),
           },
-      .backgroundColor = COLOR_PURE_WHITE,
+      .backgroundColor = COLOR::PURE_WHITE,
       .cornerRadius = CLAY_CORNER_RADIUS(button_height / 2.0f),
       .image =
           {
@@ -419,7 +395,7 @@ void Button(Clay_String label,
           },
       .border =
           {
-              .color = COLOR_BLACK,
+              .color = COLOR::BLACK,
               .width =
                   {
                       .left = 2,
@@ -451,7 +427,8 @@ void Button(Clay_String label,
                         .y = CLAY_ALIGN_Y_CENTER,
                     },
             },
-        .backgroundColor = Clay_Hovered() ? COLOR_PURE_WHITE : COLOR_LIGHT_GREY,
+        .backgroundColor =
+            Clay_Hovered() ? COLOR::PURE_WHITE : COLOR::LIGHT_GREY,
         .cornerRadius = CLAY_CORNER_RADIUS(button_height / 2.0f - 3.0f),
         .image =
             {
@@ -480,7 +457,7 @@ void Tally(Clay_String label) {
                   },
               .padding = CLAY_PADDING_ALL(3),
           },
-      .backgroundColor = COLOR_SELECTED_GREEN,
+      .backgroundColor = COLOR::SELECTED_GREEN,
       .cornerRadius = CLAY_CORNER_RADIUS(diameter / 2.0f),
       .image =
           {
@@ -488,7 +465,7 @@ void Tally(Clay_String label) {
           },
       .border =
           {
-              .color = COLOR_BLACK,
+              .color = COLOR::BLACK,
               .width =
                   {
                       .left = 2,
@@ -519,7 +496,8 @@ void Tally(Clay_String label) {
                         .y = CLAY_ALIGN_Y_CENTER,
                     },
             },
-        .backgroundColor = Clay_Hovered() ? COLOR_PURE_WHITE : COLOR_LIGHT_GREY,
+        .backgroundColor =
+            Clay_Hovered() ? COLOR::PURE_WHITE : COLOR::LIGHT_GREY,
         .cornerRadius = CLAY_CORNER_RADIUS(diameter / 2.0f - 3.0f),
         .image =
             {
@@ -527,7 +505,7 @@ void Tally(Clay_String label) {
             },
     }) {
       CLAY_TEXT(label, CLAY_TEXT_CONFIG({
-                           .textColor = COLOR_SELECTED_GREEN,
+                           .textColor = COLOR::SELECTED_GREEN,
                            .fontSize = 20,
                            .wrapMode = CLAY_TEXT_WRAP_NONE,
                            .textAlignment = CLAY_TEXT_ALIGN_CENTER,
@@ -555,7 +533,7 @@ void BottomBar() {
                       .bottom = 0,
                   },
           },
-      .backgroundColor = COLOR_PURE_WHITE,
+      .backgroundColor = COLOR::PURE_WHITE,
       .cornerRadius =
           {
               .topLeft = bottom_bar_corner_radius,
@@ -578,7 +556,7 @@ void BottomBar() {
           },
       .border =
           {
-              .color = COLOR_BLACK,
+              .color = COLOR::BLACK,
               .width =
                   {
                       .left = 2,
@@ -604,7 +582,7 @@ void BottomBar() {
                         .bottom = 4,
                     },
             },
-        .backgroundColor = COLOR_GREY,
+        .backgroundColor = COLOR::GREY,
         .cornerRadius =
             {
                 .topLeft = bottom_bar_corner_radius - 3,
@@ -694,63 +672,19 @@ void BottomBar() {
 static inline Clay_Dimensions MeasureText(Clay_StringSlice text,
                                           Clay_TextElementConfig *config,
                                           void *userData) {
+  Renderer &renderer = *(Renderer *)userData;
   float scalar = config->fontSize / renderer.font_sample_point_size;
   return Clay_Dimensions{.width = (float)text.length * renderer.glyph_size.x *
                                   scalar,
                          .height = (float)renderer.glyph_size.y * scalar};
 }
 
-bool init() {
-  renderer.init();
-
-  std::vector<std::string> loaded_sprite_paths;
-  for (auto &[entity_id, sprite_component] : sprite_components) {
-    auto it = std::find(loaded_sprite_paths.begin(), loaded_sprite_paths.end(),
-                        sprite_component.path);
-
-    if (it != loaded_sprite_paths.end()) {
-      continue;
-    }
-
-    // SDL_Surface *image_data = IMG_Load(sprite_component.path.c_str());
-    // if (!image_data) {
-    //   SDL_Log("Failed to load image! %s", sprite_component.path.c_str());
-    //   return false;
-    // }
-
-    // sprite_component.size = glm::ivec2(image_data->w, image_data->h);
-    // TextureID texture_id = renderer.load_texture(image_data);
-    // sprite_component.texture_id = texture_id;
-    // SDL_DestroySurface(image_data);
-    // loaded_sprite_paths.push_back(sprite_component.path);
-  }
-  return true;
-}
-
-bool loop() { return true; }
-
-bool cleanup() {
-  renderer.cleanup();
-  return true;
-}
-
-// TODO: Give feedback after submitting finalize button
-// TODO: Reset screen when finalize is pressed
-
-Texture load_and_upload_texture(std::string path, bool tiling = false) {
-  // int w, h, channels;
-  // unsigned char *pixels = stbi_load(path.c_str(), &w, &h, &channels, 4);
-  // TextureID texture_id = renderer.load_texture(pixels, w, h);
-  // stbi_image_free(pixels);
-
+Texture load_and_upload_texture(Renderer &renderer, std::string path,
+                                bool tiling = false) {
   Image image = ImageLoader::load(path);
   TextureID texture_id =
       renderer.load_texture(image.pixels.data(), image.width, image.height);
 
-  // This is used by clay renderer to tell renderer
-  // - Which texture to use
-  // - If the texture should be tiled
-  // Technically once the texture is uploaded, path isn't necessary
   Texture texture_data;
   texture_data.path = path;
   texture_data.tiling = tiling;
@@ -763,25 +697,54 @@ Texture load_and_upload_texture(std::string path, bool tiling = false) {
 
 int main(int argc, char *argv[]) {
   // ECS
-  // EntityManager entity_manager;
+  std::unordered_map<EntityID, SpriteComponent> sprite_components;
+  std::unordered_map<EntityID, TransformComponent> transform_components;
 
-  // Player Amogus
-  // EntityID amogus = entity_manager.create();
-  // SpriteComponent sprite_component = {
-  //     .path = "res/uv.bmp",
-  // };
-  // sprite_components[amogus] = sprite_component;
-  // TransformComponent transform_component = {
-  //     .position = glm::vec2(64.0f, 64.0f),
-  //     .scale = glm::vec2(1.0f, 1.0f),
-  // };
-  // transform_components[amogus] = transform_component;
+  EntityManager entity_manager;
 
-  // Init(texture uploading) must be after entities are created
-  if (!init()) {
-    return 1;
+  EntityID cursor = entity_manager.create();
+  SpriteComponent sprite_component = {
+      .path = "res/uv.bmp",
+  };
+  sprite_components[cursor] = sprite_component;
+  TransformComponent transform_component = {
+      .position = glm::vec2(64.0f, 64.0f),
+      .scale = glm::vec2(1.0f, 1.0f),
+  };
+  transform_components[cursor] = transform_component;
+
+  // Renderer
+  const int WIDTH = 1080;
+  const int HEIGHT = 720;
+  Renderer renderer(WIDTH, HEIGHT);
+
+  // Load sprite textures
+  std::vector<std::string> loaded_sprite_paths;
+  for (auto &[entity_id, sprite_component] : sprite_components) {
+    if (std::find(loaded_sprite_paths.begin(), loaded_sprite_paths.end(),
+                  sprite_component.path) != loaded_sprite_paths.end()) {
+      // Sprite already loaded
+      continue;
+    }
+
+    Image image = ImageLoader::load(sprite_component.path);
+    TextureID texture_id =
+        renderer.load_texture(image.pixels.data(), image.width, image.height);
+
+    Texture texture_data;
+    texture_data.path = sprite_component.path;
+    texture_data.tiling = false;
+    texture_data.id = texture_id;
+
+    SDL_Log("Loaded texture %s with id %zu", sprite_component.path.c_str(),
+            texture_id);
+
+    sprite_component.size = glm::ivec2(image.width, image.height);
+    sprite_component.texture_id = texture_id;
+    loaded_sprite_paths.push_back(sprite_component.path);
   }
 
+  // Clay setup
   size_t total_memory_size = Clay_MinMemorySize();
   Clay_Arena clay_memory = Clay_CreateArenaWithCapacityAndMemory(
       total_memory_size, malloc(total_memory_size));
@@ -790,15 +753,18 @@ int main(int argc, char *argv[]) {
   Clay_Context *clayContextBottom = Clay_Initialize(
       clay_memory, clay_dimensions, Clay_ErrorHandler{handle_clay_errors});
 
-  Clay_SetMeasureTextFunction(MeasureText, nullptr);
+  Clay_SetMeasureTextFunction(MeasureText, &renderer);
 
-  edge_sheen_data = load_and_upload_texture("res/edge_sheen.png");
-  carbon_fiber_data = load_and_upload_texture("res/carbon_fiber.png", true);
-  vignette_data = load_and_upload_texture("res/vignette.png");
-  bg_sheen_data = load_and_upload_texture("res/bg_sheen.png");
-  check_data = load_and_upload_texture("res/check.png");
+  // Manually load Clay textures
+  edge_sheen_data = load_and_upload_texture(renderer, "res/edge_sheen.png");
+  carbon_fiber_data =
+      load_and_upload_texture(renderer, "res/carbon_fiber.png", true);
+  vignette_data = load_and_upload_texture(renderer, "res/vignette.png");
+  bg_sheen_data = load_and_upload_texture(renderer, "res/bg_sheen.png");
+  check_data = load_and_upload_texture(renderer, "res/check.png");
 
   // Timing
+  float physics_tick_rate = 60;
   uint32_t prev_frame_tick = SDL_GetTicks();
   float physics_delta_time = 1.0f / physics_tick_rate;
   float process_delta_time = 0.0f;
@@ -816,7 +782,6 @@ int main(int argc, char *argv[]) {
 
   Clay_Vector2 mouse_position = {0.0f, 0.0f};
 
-  // Do the one where it only updates when an event happens
   while (running) {
     // Calculate delta time
     uint32_t frame_tick = SDL_GetTicks();
@@ -866,18 +831,16 @@ int main(int argc, char *argv[]) {
       }
     }
 
-    // TransformComponent &cursor_transform = transform_components[amogus];
-    // cursor_transform.position = glm::vec2(mouse_position.x,
-    // mouse_position.y);
+    TransformComponent &cursor_transform = transform_components[cursor];
+    cursor_transform.position = glm::vec2(mouse_position.x, mouse_position.y);
 
     // Get tally count
-    // This is technically a bit redundant
-    // but is guaranteed to not be out of sync
     std::stringstream ss;
     // ss << get_selected_photos_count();
     tally_label = ss.str();
 
-    renderer.begin_frame(); // Start here to update window dimensions for clay
+    // Query resolution so clay
+    renderer.update_swapchain_texture();
 
     // Clay foreplay
     Clay_Dimensions clay_dimensions = {
@@ -904,7 +867,7 @@ int main(int argc, char *argv[]) {
                 .padding = CLAY_PADDING_ALL(0),
                 .layoutDirection = CLAY_TOP_TO_BOTTOM,
             },
-        .backgroundColor = COLOR_PURE_WHITE,
+        .backgroundColor = COLOR::PURE_WHITE,
         .image =
             {
                 .imageData = static_cast<void *>(&carbon_fiber_data),
@@ -921,7 +884,7 @@ int main(int argc, char *argv[]) {
                   .childGap = 0,
                   .layoutDirection = CLAY_TOP_TO_BOTTOM,
               },
-          .backgroundColor = COLOR_PURE_WHITE,
+          .backgroundColor = COLOR::PURE_WHITE,
           .image =
               {
                   .imageData = static_cast<void *>(&vignette_data),
@@ -948,12 +911,19 @@ int main(int argc, char *argv[]) {
       // Bottom Bar
       BottomBar();
     }
+    // Get swapchain texture
+    // Get width and height
+    // Assemble CLAY ui
+    // Load textures
+    // Render pass
+
     Clay_RenderCommandArray render_commands = Clay_EndLayout();
+    // Texture IDs may not exist here TODO FIX
+    //
+    renderer.begin_frame(); // Start here to update window dimensions for clay
     ClayRenderer::render_commands(renderer, render_commands);
-    SpriteSystem::draw_all(renderer);
+    SpriteRenderer::draw_all(renderer, sprite_components, transform_components);
     renderer.end_frame();
   }
-  SDL_Log("Exiting...");
-  cleanup();
   return 0;
 }

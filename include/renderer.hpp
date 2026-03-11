@@ -21,8 +21,8 @@ struct Vertex {
   float u, v;       // vec2 texture coordinates
 };
 
-const int WIDTH = 1280;
-const int HEIGHT = 720;
+// const int WIDTH = 1280;
+// const int HEIGHT = 720;
 
 // Vertex uniform blocks
 struct BasicVertexUniformBuffer {
@@ -84,20 +84,21 @@ using GraphicsPipelineID = std::size_t;
 
 class Renderer {
 public:
-  Uint32 width;
-  Uint32 height;
+  uint32_t width;
+  uint32_t height;
 
-  Renderer();
+  Renderer(uint32_t width, uint32_t height);
   ~Renderer();
-  // TextureID load_texture(SDL_Surface *image_data);
-  TextureID load_texture(SDL_Surface *image_data);
+  // Ladoing functions
   TextureID load_texture(unsigned char *pixels, int w, int h);
   bool load_geometry(std::string path, const Vertex *vertices,
                      size_t vertex_size, const Uint16 *indices,
                      size_t index_size);
+  bool load_ascii_font(std::string path);
   bool create_graphics_pipeline(std::string path, SDL_GPUShader *vertex_shader,
                                 SDL_GPUShader *fragment_shader);
-  bool init();
+  // bool init();
+  bool update_swapchain_texture();
   bool begin_frame();
   bool end_frame();
   // Drawing functions
@@ -112,9 +113,10 @@ public:
                  glm::vec2 position, glm::vec4 color);
   bool draw_arc(glm::vec2 position, float radius, float thickness,
                 float rotation, glm::vec4 color);
+  // Scissor mode
   bool begin_scissor_mode(glm::ivec2 pos, glm::ivec2 size);
   bool end_scissor_mode();
-  bool cleanup();
+
   glm::vec2 glyph_size;
   float font_sample_point_size = 64.0f;
   float viewport_scale = 2.0f;
@@ -133,6 +135,8 @@ private:
 
   SDL_GPURenderPass *_render_pass;
   SDL_GPUCommandBuffer *_command_buffer;
+
+  SDL_GPUTexture *swapchain_texture;
 
   glm::mat4 projection_matrix;
 

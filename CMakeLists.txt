@@ -53,7 +53,7 @@ add_subdirectory(external/glm EXCLUDE_FROM_ALL)
 
 set(SR_SOURCES
   src/main.cpp
-  src/sprite_system.cpp
+  src/sprite_renderer.cpp
   src/renderer.cpp
   src/clay_renderer.cpp
   src/tinyfiledialogs.c
@@ -70,7 +70,5 @@ target_include_directories(software-renderer PRIVATE
 
 target_link_libraries(software-renderer PRIVATE
   SDL3::SDL3
-  # SDL3_image::SDL3_image
-  # SDL3_ttf::SDL3_ttf
   libjpeg_turbo
 )

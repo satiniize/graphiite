@@ -5,6 +5,20 @@
 #include "SDL3/SDL_log.h"
 
 namespace ClayRenderer {
+void load_images(Renderer &renderer, Clay_RenderCommandArray render_commands) {
+  for (int i = 0; i < render_commands.length; i++) {
+    Clay_RenderCommand *render_command =
+        Clay_RenderCommandArray_Get(&render_commands, i);
+    if (render_command->commandType == CLAY_RENDER_COMMAND_TYPE_IMAGE) {
+      Clay_ImageRenderData *render_data_image =
+          &render_command->renderData.image;
+      Texture *data_pointer =
+          static_cast<Texture *>(render_data_image->imageData); // Get pointer
+      Texture image_data = *data_pointer; // Dereference pointer
+    }
+  }
+}
+
 void render_commands(Renderer &renderer,
                      Clay_RenderCommandArray render_commands) {
   for (int i = 0; i < render_commands.length; i++) {
