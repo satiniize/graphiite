@@ -190,10 +190,10 @@ Renderer::Renderer(uint32_t width, uint32_t height) {
                 std::size(quad_indices) * sizeof(Uint16));
 
   std::ifstream fontFile(default_font_path, std::ios::binary | std::ios::ate);
-  std::streamsize size = fontFile.tellg();
+  std::streampos size = fontFile.tellg();
   fontFile.seekg(0, std::ios::beg);
 
-  std::vector<uint8_t> font_buffer(size);
+  std::vector<uint8_t> font_buffer(static_cast<size_t>(size));
   fontFile.read(reinterpret_cast<char *>(font_buffer.data()), size);
 
   stbtt_fontinfo font_info;
@@ -608,14 +608,12 @@ bool Renderer::draw_sprite(TextureID texture_id, glm::vec2 translation,
   SDL_GPUBufferBinding vertex_buffer_bindings[1];
   vertex_buffer_bindings[0].buffer = vertex_buffers["QUAD"];
   vertex_buffer_bindings[0].offset = 0;
-
   SDL_BindGPUVertexBuffers(_render_pass, 0, vertex_buffer_bindings, 1);
 
   // Bind index buffer
   SDL_GPUBufferBinding index_buffer_bindings[1];
   index_buffer_bindings[0].buffer = index_buffers["QUAD"];
   index_buffer_bindings[0].offset = 0;
-
   SDL_BindGPUIndexBuffer(_render_pass, index_buffer_bindings,
                          SDL_GPU_INDEXELEMENTSIZE_16BIT);
 
@@ -623,7 +621,6 @@ bool Renderer::draw_sprite(TextureID texture_id, glm::vec2 translation,
   // TODO: conditional jump valgrind error?
   if (gpu_textures.find(texture_id) == gpu_textures.end()) {
     SDL_Log("Sprite not loaded");
-    SDL_Quit();
     return false;
   }
   SDL_GPUTextureSamplerBinding fragment_sampler_bindings{};
@@ -649,10 +646,8 @@ bool Renderer::draw_sprite(TextureID texture_id, glm::vec2 translation,
                              glm::vec3(0.0f, 0.0f, 1.0f));
   model_matrix = glm::scale(model_matrix, glm::vec3(scale, 1.0f));
 
-  glm::mat4 view_matrix = glm::mat4(1.0f);
-
   basic_vertex_uniform_buffer.mvp_matrix =
-      this->projection_matrix * view_matrix * model_matrix;
+      this->projection_matrix * model_matrix;
 
   SDL_PushGPUVertexUniformData(_command_buffer, 0, &basic_vertex_uniform_buffer,
                                sizeof(BasicVertexUniformBuffer));
@@ -682,17 +677,6 @@ bool Renderer::draw_color_rect(glm::vec2 position, glm::vec2 size,
 
   SDL_BindGPUIndexBuffer(_render_pass, index_buffer_bindings,
                          SDL_GPU_INDEXELEMENTSIZE_16BIT);
-
-  // Uniforms and samplers
-  // TODO: conditional jump valgrind error?
-  // SDL_GPUTextureSamplerBinding fragment_sampler_bindings{};
-  // fragment_sampler_bindings.texture = gpu_textures[path];
-  // fragment_sampler_bindings.sampler = clamp_sampler;
-  // SDL_BindGPUFragmentSamplers(_render_pass,
-  //                             0, // The binding point for the sampler
-  //                             &fragment_sampler_bindings,
-  //                             1 // Number of textures/samplers to bind
-  // );
 
   // Calculate uniform values
   // ui_rect_fragment_uniform_buffer.time = SDL_GetTicksNS() / 1e9f;
@@ -830,6 +814,7 @@ bool Renderer::draw_text(const char *text, int length, float point_size,
 
   for (size_t i = 0; i < length; i++) {
     if ((text[i] - 33) == -1) {
+      // Character is a space
       continue;
     }
     // Calculate uniform values

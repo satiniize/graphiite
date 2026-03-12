@@ -1,7 +1,7 @@
 
 
-class PhotoManager {
-public:
-  PhotoManager();
-  ~PhotoManager();
-};
+// class PhotoManager {
+// public:
+//   PhotoManager();
+//   ~PhotoManager();
+// };

@@ -1,10 +1,8 @@
-#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
 #include <sstream>
 #include <string>
-#include <sys/types.h>
 #include <vector>
 
 // Libraries
@@ -12,6 +10,7 @@
 
 #define CLAY_IMPLEMENTATION
 #include "clay.h"
+
 #include "tinyfiledialogs.h"
 
 #include "clay_renderer.hpp"
@@ -26,28 +25,18 @@
 #include "image_loader.hpp"
 #include "sprite_renderer.hpp"
 
+// Resources
 #include "image.hpp"
 #include "texture.hpp"
 
+// UI theming
 #include "theme.hpp"
-
-Texture edge_sheen_data;
-Texture carbon_fiber_data;
-Texture vignette_data;
-Texture bg_sheen_data;
-Texture check_data;
 
 struct Photo {
   Texture image_data;
   bool selected;
   std::filesystem::path file_path;
 };
-
-// std::string photos_root_path = "res/FUJI/";
-std::vector<Photo> photos;
-bool folder_opened = false;
-
-std::string tally_label;
 
 void handle_clay_errors(Clay_ErrorData errorData) {
   // See the Clay_ErrorData struct for more information
@@ -132,7 +121,8 @@ void handle_filters_button_interaction(Clay_ElementId elementId,
 }
 
 // TODO: Change hover to full photo rect, current selection is too small
-inline void PhotoItem(Photo &photo) {
+void PhotoItem(Texture &edge_sheen_data, Texture &bg_sheen_data,
+               Texture &check_data, Photo &photo) {
   uint16_t corner_radius = 16;
   uint16_t checkbox_corner_radius = 5;
   CLAY({
@@ -268,7 +258,9 @@ inline void PhotoItem(Photo &photo) {
   }
 }
 
-void PhotoGrid(std::vector<Photo> &photos, int image_minimum_width) {
+void PhotoGrid(Texture &edge_sheen_data, Texture &bg_sheen_data,
+               Texture &check_data, std::vector<Photo> &photos,
+               int image_minimum_width) {
   // Photo grid calculation
   int image_counter = 0;
   // int photo_columns = renderer.width / image_minimum_width;
@@ -316,7 +308,8 @@ void PhotoGrid(std::vector<Photo> &photos, int image_minimum_width) {
               }}) {
           for (int i = 0; i < photo_columns; i++) {
             if (image_counter < num_images) {
-              PhotoItem(photos[image_counter]);
+              PhotoItem(edge_sheen_data, bg_sheen_data, check_data,
+                        photos[image_counter]);
               image_counter++;
             } else {
               CLAY({
@@ -334,7 +327,7 @@ void PhotoGrid(std::vector<Photo> &photos, int image_minimum_width) {
   }
 }
 
-void Placeholder() {
+void Placeholder(Texture test_texture) {
   CLAY({
       .layout =
           {
@@ -348,6 +341,11 @@ void Placeholder() {
                       .x = CLAY_ALIGN_X_CENTER,
                       .y = CLAY_ALIGN_Y_CENTER,
                   },
+          },
+      .backgroundColor = COLOR::PURE_WHITE,
+      .image =
+          {
+              .imageData = static_cast<void *>(&test_texture),
           },
   }) {
     CLAY({
@@ -371,7 +369,7 @@ void Placeholder() {
   }
 }
 
-void Button(Clay_String label,
+void Button(Texture &edge_sheen_data, Texture &bg_sheen_data, Clay_String label,
             void button_interaction(Clay_ElementId elementId,
                                     Clay_PointerData pointerInfo,
                                     intptr_t userData)) {
@@ -445,7 +443,8 @@ void Button(Clay_String label,
   }
 }
 
-void Tally(Clay_String label) {
+void Tally(Texture &edge_sheen_data, Texture &bg_sheen_data,
+           Clay_String label) {
   uint16_t diameter = 48;
   CLAY({
       .layout =
@@ -514,7 +513,8 @@ void Tally(Clay_String label) {
   }
 }
 
-void BottomBar() {
+void BottomBar(Texture &edge_sheen_data, Texture &bg_sheen_data,
+               std::string tally_label) {
   float bottom_bar_corner_radius = 38.0f;
   CLAY({
       .id = CLAY_ID("BottomBar"),
@@ -612,7 +612,7 @@ void BottomBar() {
                   .layoutDirection = CLAY_LEFT_TO_RIGHT,
               },
       }) {
-        Button(CLAY_STRING("Open Folder"),
+        Button(edge_sheen_data, bg_sheen_data, CLAY_STRING("Open Folder"),
                handle_open_folder_button_interaction);
         CLAY({
             .layout =
@@ -624,10 +624,11 @@ void BottomBar() {
                         },
                 },
         }) {}
-        Tally(Clay_String{
-            .length = static_cast<int32_t>(tally_label.length()),
-            .chars = tally_label.c_str(),
-        });
+        Tally(edge_sheen_data, bg_sheen_data,
+              Clay_String{
+                  .length = static_cast<int32_t>(tally_label.length()),
+                  .chars = tally_label.c_str(),
+              });
       }
       // Center Align
       CLAY({
@@ -644,7 +645,8 @@ void BottomBar() {
                       },
               },
       }) {
-        Button(CLAY_STRING("Finalize"), handle_finalize_button_interaction);
+        Button(edge_sheen_data, bg_sheen_data, CLAY_STRING("Finalize"),
+               handle_finalize_button_interaction);
       }
       // Right Align
       CLAY({
@@ -662,8 +664,10 @@ void BottomBar() {
                   .layoutDirection = CLAY_LEFT_TO_RIGHT,
               },
       }) {
-        Button(CLAY_STRING("Sort"), handle_sort_button_interaction);
-        Button(CLAY_STRING("Filters"), handle_filters_button_interaction);
+        Button(edge_sheen_data, bg_sheen_data, CLAY_STRING("Sort"),
+               handle_sort_button_interaction);
+        Button(edge_sheen_data, bg_sheen_data, CLAY_STRING("Filters"),
+               handle_filters_button_interaction);
       }
     }
   }
@@ -695,7 +699,30 @@ Texture load_and_upload_texture(Renderer &renderer, std::string path,
   return texture_data;
 }
 
+Texture load_with_turbojpeg_and_upload_texture(Renderer &renderer,
+                                               std::string path,
+                                               bool tiling = false) {
+  Image image = ImageLoader::load_with_turbojpeg(path);
+  TextureID texture_id =
+      renderer.load_texture(image.pixels.data(), image.width, image.height);
+
+  Texture texture_data;
+  texture_data.path = path;
+  texture_data.tiling = tiling;
+  texture_data.id = texture_id;
+
+  SDL_Log("Loaded texture %s with id %zu", path.c_str(), texture_id);
+
+  return texture_data;
+}
+
 int main(int argc, char *argv[]) {
+  // Photo sorter
+  std::string photos_root_path = "res/FUJI/";
+  std::vector<Photo> photos;
+  bool folder_opened = false;
+  std::string tally_label;
+
   // ECS
   std::unordered_map<EntityID, SpriteComponent> sprite_components;
   std::unordered_map<EntityID, TransformComponent> transform_components;
@@ -756,12 +783,16 @@ int main(int argc, char *argv[]) {
   Clay_SetMeasureTextFunction(MeasureText, &renderer);
 
   // Manually load Clay textures
-  edge_sheen_data = load_and_upload_texture(renderer, "res/edge_sheen.png");
-  carbon_fiber_data =
+  Texture edge_sheen_data =
+      load_and_upload_texture(renderer, "res/edge_sheen.png");
+  Texture carbon_fiber_data =
       load_and_upload_texture(renderer, "res/carbon_fiber.png", true);
-  vignette_data = load_and_upload_texture(renderer, "res/vignette.png");
-  bg_sheen_data = load_and_upload_texture(renderer, "res/bg_sheen.png");
-  check_data = load_and_upload_texture(renderer, "res/check.png");
+  Texture vignette_data = load_and_upload_texture(renderer, "res/vignette.png");
+  Texture bg_sheen_data = load_and_upload_texture(renderer, "res/bg_sheen.png");
+  Texture check_data = load_and_upload_texture(renderer, "res/check.png");
+
+  Texture test_photo =
+      load_with_turbojpeg_and_upload_texture(renderer, "res/FUJI/RYHN0608.JPG");
 
   // Timing
   float physics_tick_rate = 60;
@@ -892,9 +923,10 @@ int main(int argc, char *argv[]) {
       }) {
         // Image Grid
         if (folder_opened) {
-          PhotoGrid(photos, 240 * renderer.viewport_scale);
+          PhotoGrid(edge_sheen_data, bg_sheen_data, check_data, photos,
+                    240 * renderer.viewport_scale);
         } else {
-          Placeholder();
+          Placeholder(test_photo);
         }
         // Spacer
         CLAY({
@@ -909,7 +941,7 @@ int main(int argc, char *argv[]) {
         }) {}
       }
       // Bottom Bar
-      BottomBar();
+      BottomBar(edge_sheen_data, bg_sheen_data, tally_label);
     }
     // Get swapchain texture
     // Get width and height
