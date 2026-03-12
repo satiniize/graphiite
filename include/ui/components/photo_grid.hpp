@@ -1,8 +1,7 @@
 #pragma once
-#include "../clay.h"
-#include "../texture.hpp"
+#include "../../clay.h"
+#include "../../texture.hpp"
 
-#include "../theme.hpp"
 #include <vector>
 
 #include "photo_item.hpp"

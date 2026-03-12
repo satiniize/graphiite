@@ -3,9 +3,9 @@
 #include <cstdint>
 #include <string>
 
-#include "SDL3/SDL_gpu.h"
-#include "SDL3/SDL_video.h"
-#include "glm/mat4x4.hpp"
+#include <SDL3/SDL_gpu.h>
+#include <SDL3/SDL_video.h>
+#include <glm/mat4x4.hpp>
 
 #include "texture.hpp"
 

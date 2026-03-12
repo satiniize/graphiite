@@ -2,7 +2,7 @@
 
 #include <string>
 
-#include "glm/vec2.hpp"
+#include <glm/vec2.hpp>
 
 struct SpriteComponent {
   std::string path;

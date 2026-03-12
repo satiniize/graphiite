@@ -3,9 +3,9 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
-#include "SDL3/SDL_log.h"
 #include "image.hpp"
 #include "turbojpeg.h"
+#include <SDL3/SDL_log.h>
 #include <filesystem>
 #include <fstream>
 #include <vector>
@@ -104,4 +104,5 @@ Image load_with_turbojpeg(const std::filesystem::path &path) {
   tj3Destroy(turbojpeg_instance);
   return image;
 }
+
 } // namespace ImageLoader

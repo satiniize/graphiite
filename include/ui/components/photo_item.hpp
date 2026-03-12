@@ -2,8 +2,8 @@
 
 #include <filesystem>
 
-#include "../clay.h"
-#include "../texture.hpp"
+#include "../../clay.h"
+#include "../../texture.hpp"
 
 #include "../theme.hpp"
 

@@ -1,28 +1,24 @@
 #pragma once
-#include "../clay.h"
-#include "../texture.hpp"
+#include "../../clay.h"
+#include "../../texture.hpp"
 
 #include "../theme.hpp"
 
-static inline void Button(Texture &edge_sheen_data, Texture &bg_sheen_data,
-                          Clay_String label,
-                          void button_interaction(Clay_ElementId elementId,
-                                                  Clay_PointerData pointerInfo,
-                                                  intptr_t userData)) {
-  uint16_t button_height = 48;
+static inline void Tally(Texture &edge_sheen_data, Texture &bg_sheen_data,
+                         Clay_String label) {
+  uint16_t diameter = 48;
   CLAY({
       .layout =
           {
               .sizing =
                   {
-                      .width = CLAY_SIZING_FIT(),
-                      .height =
-                          CLAY_SIZING_FIXED(static_cast<float>(button_height)),
+                      .width = CLAY_SIZING_FIXED(static_cast<float>(diameter)),
+                      .height = CLAY_SIZING_FIXED(static_cast<float>(diameter)),
                   },
               .padding = CLAY_PADDING_ALL(3),
           },
-      .backgroundColor = COLOR::PURE_WHITE,
-      .cornerRadius = CLAY_CORNER_RADIUS(button_height / 2.0f),
+      .backgroundColor = COLOR::SELECTED_GREEN,
+      .cornerRadius = CLAY_CORNER_RADIUS(diameter / 2.0f),
       .image =
           {
               .imageData = static_cast<void *>(&edge_sheen_data),
@@ -39,7 +35,6 @@ static inline void Button(Texture &edge_sheen_data, Texture &bg_sheen_data,
                   },
           },
   }) {
-    Clay_OnHover(button_interaction, NULL);
     CLAY({
         .layout =
             {
@@ -50,8 +45,8 @@ static inline void Button(Texture &edge_sheen_data, Texture &bg_sheen_data,
                     },
                 .padding =
                     {
-                        .left = 16,
-                        .right = 16,
+                        .left = 0,
+                        .right = 0,
                         .top = 0,
                         .bottom = 0,
                     },
@@ -63,15 +58,15 @@ static inline void Button(Texture &edge_sheen_data, Texture &bg_sheen_data,
             },
         .backgroundColor =
             Clay_Hovered() ? COLOR::PURE_WHITE : COLOR::LIGHT_GREY,
-        .cornerRadius = CLAY_CORNER_RADIUS(button_height / 2.0f - 3.0f),
+        .cornerRadius = CLAY_CORNER_RADIUS(diameter / 2.0f - 3.0f),
         .image =
             {
                 .imageData = static_cast<void *>(&bg_sheen_data),
             },
     }) {
       CLAY_TEXT(label, CLAY_TEXT_CONFIG({
-                           .textColor = {255, 255, 255, 255},
-                           .fontSize = 24,
+                           .textColor = COLOR::SELECTED_GREEN,
+                           .fontSize = 20,
                            .wrapMode = CLAY_TEXT_WRAP_NONE,
                            .textAlignment = CLAY_TEXT_ALIGN_CENTER,
                        }));

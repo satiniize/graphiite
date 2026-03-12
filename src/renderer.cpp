@@ -1,9 +1,9 @@
 #include "renderer.hpp"
 
-#include "SDL3/SDL.h"
-#include "SDL3/SDL_gpu.h"
-#include "glm/gtc/matrix_transform.hpp"
+#include <SDL3/SDL.h>
+#include <SDL3/SDL_gpu.h>
 #include <fstream>
+#include <glm/gtc/matrix_transform.hpp>
 
 #define STB_TRUETYPE_IMPLEMENTATION
 #include "stb_truetype.h"

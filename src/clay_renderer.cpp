@@ -2,7 +2,7 @@
 
 #include <sys/types.h>
 
-#include "SDL3/SDL_log.h"
+#include <SDL3/SDL_log.h>
 
 namespace ClayRenderer {
 void load_images(Renderer &renderer, Clay_RenderCommandArray render_commands) {

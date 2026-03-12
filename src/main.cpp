@@ -6,7 +6,7 @@
 #include <vector>
 
 // Libraries
-#include "SDL3/SDL.h"
+#include <SDL3/SDL.h>
 
 #define CLAY_IMPLEMENTATION
 #include "clay.h"
@@ -30,11 +30,11 @@
 #include "texture.hpp"
 
 // UI theming
-#include "theme.hpp"
+#include "ui/theme.hpp"
 
-#include "ui_components/bottom_bar.hpp"
-#include "ui_components/photo_grid.hpp"
-#include "ui_components/placeholder.hpp"
+#include "ui/components/bottom_bar.hpp"
+#include "ui/components/photo_grid.hpp"
+#include "ui/components/placeholder.hpp"
 
 void handle_clay_errors(Clay_ErrorData errorData) {
   // See the Clay_ErrorData struct for more information
