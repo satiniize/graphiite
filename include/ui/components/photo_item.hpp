@@ -1,17 +1,10 @@
 #pragma once
 
-#include <filesystem>
-
 #include "../../clay.h"
 #include "../../texture.hpp"
 
 #include "../theme.hpp"
-
-struct Photo {
-  Texture image_data;
-  bool selected;
-  std::filesystem::path file_path;
-};
+#include "../types/photo.hpp"
 
 static inline void handle_photo_item_interaction(Clay_ElementId elementId,
                                                  Clay_PointerData pointerInfo,

@@ -83,7 +83,9 @@ Image load_with_turbojpeg(const std::filesystem::path &path) {
   int num_scaling_factors;
   tjscalingfactor *factors = tj3GetScalingFactors(&num_scaling_factors);
 
-  tjscalingfactor scaling_factor = {1, 8};
+  // Pick the smallest scaling factor for speed
+  tjscalingfactor scaling_factor = {factors[num_scaling_factors - 1].num,
+                                    factors[num_scaling_factors - 1].denom};
   tj3SetScalingFactor(turbojpeg_instance, scaling_factor);
 
   int scaled_width = TJSCALED(width, scaling_factor);
@@ -112,7 +114,6 @@ Image load_with_turbojpeg(const std::filesystem::path &path) {
   image.height = scaled_height;
   image.pixels = pixel_data;
 
-  // TODO: this is never called when returning early
   tj3Destroy(turbojpeg_instance);
   return image;
 }

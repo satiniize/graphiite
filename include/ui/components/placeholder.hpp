@@ -1,10 +1,9 @@
 #pragma once
 #include "../../clay.h"
-#include "../../texture.hpp"
 
 #include "../theme.hpp"
 
-static inline void Placeholder(Texture test_texture) {
+static inline void Placeholder() {
   CLAY({
       .layout =
           {
@@ -18,11 +17,6 @@ static inline void Placeholder(Texture test_texture) {
                       .x = CLAY_ALIGN_X_CENTER,
                       .y = CLAY_ALIGN_Y_CENTER,
                   },
-          },
-      .backgroundColor = Color::PURE_WHITE,
-      .image =
-          {
-              .imageData = static_cast<void *>(&test_texture),
           },
   }) {
     CLAY({

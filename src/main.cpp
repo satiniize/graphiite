@@ -1,7 +1,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
-#include <sstream>
 #include <string>
 #include <vector>
 
@@ -34,8 +33,9 @@
 
 #include "ui/components/bottom_bar.hpp"
 #include "ui/components/photo_grid.hpp"
-#include "ui/components/photo_item.hpp"
 #include "ui/components/placeholder.hpp"
+
+#include "ui/types/photo.hpp"
 
 #include <atomic>
 #include <mutex>
@@ -52,6 +52,7 @@ struct AppState {
   bool folder_opened = false;
   std::string tally_label = "XX";
   std::vector<Photo> photos;
+
   std::queue<PendingTexture> upload_queue;
   std::mutex upload_mutex;
   std::atomic<bool> loading_done = false;
@@ -169,30 +170,7 @@ Texture load_and_upload_texture(Renderer &renderer, std::string path,
   return texture_data;
 }
 
-Texture load_with_turbojpeg_and_upload_texture(Renderer &renderer,
-                                               std::string path,
-                                               bool tiling = false) {
-  Image image = ImageLoader::load_with_turbojpeg(path);
-  TextureID texture_id =
-      renderer.load_texture(image.pixels.data(), image.width, image.height);
-
-  Texture texture_data;
-  texture_data.path = path;
-  texture_data.tiling = tiling;
-  texture_data.id = texture_id;
-
-  SDL_Log("Loaded texture %s with id %zu", path.c_str(), texture_id);
-
-  return texture_data;
-}
-
 int main(int argc, char *argv[]) {
-  // Photo sorter
-  // std::string photos_root_path = "res/FUJI/";
-  // std::vector<Photo> photos;
-  // bool folder_opened = false;
-  // std::string tally_label = "XX";
-
   AppState app_state;
 
   // ECS
@@ -239,9 +217,6 @@ int main(int argc, char *argv[]) {
   Texture vignette_data = load_and_upload_texture(renderer, "res/vignette.png");
   Texture bg_sheen_data = load_and_upload_texture(renderer, "res/bg_sheen.png");
   Texture check_data = load_and_upload_texture(renderer, "res/check.png");
-
-  Texture test_photo =
-      load_with_turbojpeg_and_upload_texture(renderer, "res/FUJI/RYHN0608.JPG");
 
   // Timing
   const int physics_tick_rate = 60;
@@ -387,9 +362,9 @@ int main(int argc, char *argv[]) {
         if (app_state.folder_opened) {
           PhotoGrid(edge_sheen_data, bg_sheen_data, check_data,
                     app_state.photos,
-                    renderer.width / 240 * renderer.viewport_scale);
+                    renderer.width / 240.0f * renderer.viewport_scale);
         } else {
-          Placeholder(test_photo);
+          Placeholder();
         }
         // Spacer
         CLAY({
