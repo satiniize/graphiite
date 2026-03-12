@@ -34,7 +34,41 @@
 
 #include "ui/components/bottom_bar.hpp"
 #include "ui/components/photo_grid.hpp"
+#include "ui/components/photo_item.hpp"
 #include "ui/components/placeholder.hpp"
+
+#include <atomic>
+#include <mutex>
+#include <queue>
+#include <thread>
+
+struct PendingTexture {
+  Image image;
+  std::filesystem::path path;
+  bool tiling = false;
+};
+
+struct AppState {
+  bool folder_opened = false;
+  std::string tally_label = "XX";
+  std::vector<Photo> photos;
+  std::queue<PendingTexture> upload_queue;
+  std::mutex upload_mutex;
+  std::atomic<bool> loading_done = false;
+  std::thread load_thread;
+};
+
+void load_images_worker(const std::vector<std::filesystem::path> &paths,
+                        AppState *app_state) {
+  for (const auto &path : paths) {
+    Image image = ImageLoader::load_with_turbojpeg(path);
+    {
+      std::lock_guard<std::mutex> lock(app_state->upload_mutex);
+      app_state->upload_queue.push({std::move(image), path, false});
+    }
+  }
+  app_state->loading_done = true;
+};
 
 void handle_clay_errors(Clay_ErrorData errorData) {
   // See the Clay_ErrorData struct for more information
@@ -70,12 +104,19 @@ void on_open_folder(Clay_ElementId elementId, Clay_PointerData pointerInfo,
       return;
     }
 
-    // folder_opened = true;
+    AppState *app_state = (AppState *)userData;
+    app_state->folder_opened = true;
 
     std::filesystem::path folder_path(lTheSelectFolderName);
 
-    // TODO: for a later date
-    // load_photos(folder_path);
+    std::vector<std::filesystem::path> paths_to_load;
+
+    for (const auto &entry : std::filesystem::directory_iterator(folder_path)) {
+      paths_to_load.push_back(entry);
+    }
+
+    app_state->load_thread =
+        std::thread(load_images_worker, std::move(paths_to_load), app_state);
   }
 }
 
@@ -101,8 +142,6 @@ void on_filter(Clay_ElementId elementId, Clay_PointerData pointerInfo,
     // seperate_photos(photos);
   }
 }
-
-// TODO: Change hover to full photo rect, current selection is too small
 
 static inline Clay_Dimensions MeasureText(Clay_StringSlice text,
                                           Clay_TextElementConfig *config,
@@ -149,10 +188,12 @@ Texture load_with_turbojpeg_and_upload_texture(Renderer &renderer,
 
 int main(int argc, char *argv[]) {
   // Photo sorter
-  std::string photos_root_path = "res/FUJI/";
-  std::vector<Photo> photos;
-  bool folder_opened = false;
-  std::string tally_label;
+  // std::string photos_root_path = "res/FUJI/";
+  // std::vector<Photo> photos;
+  // bool folder_opened = false;
+  // std::string tally_label = "XX";
+
+  AppState app_state;
 
   // ECS
   std::unordered_map<EntityID, SpriteComponent> sprite_components;
@@ -177,30 +218,7 @@ int main(int argc, char *argv[]) {
   Renderer renderer(WIDTH, HEIGHT);
 
   // Load sprite textures
-  std::vector<std::string> loaded_sprite_paths;
-  for (auto &[entity_id, sprite_component] : sprite_components) {
-    if (std::find(loaded_sprite_paths.begin(), loaded_sprite_paths.end(),
-                  sprite_component.path) != loaded_sprite_paths.end()) {
-      // Sprite already loaded
-      continue;
-    }
-
-    Image image = ImageLoader::load(sprite_component.path);
-    TextureID texture_id =
-        renderer.load_texture(image.pixels.data(), image.width, image.height);
-
-    Texture texture_data;
-    texture_data.path = sprite_component.path;
-    texture_data.tiling = false;
-    texture_data.id = texture_id;
-
-    SDL_Log("Loaded texture %s with id %zu", sprite_component.path.c_str(),
-            texture_id);
-
-    sprite_component.size = glm::ivec2(image.width, image.height);
-    sprite_component.texture_id = texture_id;
-    loaded_sprite_paths.push_back(sprite_component.path);
-  }
+  SpriteRenderer::upload_sprites(renderer, sprite_components);
 
   // Clay setup
   size_t total_memory_size = Clay_MinMemorySize();
@@ -226,24 +244,21 @@ int main(int argc, char *argv[]) {
       load_with_turbojpeg_and_upload_texture(renderer, "res/FUJI/RYHN0608.JPG");
 
   // Timing
-  float physics_tick_rate = 60;
+  const int physics_tick_rate = 60;
+  const float physics_delta_time = 1.0f / static_cast<float>(physics_tick_rate);
+
   uint32_t prev_frame_tick = SDL_GetTicks();
-  float physics_delta_time = 1.0f / physics_tick_rate;
   float process_delta_time = 0.0f;
   float accumulator = 0.0;
-
+  float time_scale = 1.0f;
   int physics_frame_count = 0;
   int process_frame_count = 0;
 
-  float time_scale = 1.0f;
-
   float scroll_speed = 6.0f;
   bool is_mouse_down = false;
-
-  bool running = true;
-
   Clay_Vector2 mouse_position = {0.0f, 0.0f};
 
+  bool running = true;
   while (running) {
     // Calculate delta time
     uint32_t frame_tick = SDL_GetTicks();
@@ -256,17 +271,38 @@ int main(int argc, char *argv[]) {
     if (accumulator >= (physics_delta_time / time_scale)) {
       accumulator -= (physics_delta_time / time_scale);
       ++physics_frame_count;
-      if (physics_frame_count >= static_cast<int>(physics_tick_rate)) {
-        SDL_Log("FPS: %d", static_cast<int>(process_frame_count));
-        physics_frame_count = 0;
-        process_frame_count = 0;
+    }
+    if (physics_frame_count >= physics_tick_rate) {
+      SDL_Log("FPS: %d", static_cast<int>(process_frame_count));
+      physics_frame_count = 0;
+      process_frame_count = 0;
+    }
+
+    {
+      std::lock_guard<std::mutex> lock(app_state.upload_mutex);
+      while (!app_state.upload_queue.empty()) {
+        PendingTexture &pending = app_state.upload_queue.front();
+        TextureID id =
+            renderer.load_texture(pending.image.pixels.data(),
+                                  pending.image.width, pending.image.height);
+        Texture tex;
+        tex.path = pending.path;
+        tex.tiling = false;
+        tex.id = id;
+
+        Photo photo;
+        photo.image_data = tex;
+        photo.selected = false;
+        photo.file_path = pending.path;
+
+        app_state.photos.push_back(photo);
+        app_state.upload_queue.pop();
       }
     }
 
     // Poll inputs
-    Clay_Vector2 mouse_scroll = {0.0f, 0.0f};
-
     // const bool *keystate = SDL_GetKeyboardState(NULL);
+    Clay_Vector2 mouse_scroll = {0.0f, 0.0f};
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
       switch (event.type) {
@@ -296,11 +332,6 @@ int main(int argc, char *argv[]) {
     TransformComponent &cursor_transform = transform_components[cursor];
     cursor_transform.position = glm::vec2(mouse_position.x, mouse_position.y);
 
-    // Get tally count
-    std::stringstream ss;
-    // ss << get_selected_photos_count();
-    tally_label = ss.str();
-
     // Query resolution so clay
     renderer.update_swapchain_texture();
 
@@ -329,7 +360,7 @@ int main(int argc, char *argv[]) {
                 .padding = CLAY_PADDING_ALL(0),
                 .layoutDirection = CLAY_TOP_TO_BOTTOM,
             },
-        .backgroundColor = COLOR::PURE_WHITE,
+        .backgroundColor = Color::PURE_WHITE,
         .image =
             {
                 .imageData = static_cast<void *>(&carbon_fiber_data),
@@ -346,16 +377,17 @@ int main(int argc, char *argv[]) {
                   .childGap = 0,
                   .layoutDirection = CLAY_TOP_TO_BOTTOM,
               },
-          .backgroundColor = COLOR::PURE_WHITE,
+          .backgroundColor = Color::PURE_WHITE,
           .image =
               {
                   .imageData = static_cast<void *>(&vignette_data),
               },
       }) {
         // Image Grid
-        if (folder_opened) {
-          PhotoGrid(edge_sheen_data, bg_sheen_data, check_data, photos,
-                    240 * renderer.viewport_scale);
+        if (app_state.folder_opened) {
+          PhotoGrid(edge_sheen_data, bg_sheen_data, check_data,
+                    app_state.photos,
+                    renderer.width / 240 * renderer.viewport_scale);
         } else {
           Placeholder(test_photo);
         }
@@ -372,20 +404,19 @@ int main(int argc, char *argv[]) {
         }) {}
       }
       // Bottom Bar
-      BottomBar(edge_sheen_data, bg_sheen_data, tally_label, on_open_folder,
-                on_finalize, on_sort, on_filter);
+      BottomBar(edge_sheen_data, bg_sheen_data, app_state.tally_label,
+                on_open_folder, on_finalize, on_sort, on_filter,
+                reinterpret_cast<intptr_t>(&app_state));
     }
-    // Get swapchain texture
-    // Get width and height
-    // Assemble CLAY ui
-    // Load textures
-    // Render pass
 
     Clay_RenderCommandArray render_commands = Clay_EndLayout();
     renderer.begin_frame(); // Start here to update window dimensions for clay
     ClayRenderer::render_commands(renderer, render_commands);
     SpriteRenderer::draw_all(renderer, sprite_components, transform_components);
     renderer.end_frame();
+  }
+  if (app_state.load_thread.joinable()) {
+    app_state.load_thread.join();
   }
   return 0;
 }

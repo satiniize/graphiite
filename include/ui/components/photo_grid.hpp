@@ -8,11 +8,11 @@
 
 static inline void PhotoGrid(Texture &edge_sheen_data, Texture &bg_sheen_data,
                              Texture &check_data, std::vector<Photo> &photos,
-                             int image_minimum_width) {
+                             int photo_columns) {
   // Photo grid calculation
   int image_counter = 0;
   // int photo_columns = renderer.width / image_minimum_width;
-  int photo_columns = 1080 / image_minimum_width;
+  // int photo_columns = 1080 / image_minimum_width;
 
   int num_images = std::size(photos);
   CLAY({

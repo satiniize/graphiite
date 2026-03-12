@@ -67,6 +67,7 @@ Image load_with_turbojpeg(const std::filesystem::path &path) {
       0) {
     SDL_Log("ERROR: reading JPEG header for %s: %s", path.c_str(),
             tj3GetErrorStr(turbojpeg_instance));
+    tj3Destroy(turbojpeg_instance);
     return {};
   }
 
@@ -79,25 +80,36 @@ Image load_with_turbojpeg(const std::filesystem::path &path) {
   int pixel_format = TJPF_RGBA;
   int output_channel = tjPixelSize[pixel_format];
 
+  int num_scaling_factors;
+  tjscalingfactor *factors = tj3GetScalingFactors(&num_scaling_factors);
+
+  tjscalingfactor scaling_factor = {1, 8};
+  tj3SetScalingFactor(turbojpeg_instance, scaling_factor);
+
+  int scaled_width = TJSCALED(width, scaling_factor);
+  int scaled_height = TJSCALED(height, scaling_factor);
+
   // 8 Bit
   if (precision > 8) {
     SDL_Log("ERROR: unsupported precision %d for JPEG image %s", precision,
             path.c_str());
+    tj3Destroy(turbojpeg_instance);
     return {};
   }
 
-  size_t output_size = width * height * output_channel;
+  size_t output_size = scaled_width * scaled_height * output_channel;
   std::vector<uint8_t> pixel_data(output_size);
   if (tj3Decompress8(turbojpeg_instance, jpeg_buffer.data(), jpeg_size,
                      pixel_data.data(), 0, pixel_format) < 0) {
     SDL_Log("ERROR: decompressing 8-bit JPEG image %s: %s", path.c_str(),
             tj3GetErrorStr(turbojpeg_instance));
+    tj3Destroy(turbojpeg_instance);
     return {};
   }
 
   Image image;
-  image.width = width;
-  image.height = height;
+  image.width = scaled_width;
+  image.height = scaled_height;
   image.pixels = pixel_data;
 
   // TODO: this is never called when returning early

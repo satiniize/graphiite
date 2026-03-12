@@ -19,7 +19,7 @@ static inline void Placeholder(Texture test_texture) {
                       .y = CLAY_ALIGN_Y_CENTER,
                   },
           },
-      .backgroundColor = COLOR::PURE_WHITE,
+      .backgroundColor = Color::PURE_WHITE,
       .image =
           {
               .imageData = static_cast<void *>(&test_texture),
@@ -37,8 +37,8 @@ static inline void Placeholder(Texture test_texture) {
     }) {
       CLAY_TEXT(CLAY_STRING("Looks like you haven't opened a folder yet."),
                 CLAY_TEXT_CONFIG({
-                    .textColor = COLOR::PURE_WHITE,
-                    .fontSize = 24,
+                    .textColor = Color::PURE_WHITE,
+                    .fontSize = FontSize::MEDIUM,
                     .wrapMode = CLAY_TEXT_WRAP_WORDS,
                     .textAlignment = CLAY_TEXT_ALIGN_CENTER,
                 }));

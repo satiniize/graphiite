@@ -4,11 +4,11 @@
 
 #include "../theme.hpp"
 
-static inline void Button(Texture &edge_sheen_data, Texture &bg_sheen_data,
-                          Clay_String label,
-                          void button_interaction(Clay_ElementId elementId,
-                                                  Clay_PointerData pointerInfo,
-                                                  intptr_t userData)) {
+static inline void
+Button(Texture &edge_sheen_data, Texture &bg_sheen_data, Clay_String label,
+       void button_interaction(Clay_ElementId elementId,
+                               Clay_PointerData pointerInfo, intptr_t userData),
+       intptr_t userData = NULL) {
   uint16_t button_height = 48;
   CLAY({
       .layout =
@@ -21,7 +21,7 @@ static inline void Button(Texture &edge_sheen_data, Texture &bg_sheen_data,
                   },
               .padding = CLAY_PADDING_ALL(3),
           },
-      .backgroundColor = COLOR::PURE_WHITE,
+      .backgroundColor = Color::PURE_WHITE,
       .cornerRadius = CLAY_CORNER_RADIUS(button_height / 2.0f),
       .image =
           {
@@ -29,7 +29,7 @@ static inline void Button(Texture &edge_sheen_data, Texture &bg_sheen_data,
           },
       .border =
           {
-              .color = COLOR::BLACK,
+              .color = Color::BLACK,
               .width =
                   {
                       .left = 2,
@@ -39,7 +39,7 @@ static inline void Button(Texture &edge_sheen_data, Texture &bg_sheen_data,
                   },
           },
   }) {
-    Clay_OnHover(button_interaction, NULL);
+    Clay_OnHover(button_interaction, userData);
     CLAY({
         .layout =
             {
@@ -62,7 +62,7 @@ static inline void Button(Texture &edge_sheen_data, Texture &bg_sheen_data,
                     },
             },
         .backgroundColor =
-            Clay_Hovered() ? COLOR::PURE_WHITE : COLOR::LIGHT_GREY,
+            Clay_Hovered() ? Color::PURE_WHITE : Color::LIGHT_GREY,
         .cornerRadius = CLAY_CORNER_RADIUS(button_height / 2.0f - 3.0f),
         .image =
             {
@@ -70,8 +70,8 @@ static inline void Button(Texture &edge_sheen_data, Texture &bg_sheen_data,
             },
     }) {
       CLAY_TEXT(label, CLAY_TEXT_CONFIG({
-                           .textColor = {255, 255, 255, 255},
-                           .fontSize = 24,
+                           .textColor = Color::PURE_WHITE,
+                           .fontSize = FontSize::MEDIUM,
                            .wrapMode = CLAY_TEXT_WRAP_NONE,
                            .textAlignment = CLAY_TEXT_ALIGN_CENTER,
                        }));

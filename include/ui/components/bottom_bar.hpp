@@ -17,7 +17,8 @@ BottomBar(Texture &edge_sheen_data, Texture &bg_sheen_data,
           void on_sort(Clay_ElementId elementId, Clay_PointerData pointerInfo,
                        intptr_t userData),
           void on_filter(Clay_ElementId elementId, Clay_PointerData pointerInfo,
-                         intptr_t userData)) {
+                         intptr_t userData),
+          intptr_t userData) {
   float bottom_bar_corner_radius = 38.0f;
   CLAY({
       .id = CLAY_ID("BottomBar"),
@@ -36,7 +37,7 @@ BottomBar(Texture &edge_sheen_data, Texture &bg_sheen_data,
                       .bottom = 0,
                   },
           },
-      .backgroundColor = COLOR::PURE_WHITE,
+      .backgroundColor = Color::PURE_WHITE,
       .cornerRadius =
           {
               .topLeft = bottom_bar_corner_radius,
@@ -59,7 +60,7 @@ BottomBar(Texture &edge_sheen_data, Texture &bg_sheen_data,
           },
       .border =
           {
-              .color = COLOR::BLACK,
+              .color = Color::BLACK,
               .width =
                   {
                       .left = 2,
@@ -85,7 +86,7 @@ BottomBar(Texture &edge_sheen_data, Texture &bg_sheen_data,
                         .bottom = 4,
                     },
             },
-        .backgroundColor = COLOR::GREY,
+        .backgroundColor = Color::GREY,
         .cornerRadius =
             {
                 .topLeft = bottom_bar_corner_radius - 3,
@@ -116,7 +117,7 @@ BottomBar(Texture &edge_sheen_data, Texture &bg_sheen_data,
               },
       }) {
         Button(edge_sheen_data, bg_sheen_data, CLAY_STRING("Open Folder"),
-               on_open_folder);
+               on_open_folder, userData);
         CLAY({
             .layout =
                 {

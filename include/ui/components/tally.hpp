@@ -17,7 +17,7 @@ static inline void Tally(Texture &edge_sheen_data, Texture &bg_sheen_data,
                   },
               .padding = CLAY_PADDING_ALL(3),
           },
-      .backgroundColor = COLOR::SELECTED_GREEN,
+      .backgroundColor = Color::SELECTED_GREEN,
       .cornerRadius = CLAY_CORNER_RADIUS(diameter / 2.0f),
       .image =
           {
@@ -25,7 +25,7 @@ static inline void Tally(Texture &edge_sheen_data, Texture &bg_sheen_data,
           },
       .border =
           {
-              .color = COLOR::BLACK,
+              .color = Color::BLACK,
               .width =
                   {
                       .left = 2,
@@ -57,7 +57,7 @@ static inline void Tally(Texture &edge_sheen_data, Texture &bg_sheen_data,
                     },
             },
         .backgroundColor =
-            Clay_Hovered() ? COLOR::PURE_WHITE : COLOR::LIGHT_GREY,
+            Clay_Hovered() ? Color::PURE_WHITE : Color::LIGHT_GREY,
         .cornerRadius = CLAY_CORNER_RADIUS(diameter / 2.0f - 3.0f),
         .image =
             {
@@ -65,8 +65,8 @@ static inline void Tally(Texture &edge_sheen_data, Texture &bg_sheen_data,
             },
     }) {
       CLAY_TEXT(label, CLAY_TEXT_CONFIG({
-                           .textColor = COLOR::SELECTED_GREEN,
-                           .fontSize = 20,
+                           .textColor = Color::SELECTED_GREEN,
+                           .fontSize = FontSize::MEDIUM,
                            .wrapMode = CLAY_TEXT_WRAP_NONE,
                            .textAlignment = CLAY_TEXT_ALIGN_CENTER,
                        }));

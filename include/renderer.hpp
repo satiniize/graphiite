@@ -90,7 +90,9 @@ public:
   Renderer(uint32_t width, uint32_t height);
   ~Renderer();
   // Ladoing functions
+  // TODO: Change to upload texture
   TextureID load_texture(unsigned char *pixels, int w, int h);
+  void delete_texture(TextureID texture_id);
   bool load_geometry(std::string path, const Vertex *vertices,
                      size_t vertex_size, const Uint16 *indices,
                      size_t index_size);
@@ -143,5 +145,7 @@ private:
   TextureID next_texture_id = 0;
   TextureID font_texture_id = -1;
 
-  const std::string default_font_path = "res/fonts/SourceCodePro-Regular.ttf";
+  // const std::string default_font_path =
+  // "res/fonts/SourceCodePro-Regular.ttf";
+  const std::string default_font_path = "res/fonts/XanhMono-Regular.ttf";
 };
