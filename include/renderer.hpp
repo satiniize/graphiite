@@ -7,6 +7,7 @@
 #include <SDL3/SDL_video.h>
 #include <glm/mat4x4.hpp>
 
+#include "draw_call.hpp"
 #include "texture.hpp"
 
 struct Context {
@@ -78,8 +79,9 @@ static TextureRectFragmentUniformBuffer texture_rect_fragment_uniform_buffer{};
 static TextFragmentUniformBuffer text_fragment_uniform_buffer{};
 static ArcFragmentUniformBuffer arc_fragment_uniform_buffer{};
 
-using IndexBufferID = std::size_t;
-using VertexBufferID = std::size_t;
+// using IndexBufferID = std::size_t;
+// using VertexBufferID = std::size_t;
+using GeometryID = std::size_t;
 using GraphicsPipelineID = std::size_t;
 
 class Renderer {
@@ -92,18 +94,17 @@ public:
   // Ladoing functions
   // TODO: Change to upload texture
   TextureID load_texture(unsigned char *pixels, int w, int h);
-  void delete_texture(TextureID texture_id);
-  bool load_geometry(std::string path, const Vertex *vertices,
-                     size_t vertex_size, const Uint16 *indices,
-                     size_t index_size);
-  bool load_ascii_font(std::string path);
-  bool create_graphics_pipeline(std::string path, SDL_GPUShader *vertex_shader,
-                                SDL_GPUShader *fragment_shader);
-  // bool init();
+  void load_ascii_font_atlas();
+  void create_render_targets();
+  GeometryID load_geometry(const Vertex *vertices, size_t vertex_size,
+                           const Uint16 *indices, size_t index_size);
+  GraphicsPipelineID create_graphics_pipeline(SDL_GPUShader *vertex_shader,
+                                              SDL_GPUShader *fragment_shader);
   bool update_swapchain_texture();
   bool begin_frame();
   bool end_frame();
   // Drawing functions
+  bool draw(DrawCall &draw_call);
   bool draw_sprite(TextureID texture_id, glm::vec2 translation, float rotation,
                    glm::vec2 scale, glm::vec4 color);
   bool draw_color_rect(glm::vec2 position, glm::vec2 size, glm::vec4 color,
@@ -126,10 +127,12 @@ public:
 private:
   Context context;
 
-  std::unordered_map<std::string, SDL_GPUGraphicsPipeline *> graphics_pipelines;
-  std::unordered_map<std::string, SDL_GPUBuffer *> vertex_buffers;
-  std::unordered_map<std::string, SDL_GPUBuffer *> index_buffers;
+  std::unordered_map<GraphicsPipelineID, SDL_GPUGraphicsPipeline *>
+      graphics_pipelines;
   std::unordered_map<TextureID, SDL_GPUTexture *> gpu_textures;
+
+  std::unordered_map<GeometryID, SDL_GPUBuffer *> vertex_buffers;
+  std::unordered_map<GeometryID, SDL_GPUBuffer *> index_buffers;
 
   // TODO: Have support for multiple samplers
   SDL_GPUSampler *clamp_sampler;
@@ -138,13 +141,25 @@ private:
   SDL_GPURenderPass *_render_pass;
   SDL_GPUCommandBuffer *_command_buffer;
 
+  SDL_GPUTexture *color_render_target;
+  SDL_GPUTexture *resolve_target;
   SDL_GPUTexture *swapchain_texture;
 
   glm::mat4 projection_matrix;
 
   TextureID next_texture_id = 0;
-  TextureID font_texture_id = -1;
+  GeometryID next_geometry_id = 0;
+  GraphicsPipelineID next_pipeline_id = 0;
 
+  TextureID font_texture_id = -1;
+  GeometryID quad_geometry_id;
+  GraphicsPipelineID sprite_pipeline_id;
+  GraphicsPipelineID color_rect_pipeline_id;
+  GraphicsPipelineID texture_rect_pipeline_id;
+  GraphicsPipelineID text_pipeline_id;
+  GraphicsPipelineID arc_pipeline_id;
+
+  SDL_GPUSampleCount sample_count = SDL_GPU_SAMPLECOUNT_4;
   // const std::string default_font_path =
   // "res/fonts/SourceCodePro-Regular.ttf";
   const std::string default_font_path = "res/fonts/XanhMono-Regular.ttf";

@@ -1,46 +1,41 @@
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
+#include <mutex>
+#include <queue>
 #include <string>
+#include <thread>
 #include <vector>
 
 // Libraries
 #include <SDL3/SDL.h>
-
 #define CLAY_IMPLEMENTATION
 #include "clay.h"
-
 #include "tinyfiledialogs.h"
 
+// Resources
+#include "image.hpp"
+#include "texture.hpp"
+
+// Helpers
 #include "clay_renderer.hpp"
+#include "image_loader.hpp"
 #include "renderer.hpp"
+#include "sprite_renderer.hpp"
 
 // ECS
 #include "entity_manager.hpp"
 // Components
 #include "sprite_component.hpp"
 #include "transform_component.hpp"
-// Systems
-#include "image_loader.hpp"
-#include "sprite_renderer.hpp"
 
-// Resources
-#include "image.hpp"
-#include "texture.hpp"
-
-// UI theming
-#include "ui/theme.hpp"
-
+// UI
 #include "ui/components/bottom_bar.hpp"
 #include "ui/components/photo_grid.hpp"
 #include "ui/components/placeholder.hpp"
-
+#include "ui/theme.hpp"
 #include "ui/types/photo.hpp"
-
-#include <atomic>
-#include <mutex>
-#include <queue>
-#include <thread>
 
 struct PendingTexture {
   Image image;
@@ -55,8 +50,8 @@ struct AppState {
 
   std::queue<PendingTexture> upload_queue;
   std::mutex upload_mutex;
-  std::atomic<bool> loading_done = false;
   std::thread load_thread;
+  std::atomic<bool> loading_done = false;
 };
 
 void load_images_worker(const std::vector<std::filesystem::path> &paths,
@@ -94,6 +89,7 @@ void handle_clay_errors(Clay_ErrorData errorData) {
   }
 }
 
+// TODO: Figure out how to make tinyfd threaded
 void on_open_folder(Clay_ElementId elementId, Clay_PointerData pointerInfo,
                     intptr_t userData) {
   if (pointerInfo.state == CLAY_POINTER_DATA_PRESSED_THIS_FRAME) {

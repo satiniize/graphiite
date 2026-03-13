@@ -1,4 +1,5 @@
 #include "renderer.hpp"
+#include "SDL3/SDL_log.h"
 
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_gpu.h>
@@ -54,6 +55,109 @@ SDL_GPUShader *load_shader(SDL_GPUDevice *device, std::string path,
   return shader;
 }
 
+void Renderer::load_ascii_font_atlas() {
+  std::ifstream fontFile(default_font_path, std::ios::binary | std::ios::ate);
+  std::streampos size = fontFile.tellg();
+  fontFile.seekg(0, std::ios::beg);
+
+  std::vector<uint8_t> font_buffer(static_cast<size_t>(size));
+  fontFile.read(reinterpret_cast<char *>(font_buffer.data()), size);
+
+  stbtt_fontinfo font_info;
+  stbtt_InitFont(&font_info, font_buffer.data(), 0);
+
+  float scale = stbtt_ScaleForPixelHeight(&font_info, font_sample_point_size);
+
+  int ascent, descent, line_gap;
+  stbtt_GetFontVMetrics(&font_info, &ascent, &descent, &line_gap);
+  int ascent_px = (int)roundf(ascent * scale);
+  int descent_px = (int)roundf(descent * scale); // negative value
+  int glyph_height = ascent_px - descent_px;
+
+  // Use 'W' (same as your original) as the reference advance
+  int adv_raw, lsb;
+  stbtt_GetCodepointHMetrics(&font_info, 'W', &adv_raw, &lsb);
+  int advance = (int)roundf(adv_raw * scale);
+
+  this->glyph_size = glm::vec2(advance, glyph_height);
+
+  int atlas_w = advance * 10;
+  int atlas_h = glyph_height * 10;
+  // RGBA atlas, zeroed (transparent black)
+  std::vector<uint8_t> atlas(atlas_w * atlas_h * 4, 0);
+
+  // Printable ascii characters (33 - 126)
+  for (int cp = 32; cp <= 126; cp++) {
+    int col = (cp - 32) % 10;
+    int row = (cp - 32) / 10;
+
+    int gw, gh, xoff, yoff;
+    uint8_t *bitmap = stbtt_GetCodepointBitmap(&font_info, 0, scale, cp, &gw,
+                                               &gh, &xoff, &yoff);
+    // yoff is offset from baseline (typically negative = above baseline)
+
+    int base_x = col * advance + xoff;
+    int base_y = row * glyph_height + ascent_px + yoff;
+
+    for (int gy = 0; gy < gh; gy++) {
+      for (int gx = 0; gx < gw; gx++) {
+        int ax = base_x + gx;
+        int ay = base_y + gy;
+        if (ax < 0 || ax >= atlas_w || ay < 0 || ay >= atlas_h)
+          continue;
+
+        int idx = (ay * atlas_w + ax) * 4;
+        atlas[idx + 0] = 255;                  // R
+        atlas[idx + 1] = 255;                  // G
+        atlas[idx + 2] = 255;                  // B
+        atlas[idx + 3] = bitmap[gy * gw + gx]; // A
+      }
+    }
+
+    stbtt_FreeBitmap(bitmap, nullptr);
+  }
+
+  font_texture_id = this->load_texture(atlas.data(), atlas_w, atlas_h);
+}
+
+void Renderer::create_render_targets() {
+  SDL_GPUTextureFormat swapchain_format =
+      SDL_GetGPUSwapchainTextureFormat(context.device, context.window);
+  SDL_GPUTextureCreateInfo msaa_render_target_info = {
+      .type = SDL_GPU_TEXTURETYPE_2D,
+      .format = swapchain_format,
+      .usage = SDL_GPU_TEXTUREUSAGE_COLOR_TARGET,
+      .width = this->width,
+      .height = this->height,
+      .layer_count_or_depth = 1,
+      .num_levels = 1,
+      .sample_count = sample_count};
+
+  if (sample_count == SDL_GPU_SAMPLECOUNT_1) {
+    msaa_render_target_info.usage |= SDL_GPU_TEXTUREUSAGE_SAMPLER;
+  }
+
+  color_render_target =
+      SDL_CreateGPUTexture(context.device, &msaa_render_target_info);
+
+  if (sample_count == SDL_GPU_SAMPLECOUNT_1) {
+    resolve_target = nullptr;
+    return;
+  }
+
+  SDL_GPUTextureCreateInfo resolve_target_info = {
+      .type = SDL_GPU_TEXTURETYPE_2D,
+      .format = swapchain_format,
+      .usage = SDL_GPU_TEXTUREUSAGE_COLOR_TARGET | SDL_GPU_TEXTUREUSAGE_SAMPLER,
+      .width = this->width,
+      .height = this->height,
+      .layer_count_or_depth = 1,
+      .num_levels = 1,
+      .sample_count = SDL_GPU_SAMPLECOUNT_1};
+
+  resolve_target = SDL_CreateGPUTexture(context.device, &resolve_target_info);
+}
+
 Renderer::Renderer(uint32_t width, uint32_t height) {
   this->width = width;
   this->height = height;
@@ -93,6 +197,15 @@ Renderer::Renderer(uint32_t width, uint32_t height) {
     return;
   }
 
+  SDL_GPUTextureFormat format =
+      SDL_GetGPUSwapchainTextureFormat(context.device, context.window);
+
+  if (!SDL_GPUTextureSupportsSampleCount(context.device, format,
+                                         this->sample_count)) {
+    SDL_Log("MSAA not supported");
+    this->sample_count = SDL_GPU_SAMPLECOUNT_1;
+  }
+
   // Disable V Sync for FPS testing
   // Doesn't seem to work in wayland
   // SDL_SetGPUSwapchainParameters(this->context.device, this->context.window,
@@ -129,14 +242,16 @@ Renderer::Renderer(uint32_t width, uint32_t height) {
   SDL_GPUShader *arc_fragment_shader =
       load_shader(this->context.device, "src/shaders/arc.frag.spv", 0, 0, 0, 1);
 
-  create_graphics_pipeline("SPRITE", basic_vertex_shader,
-                           sprite_fragment_shader);
-  create_graphics_pipeline("COLOR_RECT", basic_vertex_shader,
-                           color_rect_fragment_shader);
-  create_graphics_pipeline("TEXTURE_RECT", basic_vertex_shader,
-                           texture_rect_fragment_shader);
-  create_graphics_pipeline("TEXT", text_vertex_shader, text_fragment_shader);
-  create_graphics_pipeline("ARC", basic_vertex_shader, arc_fragment_shader);
+  sprite_pipeline_id =
+      create_graphics_pipeline(basic_vertex_shader, sprite_fragment_shader);
+  color_rect_pipeline_id =
+      create_graphics_pipeline(basic_vertex_shader, color_rect_fragment_shader);
+  texture_rect_pipeline_id = create_graphics_pipeline(
+      basic_vertex_shader, texture_rect_fragment_shader);
+  text_pipeline_id =
+      create_graphics_pipeline(text_vertex_shader, text_fragment_shader);
+  arc_pipeline_id =
+      create_graphics_pipeline(basic_vertex_shader, arc_fragment_shader);
 
   // We don't need to store the shaders after creating the pipeline
   SDL_ReleaseGPUShader(context.device, basic_vertex_shader);
@@ -185,72 +300,13 @@ Renderer::Renderer(uint32_t width, uint32_t height) {
 
   static Uint16 quad_indices[]{0, 1, 2, 2, 1, 3};
 
-  load_geometry("QUAD", quad_vertices,
-                std::size(quad_vertices) * sizeof(Vertex), quad_indices,
-                std::size(quad_indices) * sizeof(Uint16));
+  quad_geometry_id =
+      load_geometry(quad_vertices, std::size(quad_vertices) * sizeof(Vertex),
+                    quad_indices, std::size(quad_indices) * sizeof(Uint16));
 
-  std::ifstream fontFile(default_font_path, std::ios::binary | std::ios::ate);
-  std::streampos size = fontFile.tellg();
-  fontFile.seekg(0, std::ios::beg);
+  load_ascii_font_atlas();
 
-  std::vector<uint8_t> font_buffer(static_cast<size_t>(size));
-  fontFile.read(reinterpret_cast<char *>(font_buffer.data()), size);
-
-  stbtt_fontinfo font_info;
-  stbtt_InitFont(&font_info, font_buffer.data(), 0);
-
-  float scale = stbtt_ScaleForPixelHeight(&font_info, font_sample_point_size);
-
-  int ascent, descent, line_gap;
-  stbtt_GetFontVMetrics(&font_info, &ascent, &descent, &line_gap);
-  int ascent_px = (int)roundf(ascent * scale);
-  int descent_px = (int)roundf(descent * scale); // negative value
-  int glyph_height = ascent_px - descent_px;
-
-  // Use 'W' (same as your original) as the reference advance
-  int adv_raw, lsb;
-  stbtt_GetCodepointHMetrics(&font_info, 'W', &adv_raw, &lsb);
-  int advance = (int)roundf(adv_raw * scale);
-
-  this->glyph_size = glm::vec2(advance, glyph_height);
-
-  int atlas_w = advance * 10;
-  int atlas_h = glyph_height * 10;
-  // RGBA atlas, zeroed (transparent black)
-  std::vector<uint8_t> atlas(atlas_w * atlas_h * 4, 0);
-
-  // Printable ascii characters (33 - 126)
-  for (int cp = 33; cp <= 126; cp++) {
-    int col = (cp - 33) % 10;
-    int row = (cp - 33) / 10;
-
-    int gw, gh, xoff, yoff;
-    uint8_t *bitmap = stbtt_GetCodepointBitmap(&font_info, 0, scale, cp, &gw,
-                                               &gh, &xoff, &yoff);
-    // yoff is offset from baseline (typically negative = above baseline)
-
-    int base_x = col * advance + xoff;
-    int base_y = row * glyph_height + ascent_px + yoff;
-
-    for (int gy = 0; gy < gh; gy++) {
-      for (int gx = 0; gx < gw; gx++) {
-        int ax = base_x + gx;
-        int ay = base_y + gy;
-        if (ax < 0 || ax >= atlas_w || ay < 0 || ay >= atlas_h)
-          continue;
-
-        int idx = (ay * atlas_w + ax) * 4;
-        atlas[idx + 0] = 255;                  // R
-        atlas[idx + 1] = 255;                  // G
-        atlas[idx + 2] = 255;                  // B
-        atlas[idx + 3] = bitmap[gy * gw + gx]; // A
-      }
-    }
-
-    stbtt_FreeBitmap(bitmap, nullptr);
-  }
-
-  font_texture_id = this->load_texture(atlas.data(), atlas_w, atlas_h);
+  create_render_targets();
 
   return;
 }
@@ -263,6 +319,11 @@ Renderer::~Renderer() {
   for (auto &[path, texture] : gpu_textures) {
     SDL_ReleaseGPUTexture(context.device, texture);
   }
+
+  if (color_render_target)
+    SDL_ReleaseGPUTexture(context.device, color_render_target);
+  if (resolve_target)
+    SDL_ReleaseGPUTexture(context.device, resolve_target);
 
   for (auto &[name, buffer] : vertex_buffers) {
     SDL_ReleaseGPUBuffer(context.device, buffer);
@@ -296,7 +357,6 @@ TextureID Renderer::load_texture(unsigned char *pixels, int w, int h) {
   // TODO: GPUTexture should be able to be used as a render target
   // Make use for pixel perfect scaling and post processing
 
-  // TODO: Valgrind error unitialised value create by heap allocation
   SDL_GPUTexture *texture =
       SDL_CreateGPUTexture(this->context.device, &texture_info);
   if (!texture) {
@@ -350,9 +410,8 @@ TextureID Renderer::load_texture(unsigned char *pixels, int w, int h) {
   return next_texture_id++;
 }
 
-bool Renderer::load_geometry(std::string path, const Vertex *vertices,
-                             size_t vertex_size, const Uint16 *indices,
-                             size_t index_size) {
+GeometryID Renderer::load_geometry(const Vertex *vertices, size_t vertex_size,
+                                   const Uint16 *indices, size_t index_size) {
 
   // Create the vertex buffer
   SDL_GPUBufferCreateInfo vertex_buffer_info{};
@@ -436,15 +495,32 @@ bool Renderer::load_geometry(std::string path, const Vertex *vertices,
   SDL_SubmitGPUCommandBuffer(_command_buffer);
   SDL_ReleaseGPUTransferBuffer(context.device, transfer_buffer);
 
-  vertex_buffers[path] = vertex_buffer;
-  index_buffers[path] = index_buffer;
+  vertex_buffers[next_geometry_id] = vertex_buffer;
+  index_buffers[next_geometry_id] = index_buffer;
 
-  return true;
+  return next_geometry_id++;
 };
 
-bool Renderer::create_graphics_pipeline(std::string path,
-                                        SDL_GPUShader *vertex_shader,
-                                        SDL_GPUShader *fragment_shader) {
+GraphicsPipelineID
+Renderer::create_graphics_pipeline(SDL_GPUShader *vertex_shader,
+                                   SDL_GPUShader *fragment_shader) {
+  // SDL_GPUGraphicsPipelineCreateInfo pipeline_info = {
+  //     .vertex_shader = vertex_shader,
+  //     .fragment_shader = fragment_shader,
+  //     .vertex_input_state =
+  //         (SDL_GPUVertexInputState){
+  //             .vertex_buffer_descriptions = nullptr,
+  //             .num_vertex_buffers = 0,
+  //             .vertex_attributes = nullptr,
+  //             .num_vertex_attributes = 0,
+  //         },
+  //     .primitive_type = {},
+  //     .rasterizer_state = {},
+  //     .multisample_state = {},
+  //     .depth_stencil_state = {},
+  //     .target_info = {},
+  //     .props = 0,
+  // };
   // Create the graphics pipeline
   SDL_GPUGraphicsPipelineCreateInfo pipeline_info{};
   pipeline_info.vertex_shader = vertex_shader;
@@ -492,22 +568,32 @@ bool Renderer::create_graphics_pipeline(std::string path,
   pipeline_info.vertex_input_state.vertex_attributes = vertex_attributes;
 
   pipeline_info.primitive_type = SDL_GPU_PRIMITIVETYPE_TRIANGLELIST;
+
   // Rasterizer state (Unimplemented)
   // Multisample state (Unimplemented)
-  // SDL_GPUMultisampleState multisample_state = {};
-  // multisample_state.sample_count = SDL_GPU_SAMPLECOUNT_4;
+
+  SDL_GPUTextureFormat format =
+      SDL_GetGPUSwapchainTextureFormat(context.device, context.window);
+
+  // if (!SDL_GPUTextureSupportsSampleCount(context.device, format,
+  //                                        this->sample_count)) {
+  //   SDL_Log("MSAA not supported");
+  //   this->sample_count = SDL_GPU_SAMPLECOUNT_1;
+  // }
+
+  SDL_GPUMultisampleState multisample_state = {};
+  multisample_state.sample_count = this->sample_count;
   // multisample_state.sample_mask = 0;
   // multisample_state.enable_mask = false;
   // multisample_state.enable_alpha_to_coverage = false;
 
-  // pipeline_info.multisample_state = multisample_state;
+  pipeline_info.multisample_state = multisample_state;
 
   static const uint32_t num_color_targets = 1;
 
   SDL_GPUColorTargetDescription color_target_descriptions[num_color_targets];
   color_target_descriptions[0] = {};
-  color_target_descriptions[0].format =
-      SDL_GetGPUSwapchainTextureFormat(context.device, context.window);
+  color_target_descriptions[0].format = format;
   color_target_descriptions[0].blend_state.src_color_blendfactor =
       SDL_GPU_BLENDFACTOR_SRC_ALPHA;
   color_target_descriptions[0].blend_state.dst_color_blendfactor =
@@ -532,9 +618,9 @@ bool Renderer::create_graphics_pipeline(std::string path,
     return false;
   }
 
-  graphics_pipelines[path] = graphics_pipeline;
+  graphics_pipelines[next_pipeline_id] = graphics_pipeline;
 
-  return true;
+  return next_pipeline_id++;
 }
 
 bool Renderer::update_swapchain_texture() {
@@ -545,32 +631,51 @@ bool Renderer::update_swapchain_texture() {
     return false;
   }
 
+  uint32_t new_width, new_height;
   SDL_WaitAndAcquireGPUSwapchainTexture(_command_buffer, context.window,
-                                        &this->swapchain_texture, &this->width,
-                                        &this->height);
+                                        &this->swapchain_texture, &new_width,
+                                        &new_height);
+
+  if (new_width == 0 || new_height == 0) {
+    SDL_CancelGPUCommandBuffer(_command_buffer);
+    return false;
+  }
+
+  if (!this->swapchain_texture) {
+    SDL_CancelGPUCommandBuffer(_command_buffer);
+    return false;
+  }
+
+  if (new_width != this->width || new_height != this->height) {
+    if (color_render_target)
+      SDL_ReleaseGPUTexture(context.device, color_render_target);
+    if (resolve_target)
+      SDL_ReleaseGPUTexture(context.device, resolve_target);
+    this->width = new_width;
+    this->height = new_height;
+    create_render_targets();
+  } else {
+    this->width = new_width;
+    this->height = new_height;
+  }
 
   return true;
 }
 
 bool Renderer::begin_frame() {
-  // TODO: Value create by heap allocation valgrind error
-  // _command_buffer = SDL_AcquireGPUCommandBuffer(context.device);
-
-  // if (!_command_buffer) {
-  //   SDL_Log("Failed to acquire GPU command buffer");
-  //   return false;
-  // }
-
-  // SDL_GPUTexture *swapchain_texture;
-  // SDL_WaitAndAcquireGPUSwapchainTexture(_command_buffer, context.window,
-  //                                       &swapchain_texture, &this->width,
-  //                                       &this->height);
-
   SDL_GPUColorTargetInfo color_target_info{};
-  color_target_info.texture = this->swapchain_texture;
+  // color_target_info.texture = this->swapchain_texture;
+  color_target_info.texture = this->color_render_target;
   color_target_info.clear_color = SDL_FColor{1.0f, 0.0f, 1.0f, 1.0f};
   color_target_info.load_op = SDL_GPU_LOADOP_CLEAR;
-  color_target_info.store_op = SDL_GPU_STOREOP_STORE;
+  // color_target_info.store_op = SDL_GPU_STOREOP_STORE;
+  if (this->sample_count == SDL_GPU_SAMPLECOUNT_1) {
+    color_target_info.store_op = SDL_GPU_STOREOP_STORE;
+    color_target_info.resolve_texture = NULL;
+  } else {
+    color_target_info.store_op = SDL_GPU_STOREOP_RESOLVE;
+    color_target_info.resolve_texture = this->resolve_target;
+  }
 
   _render_pass =
       SDL_BeginGPURenderPass(_command_buffer, &color_target_info, 1, NULL);
@@ -590,6 +695,20 @@ bool Renderer::begin_frame() {
 bool Renderer::end_frame() {
   SDL_EndGPURenderPass(_render_pass);
 
+  SDL_GPUTexture *blitSourceTexture =
+      (this->sample_count == SDL_GPU_SAMPLECOUNT_1) ? this->color_render_target
+                                                    : this->resolve_target;
+
+  SDL_GPUBlitInfo blit_info = {
+      .source = {.texture = blitSourceTexture,
+                 .w = this->width,
+                 .h = this->height},
+      .destination = {.texture = swapchain_texture, .w = width, .h = height},
+      .load_op = SDL_GPU_LOADOP_DONT_CARE,
+      .filter = SDL_GPU_FILTER_LINEAR};
+
+  SDL_BlitGPUTexture(_command_buffer, &blit_info);
+
   SDL_SubmitGPUCommandBuffer(_command_buffer);
 
   this->viewport_scale = SDL_GetWindowPixelDensity(this->context.window);
@@ -597,28 +716,33 @@ bool Renderer::end_frame() {
   return true;
 }
 
-// TODO: Add a queue_sprite_load() function to load in unavailable sprites
+bool Renderer::draw(DrawCall &draw_call) {
+  SDL_BindGPUGraphicsPipeline(_render_pass,
+                              graphics_pipelines[sprite_pipeline_id]);
+  return true;
+}
+
 // TODO: Add a destroy_XX() function to free unused resources
 bool Renderer::draw_sprite(TextureID texture_id, glm::vec2 translation,
                            float rotation, glm::vec2 scale, glm::vec4 color) {
   // Bind graphics pipeline
-  SDL_BindGPUGraphicsPipeline(_render_pass, graphics_pipelines["SPRITE"]);
+  SDL_BindGPUGraphicsPipeline(_render_pass,
+                              graphics_pipelines[sprite_pipeline_id]);
 
   // Bind vertex buffer
   SDL_GPUBufferBinding vertex_buffer_bindings[1];
-  vertex_buffer_bindings[0].buffer = vertex_buffers["QUAD"];
+  vertex_buffer_bindings[0].buffer = vertex_buffers[quad_geometry_id];
   vertex_buffer_bindings[0].offset = 0;
   SDL_BindGPUVertexBuffers(_render_pass, 0, vertex_buffer_bindings, 1);
 
   // Bind index buffer
   SDL_GPUBufferBinding index_buffer_bindings[1];
-  index_buffer_bindings[0].buffer = index_buffers["QUAD"];
+  index_buffer_bindings[0].buffer = index_buffers[quad_geometry_id];
   index_buffer_bindings[0].offset = 0;
   SDL_BindGPUIndexBuffer(_render_pass, index_buffer_bindings,
                          SDL_GPU_INDEXELEMENTSIZE_16BIT);
 
   // Uniforms and samplers
-  // TODO: conditional jump valgrind error?
   if (gpu_textures.find(texture_id) == gpu_textures.end()) {
     SDL_Log("Sprite not loaded");
     return false;
@@ -661,18 +785,19 @@ bool Renderer::draw_sprite(TextureID texture_id, glm::vec2 translation,
 bool Renderer::draw_color_rect(glm::vec2 position, glm::vec2 size,
                                glm::vec4 color, glm::vec4 corner_radius) {
   // Bind graphics pipeline
-  SDL_BindGPUGraphicsPipeline(_render_pass, graphics_pipelines["COLOR_RECT"]);
+  SDL_BindGPUGraphicsPipeline(_render_pass,
+                              graphics_pipelines[color_rect_pipeline_id]);
 
   // Bind vertex buffer
   SDL_GPUBufferBinding vertex_buffer_bindings[1];
-  vertex_buffer_bindings[0].buffer = vertex_buffers["QUAD"];
+  vertex_buffer_bindings[0].buffer = vertex_buffers[quad_geometry_id];
   vertex_buffer_bindings[0].offset = 0;
 
   SDL_BindGPUVertexBuffers(_render_pass, 0, vertex_buffer_bindings, 1);
 
   // Bind index buffer
   SDL_GPUBufferBinding index_buffer_bindings[1];
-  index_buffer_bindings[0].buffer = index_buffers["QUAD"];
+  index_buffer_bindings[0].buffer = index_buffers[quad_geometry_id];
   index_buffer_bindings[0].offset = 0;
 
   SDL_BindGPUIndexBuffer(_render_pass, index_buffer_bindings,
@@ -711,18 +836,19 @@ bool Renderer::draw_texture_rect(TextureID texture_id, glm::vec2 position,
                                  glm::vec2 size, glm::vec4 color,
                                  glm::vec4 corner_radius, bool tiling) {
   // Bind graphics pipeline
-  SDL_BindGPUGraphicsPipeline(_render_pass, graphics_pipelines["TEXTURE_RECT"]);
+  SDL_BindGPUGraphicsPipeline(_render_pass,
+                              graphics_pipelines[texture_rect_pipeline_id]);
 
   // Bind vertex buffer
   SDL_GPUBufferBinding vertex_buffer_bindings[1];
-  vertex_buffer_bindings[0].buffer = vertex_buffers["QUAD"];
+  vertex_buffer_bindings[0].buffer = vertex_buffers[quad_geometry_id];
   vertex_buffer_bindings[0].offset = 0;
 
   SDL_BindGPUVertexBuffers(_render_pass, 0, vertex_buffer_bindings, 1);
 
   // Bind index buffer
   SDL_GPUBufferBinding index_buffer_bindings[1];
-  index_buffer_bindings[0].buffer = index_buffers["QUAD"];
+  index_buffer_bindings[0].buffer = index_buffers[quad_geometry_id];
   index_buffer_bindings[0].offset = 0;
 
   SDL_BindGPUIndexBuffer(_render_pass, index_buffer_bindings,
@@ -777,18 +903,19 @@ bool Renderer::draw_texture_rect(TextureID texture_id, glm::vec2 position,
 bool Renderer::draw_text(const char *text, int length, float point_size,
                          glm::vec2 position, glm::vec4 color) {
   // Bind graphics pipeline
-  SDL_BindGPUGraphicsPipeline(_render_pass, graphics_pipelines["TEXT"]);
+  SDL_BindGPUGraphicsPipeline(_render_pass,
+                              graphics_pipelines[text_pipeline_id]);
 
   // Bind vertex buffer
   SDL_GPUBufferBinding vertex_buffer_bindings[1];
-  vertex_buffer_bindings[0].buffer = vertex_buffers["QUAD"];
+  vertex_buffer_bindings[0].buffer = vertex_buffers[quad_geometry_id];
   vertex_buffer_bindings[0].offset = 0;
 
   SDL_BindGPUVertexBuffers(_render_pass, 0, vertex_buffer_bindings, 1);
 
   // Bind index buffer
   SDL_GPUBufferBinding index_buffer_bindings[1];
-  index_buffer_bindings[0].buffer = index_buffers["QUAD"];
+  index_buffer_bindings[0].buffer = index_buffers[quad_geometry_id];
   index_buffer_bindings[0].offset = 0;
 
   SDL_BindGPUIndexBuffer(_render_pass, index_buffer_bindings,
@@ -813,14 +940,10 @@ bool Renderer::draw_text(const char *text, int length, float point_size,
   float scalar = point_size / font_sample_point_size;
 
   for (size_t i = 0; i < length; i++) {
-    if ((text[i] - 33) == -1) {
-      // Character is a space
-      continue;
-    }
     // Calculate uniform values
     text_fragment_uniform_buffer.modulate = color;
-    float x = static_cast<float>((text[i] - 33) % 10) / 10.0f;
-    float y = static_cast<float>(static_cast<int>((text[i] - 33) / 10)) / 10.0f;
+    float x = static_cast<float>((text[i] - 32) % 10) / 10.0f;
+    float y = static_cast<float>(static_cast<int>((text[i] - 32) / 10)) / 10.0f;
     text_fragment_uniform_buffer.uv_rect = glm::vec4(x, y, x + 0.1f, y + 0.1f);
     SDL_PushGPUFragmentUniformData(_command_buffer, 0,
                                    &text_fragment_uniform_buffer,
@@ -855,18 +978,19 @@ bool Renderer::draw_text(const char *text, int length, float point_size,
 bool Renderer::draw_arc(glm::vec2 position, float radius, float thickness,
                         float rotation, glm::vec4 color) {
   // Bind graphics pipeline
-  SDL_BindGPUGraphicsPipeline(_render_pass, graphics_pipelines["ARC"]);
+  SDL_BindGPUGraphicsPipeline(_render_pass,
+                              graphics_pipelines[arc_pipeline_id]);
 
   // Bind vertex buffer
   SDL_GPUBufferBinding vertex_buffer_bindings[1];
-  vertex_buffer_bindings[0].buffer = vertex_buffers["QUAD"];
+  vertex_buffer_bindings[0].buffer = vertex_buffers[quad_geometry_id];
   vertex_buffer_bindings[0].offset = 0;
 
   SDL_BindGPUVertexBuffers(_render_pass, 0, vertex_buffer_bindings, 1);
 
   // Bind index buffer
   SDL_GPUBufferBinding index_buffer_bindings[1];
-  index_buffer_bindings[0].buffer = index_buffers["QUAD"];
+  index_buffer_bindings[0].buffer = index_buffers[quad_geometry_id];
   index_buffer_bindings[0].offset = 0;
 
   SDL_BindGPUIndexBuffer(_render_pass, index_buffer_bindings,
