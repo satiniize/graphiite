@@ -154,7 +154,7 @@ Texture load_and_upload_texture(Renderer &renderer, std::string path,
                                 bool tiling = false) {
   Image image = ImageLoader::load(path);
   TextureID texture_id =
-      renderer.load_texture(image.pixels.data(), image.width, image.height);
+      renderer.upload_texture(image.pixels.data(), image.width, image.height);
 
   Texture texture_data;
   texture_data.path = path;
@@ -254,8 +254,8 @@ int main(int argc, char *argv[]) {
       while (!app_state.upload_queue.empty()) {
         PendingTexture &pending = app_state.upload_queue.front();
         TextureID id =
-            renderer.load_texture(pending.image.pixels.data(),
-                                  pending.image.width, pending.image.height);
+            renderer.upload_texture(pending.image.pixels.data(),
+                                    pending.image.width, pending.image.height);
         Texture tex;
         tex.path = pending.path;
         tex.tiling = false;

@@ -14,3 +14,5 @@ glslc --target-env=vulkan1.2 -O -g -fshader-stage=frag -o src/shaders/texture_re
 glslc --target-env=vulkan1.2 -O -g -fshader-stage=vert -o src/shaders/basic.vert.spv src/shaders/basic.vert
 
 glslc --target-env=vulkan1.2 -O -g -fshader-stage=vert -o src/shaders/text.vert.spv src/shaders/text.vert
+
+glslc --target-env=vulkan1.2 -O -g -fshader-stage=frag -o src/shaders/rect.frag.spv src/shaders/rect.frag

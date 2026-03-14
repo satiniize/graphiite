@@ -7,7 +7,6 @@
 #include <SDL3/SDL_video.h>
 #include <glm/mat4x4.hpp>
 
-#include "draw_call.hpp"
 #include "texture.hpp"
 
 struct Context {
@@ -22,8 +21,9 @@ struct Vertex {
   float u, v;       // vec2 texture coordinates
 };
 
-// const int WIDTH = 1280;
-// const int HEIGHT = 720;
+struct GlobalUniform {
+  float time;
+};
 
 // Vertex uniform blocks
 struct BasicVertexUniformBuffer {
@@ -79,8 +79,8 @@ static TextureRectFragmentUniformBuffer texture_rect_fragment_uniform_buffer{};
 static TextFragmentUniformBuffer text_fragment_uniform_buffer{};
 static ArcFragmentUniformBuffer arc_fragment_uniform_buffer{};
 
-// using IndexBufferID = std::size_t;
-// using VertexBufferID = std::size_t;
+using FontID = std::size_t;
+using SamplerID = std::size_t;
 using GeometryID = std::size_t;
 using GraphicsPipelineID = std::size_t;
 
@@ -91,20 +91,21 @@ public:
 
   Renderer(uint32_t width, uint32_t height);
   ~Renderer();
-  // Ladoing functions
-  // TODO: Change to upload texture
-  TextureID load_texture(unsigned char *pixels, int w, int h);
-  void load_ascii_font_atlas();
-  void create_render_targets();
-  GeometryID load_geometry(const Vertex *vertices, size_t vertex_size,
-                           const Uint16 *indices, size_t index_size);
+  // These are mature
+  TextureID upload_texture(unsigned char *pixels, int w, int h);
+  GeometryID upload_geometry(const Vertex *vertices, size_t vertex_size,
+                             const Uint16 *indices, size_t index_size);
   GraphicsPipelineID create_graphics_pipeline(SDL_GPUShader *vertex_shader,
                                               SDL_GPUShader *fragment_shader);
-  bool update_swapchain_texture();
+  // TODO: These aren't mature, redesign please
+  TextureID load_and_upload_ascii_font_atlas(
+      const std::string &font_path); // TODO: Seperation of concerns
+  void create_render_targets();      // TODO: Shotgun
+  // Loop functions
+  bool update_swapchain_texture(); // TODO: Not much of a descriptive name
   bool begin_frame();
   bool end_frame();
   // Drawing functions
-  bool draw(DrawCall &draw_call);
   bool draw_sprite(TextureID texture_id, glm::vec2 translation, float rotation,
                    glm::vec2 scale, glm::vec4 color);
   bool draw_color_rect(glm::vec2 position, glm::vec2 size, glm::vec4 color,
@@ -121,18 +122,17 @@ public:
   bool end_scissor_mode();
 
   glm::vec2 glyph_size;
-  float font_sample_point_size = 64.0f;
+  float font_sample_point_size = 58.0f;
   float viewport_scale = 2.0f;
 
 private:
   Context context;
 
-  std::unordered_map<GraphicsPipelineID, SDL_GPUGraphicsPipeline *>
-      graphics_pipelines;
   std::unordered_map<TextureID, SDL_GPUTexture *> gpu_textures;
-
   std::unordered_map<GeometryID, SDL_GPUBuffer *> vertex_buffers;
   std::unordered_map<GeometryID, SDL_GPUBuffer *> index_buffers;
+  std::unordered_map<GraphicsPipelineID, SDL_GPUGraphicsPipeline *>
+      graphics_pipelines;
 
   // TODO: Have support for multiple samplers
   SDL_GPUSampler *clamp_sampler;
@@ -147,11 +147,14 @@ private:
 
   glm::mat4 projection_matrix;
 
+  // GPU resource IDs
   TextureID next_texture_id = 0;
   GeometryID next_geometry_id = 0;
   GraphicsPipelineID next_pipeline_id = 0;
 
-  TextureID font_texture_id = -1;
+  // TextureID font_texture_id = -1;
+  TextureID italic_font_atlas_id;
+  TextureID regular_font_atlas_id;
   GeometryID quad_geometry_id;
   GraphicsPipelineID sprite_pipeline_id;
   GraphicsPipelineID color_rect_pipeline_id;
@@ -159,8 +162,8 @@ private:
   GraphicsPipelineID text_pipeline_id;
   GraphicsPipelineID arc_pipeline_id;
 
-  SDL_GPUSampleCount sample_count = SDL_GPU_SAMPLECOUNT_4;
-  // const std::string default_font_path =
-  // "res/fonts/SourceCodePro-Regular.ttf";
-  const std::string default_font_path = "res/fonts/XanhMono-Regular.ttf";
+  SDL_GPUSampleCount sample_count = SDL_GPU_SAMPLECOUNT_2;
+
+  const std::string regular_font_path = "res/fonts/XanhMono-Regular.ttf";
+  const std::string italic_font_path = "res/fonts/XanhMono-Italic.ttf";
 };
