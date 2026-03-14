@@ -13,5 +13,6 @@ layout(std140, set = 3, binding = 0) uniform UniformBlock {
 void main() {
     vec2 sampled_uv = uv_rect.xy + v_texcoord * (uv_rect.zw - uv_rect.xy);
     vec4 albedo = texture(myTextureSampler, sampled_uv);
-    FragColor = vec4(albedo.rgb * v_color.rgb * modulate.rgb, albedo.a * v_color.a * modulate.a);
+    vec4 color = vec4(albedo.rgb * v_color.rgb * modulate.rgb, albedo.a * v_color.a * modulate.a);
+    FragColor = vec4(color.rgb * color.a, color.a);
 }

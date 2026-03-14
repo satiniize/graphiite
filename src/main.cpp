@@ -44,12 +44,13 @@ struct PendingTexture {
 };
 
 struct AppState {
-  bool folder_opened = false;
+  std::atomic<bool> folder_opened = false;
   std::string tally_label = "XX";
   std::vector<Photo> photos;
 
   std::queue<PendingTexture> upload_queue;
   std::mutex upload_mutex;
+  std::thread tinyfd_thread;
   std::thread load_thread;
   std::atomic<bool> loading_done = false;
 };
@@ -64,6 +65,28 @@ void load_images_worker(const std::vector<std::filesystem::path> &paths,
     }
   }
   app_state->loading_done = true;
+};
+
+void tinyfd_thread_worker(AppState *app_state) {
+  char *lTheSelectFolderName =
+      tinyfd_selectFolderDialog("Choose a folder containing your photos", "./");
+
+  if (!lTheSelectFolderName) {
+    return;
+  }
+
+  app_state->folder_opened = true;
+
+  std::filesystem::path folder_path(lTheSelectFolderName);
+
+  std::vector<std::filesystem::path> paths_to_load;
+
+  for (const auto &entry : std::filesystem::directory_iterator(folder_path)) {
+    paths_to_load.push_back(entry);
+  }
+
+  app_state->load_thread =
+      std::thread(load_images_worker, std::move(paths_to_load), app_state);
 };
 
 void handle_clay_errors(Clay_ErrorData errorData) {
@@ -93,27 +116,8 @@ void handle_clay_errors(Clay_ErrorData errorData) {
 void on_open_folder(Clay_ElementId elementId, Clay_PointerData pointerInfo,
                     intptr_t userData) {
   if (pointerInfo.state == CLAY_POINTER_DATA_PRESSED_THIS_FRAME) {
-
-    char *lTheSelectFolderName = tinyfd_selectFolderDialog(
-        "Choose a folder containing your photos", "./");
-
-    if (!lTheSelectFolderName) {
-      return;
-    }
-
     AppState *app_state = (AppState *)userData;
-    app_state->folder_opened = true;
-
-    std::filesystem::path folder_path(lTheSelectFolderName);
-
-    std::vector<std::filesystem::path> paths_to_load;
-
-    for (const auto &entry : std::filesystem::directory_iterator(folder_path)) {
-      paths_to_load.push_back(entry);
-    }
-
-    app_state->load_thread =
-        std::thread(load_images_worker, std::move(paths_to_load), app_state);
+    app_state->tinyfd_thread = std::thread(tinyfd_thread_worker, app_state);
   }
 }
 
@@ -271,6 +275,17 @@ int main(int argc, char *argv[]) {
       }
     }
 
+    {
+      std::lock_guard<std::mutex> lock(app_state.upload_mutex);
+      int selected_count = 0;
+      for (auto &photo : app_state.photos) {
+        if (photo.selected) {
+          selected_count++;
+        }
+      }
+      app_state.tally_label = std::to_string(selected_count);
+    }
+
     // Poll inputs
     // const bool *keystate = SDL_GetKeyboardState(NULL);
     Clay_Vector2 mouse_scroll = {0.0f, 0.0f};
@@ -388,6 +403,9 @@ int main(int argc, char *argv[]) {
   }
   if (app_state.load_thread.joinable()) {
     app_state.load_thread.join();
+  }
+  if (app_state.tinyfd_thread.joinable()) {
+    app_state.tinyfd_thread.join();
   }
   return 0;
 }

@@ -14,6 +14,8 @@ void render_commands(Renderer &renderer,
     const Clay_BoundingBox bounding_box = render_command->boundingBox;
     const SDL_FRect rect = {bounding_box.x, bounding_box.y, bounding_box.width,
                             bounding_box.height};
+    const uint16_t z_index = static_cast<uint16_t>(render_command->zIndex);
+    // SDL_Log("z_index: %u", z_index);
 
     switch (render_command->commandType) {
     case CLAY_RENDER_COMMAND_TYPE_RECTANGLE: {

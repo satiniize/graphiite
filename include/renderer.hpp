@@ -39,6 +39,11 @@ struct TextVertexUniformBuffer {
 };
 
 // Fragment uniform blocks
+struct CommonFragmentUniformBlock {
+  glm::vec4 modulate;
+  float time;
+};
+
 struct SpriteFragmentUniformBuffer {
   glm::vec4 modulate;
   float time;
@@ -162,7 +167,7 @@ private:
   GraphicsPipelineID text_pipeline_id;
   GraphicsPipelineID arc_pipeline_id;
 
-  SDL_GPUSampleCount sample_count = SDL_GPU_SAMPLECOUNT_2;
+  SDL_GPUSampleCount sample_count = SDL_GPU_SAMPLECOUNT_1;
 
   const std::string regular_font_path = "res/fonts/XanhMono-Regular.ttf";
   const std::string italic_font_path = "res/fonts/XanhMono-Italic.ttf";

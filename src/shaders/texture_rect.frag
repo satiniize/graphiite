@@ -49,5 +49,7 @@ void main() {
         sample_uv = v_texcoord;
     }
     vec4 albedo = texture(myTextureSampler, sample_uv);
-    FragColor = vec4(albedo.rgb * v_color.rgb * modulate.rgb, albedo.a * v_color.a * modulate.a * alpha);
+    vec4 new_color = vec4(albedo.rgb * color.rgb, albedo.a * color.a);
+    float final_alpha = new_color.a * alpha;
+    FragColor = vec4(new_color.rgb * final_alpha, final_alpha);
 }

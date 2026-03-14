@@ -10,6 +10,8 @@
 #define STB_TRUETYPE_IMPLEMENTATION
 #include "stb_truetype.h"
 
+// TOOD: Use unique_ptr for SDL_GPUDevice and SDL_GPUTexture
+
 // TODO: I don't like how both of these function relies on loading the file in
 // house. upload_texture and upload_geometry abstract away how the data is
 // obtained, they just manage how to upload it to the GPU
@@ -439,7 +441,7 @@ Renderer::create_graphics_pipeline(SDL_GPUShader *vertex_shader,
   color_target_descriptions[0].format =
       SDL_GetGPUSwapchainTextureFormat(context.device, context.window);
   color_target_descriptions[0].blend_state.src_color_blendfactor =
-      SDL_GPU_BLENDFACTOR_SRC_ALPHA;
+      SDL_GPU_BLENDFACTOR_ONE;
   color_target_descriptions[0].blend_state.dst_color_blendfactor =
       SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA;
   color_target_descriptions[0].blend_state.color_blend_op = SDL_GPU_BLENDOP_ADD;

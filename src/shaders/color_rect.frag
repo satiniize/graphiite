@@ -39,5 +39,6 @@ void main() {
         alpha = 1.0f - smoothstep(radius - smoothing / 2.0f, radius + smoothing / 2.0f, dist);
     }
     vec4 color = v_color * modulate;
-    FragColor = vec4(color.rgb, alpha);
+    float final_alpha = alpha * color.a;
+    FragColor = vec4(color.rgb * final_alpha, final_alpha);
 }
