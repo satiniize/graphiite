@@ -50,7 +50,7 @@ add_subdirectory(external/SDL EXCLUDE_FROM_ALL)
 add_subdirectory(external/glm EXCLUDE_FROM_ALL)
 
 set(SR_SOURCES
-  src/main.cpp
+  # src/main.cpp
   src/sprite_renderer.cpp
   src/renderer.cpp
   src/clay_renderer.cpp
@@ -58,7 +58,8 @@ set(SR_SOURCES
   src/image_loader.cpp
 )
 
-add_executable(software-renderer ${SR_SOURCES})
+# add_executable(software-renderer ${SR_SOURCES})
+add_library(software-renderer ${SR_SOURCES})
 add_dependencies(software-renderer libjpeg_turbo)
 
 target_include_directories(software-renderer PRIVATE
@@ -70,3 +71,5 @@ target_link_libraries(software-renderer PRIVATE
   SDL3::SDL3
   libjpeg_turbo
 )
+
+add_subdirectory(examples)

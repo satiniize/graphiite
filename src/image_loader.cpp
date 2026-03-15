@@ -18,6 +18,10 @@ Image load(const std::filesystem::path &path) {
   unsigned char *pixels =
       stbi_load(path.c_str(), &w, &h, &channels, desired_channels);
 
+  if (!pixels) {
+    return {};
+  }
+
   Image image;
   image.width = w;
   image.height = h;
