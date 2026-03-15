@@ -19,7 +19,7 @@ Button(Texture &edge_sheen_data, Texture &bg_sheen_data, Clay_String label,
                       .height =
                           CLAY_SIZING_FIXED(static_cast<float>(button_height)),
                   },
-              .padding = CLAY_PADDING_ALL(3),
+              .padding = CLAY_PADDING_ALL(4),
           },
       .backgroundColor = Color::PURE_WHITE,
       .cornerRadius = CLAY_CORNER_RADIUS(button_height / 2.0f),
@@ -63,7 +63,7 @@ Button(Texture &edge_sheen_data, Texture &bg_sheen_data, Clay_String label,
             },
         .backgroundColor =
             Clay_Hovered() ? Color::PURE_WHITE : Color::LIGHT_GREY,
-        .cornerRadius = CLAY_CORNER_RADIUS(button_height / 2.0f - 3.0f),
+        .cornerRadius = CLAY_CORNER_RADIUS(button_height / 2.0f - 4.0f),
         .image =
             {
                 .imageData = static_cast<void *>(&bg_sheen_data),

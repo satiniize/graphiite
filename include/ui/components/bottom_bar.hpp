@@ -94,10 +94,6 @@ BottomBar(Texture &edge_sheen_data, Texture &bg_sheen_data,
                 .bottomLeft = 0,
                 .bottomRight = 0,
             },
-        .image =
-            {
-                .imageData = static_cast<void *>(&bg_sheen_data),
-            },
     }) {
       // Left Align
       CLAY({

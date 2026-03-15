@@ -47,30 +47,9 @@ struct SpriteFragmentUniformBuffer {
   glm::vec4 modulate;
 };
 
-struct ColorRectFragmentUniformBuffer {
-  glm::vec4 size;
-  glm::vec4 modulate;
-  glm::vec4 corner_radii;
-};
-
-struct TextureRectFragmentUniformBuffer {
-  glm::vec4 size;
-  glm::vec4 modulate;
-  glm::vec4 corner_radii;
-  uint32_t tiling;
-};
-
 struct TextFragmentUniformBuffer {
   glm::vec4 modulate;
   glm::vec4 uv_rect;
-};
-
-struct ArcFragmentUniformBuffer {
-  glm::vec4 modulate;
-  float radius;
-  float thickness;
-  float padding1;
-  float padding2;
 };
 
 struct SDFRectFragmentUniformBuffer {
@@ -81,16 +60,24 @@ struct SDFRectFragmentUniformBuffer {
   uint32_t use_texture;
 };
 
+struct SDFRectStrokeFragmentUniformBuffer {
+  glm::vec4 size;
+  glm::vec4 modulate;
+  glm::vec4 corner_radii;
+  glm::vec4 stroke_thickness;
+  uint32_t tiling;
+  uint32_t use_texture;
+};
+
 static BasicVertexUniformBuffer basic_vertex_uniform_buffer{};
 static TextVertexUniformBuffer text_vertex_uniform_buffer{};
 
 static CommonFragmentUniformBuffer common_fragment_uniform_buffer{};
 static SpriteFragmentUniformBuffer sprite_fragment_uniform_buffer{};
-static ColorRectFragmentUniformBuffer color_rect_fragment_uniform_buffer{};
-static TextureRectFragmentUniformBuffer texture_rect_fragment_uniform_buffer{};
 static TextFragmentUniformBuffer text_fragment_uniform_buffer{};
-static ArcFragmentUniformBuffer arc_fragment_uniform_buffer{};
 static SDFRectFragmentUniformBuffer sdf_rect_fragment_uniform_buffer{};
+static SDFRectStrokeFragmentUniformBuffer
+    sdf_rect_stroke_fragment_uniform_buffer{};
 
 using FontID = std::size_t;
 using SamplerID = std::size_t;
@@ -123,15 +110,15 @@ public:
   // Drawing functions
   bool draw_sprite(TextureID texture_id, glm::vec2 translation, float rotation,
                    glm::vec2 scale, glm::vec4 color);
-  bool draw_color_rect(glm::vec2 position, glm::vec2 size, glm::vec4 color,
-                       glm::vec4 corner_radius);
-  bool draw_texture_rect(TextureID texture_id, glm::vec2 position,
-                         glm::vec2 size, glm::vec4 color,
-                         glm::vec4 corner_radius, bool tiling);
+  bool draw_rect(glm::vec2 position, glm::vec2 size, glm::vec4 color,
+                 glm::vec4 corner_radius, bool use_texture,
+                 TextureID texture_id, bool tiling);
+  bool draw_rect_stroke(glm::vec2 position, glm::vec2 size, glm::vec4 color,
+                        glm::vec4 corner_radius, bool use_texture,
+                        TextureID texture_id, bool tiling,
+                        glm::vec4 stroke_thickness);
   bool draw_text(const char *text, int length, float point_size,
                  glm::vec2 position, glm::vec4 color);
-  bool draw_arc(glm::vec2 position, float radius, float thickness,
-                float rotation, glm::vec4 color);
   // Scissor mode
   bool begin_scissor_mode(glm::ivec2 pos, glm::ivec2 size);
   bool end_scissor_mode();
@@ -172,13 +159,10 @@ private:
   TextureID italic_font_atlas_id;
   TextureID regular_font_atlas_id;
   GeometryID quad_geometry_id;
-  GraphicsPipelineID sprite_pipeline_id;
-  GraphicsPipelineID color_rect_pipeline_id;
-  GraphicsPipelineID texture_rect_pipeline_id;
-  GraphicsPipelineID text_pipeline_id;
-  GraphicsPipelineID arc_pipeline_id;
-
+  GraphicsPipelineID sdf_rect_stroke_pipeline_id;
   GraphicsPipelineID sdf_rect_pipeline_id;
+  GraphicsPipelineID sprite_pipeline_id;
+  GraphicsPipelineID text_pipeline_id;
 
   SDL_GPUSampleCount sample_count = SDL_GPU_SAMPLECOUNT_1;
 
