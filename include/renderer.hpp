@@ -39,14 +39,12 @@ struct TextVertexUniformBuffer {
 };
 
 // Fragment uniform blocks
-struct CommonFragmentUniformBlock {
-  glm::vec4 modulate;
+struct CommonFragmentUniformBuffer {
   float time;
 };
 
 struct SpriteFragmentUniformBuffer {
   glm::vec4 modulate;
-  float time;
 };
 
 struct ColorRectFragmentUniformBuffer {
@@ -75,14 +73,24 @@ struct ArcFragmentUniformBuffer {
   float padding2;
 };
 
+struct SDFRectFragmentUniformBuffer {
+  glm::vec4 size;
+  glm::vec4 modulate;
+  glm::vec4 corner_radii;
+  uint32_t tiling;
+  uint32_t use_texture;
+};
+
 static BasicVertexUniformBuffer basic_vertex_uniform_buffer{};
 static TextVertexUniformBuffer text_vertex_uniform_buffer{};
 
+static CommonFragmentUniformBuffer common_fragment_uniform_buffer{};
 static SpriteFragmentUniformBuffer sprite_fragment_uniform_buffer{};
 static ColorRectFragmentUniformBuffer color_rect_fragment_uniform_buffer{};
 static TextureRectFragmentUniformBuffer texture_rect_fragment_uniform_buffer{};
 static TextFragmentUniformBuffer text_fragment_uniform_buffer{};
 static ArcFragmentUniformBuffer arc_fragment_uniform_buffer{};
+static SDFRectFragmentUniformBuffer sdf_rect_fragment_uniform_buffer{};
 
 using FontID = std::size_t;
 using SamplerID = std::size_t;
@@ -166,6 +174,8 @@ private:
   GraphicsPipelineID texture_rect_pipeline_id;
   GraphicsPipelineID text_pipeline_id;
   GraphicsPipelineID arc_pipeline_id;
+
+  GraphicsPipelineID sdf_rect_pipeline_id;
 
   SDL_GPUSampleCount sample_count = SDL_GPU_SAMPLECOUNT_1;
 

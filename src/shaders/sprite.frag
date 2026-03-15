@@ -5,9 +5,12 @@ layout(location = 0) out vec4 FragColor;
 
 layout(set = 2, binding = 0) uniform sampler2D myTextureSampler;
 
-layout(std140, set = 3, binding = 0) uniform UniformBlock {
-    vec4 modulate;
+layout(std140, set = 3, binding = 0) uniform CommonUniforms {
     float time;
+};
+
+layout(std140, set = 3, binding = 1) uniform UniformBlock {
+    vec4 modulate;
 };
 
 void main() {

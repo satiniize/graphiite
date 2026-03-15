@@ -47,9 +47,7 @@ set_target_properties(libjpeg_turbo PROPERTIES
 )
 
 add_subdirectory(external/SDL EXCLUDE_FROM_ALL)
-# add_subdirectory(external/SDL_image EXCLUDE_FROM_ALL)
 add_subdirectory(external/glm EXCLUDE_FROM_ALL)
-# add_subdirectory(external/SDL_ttf EXCLUDE_FROM_ALL)
 
 set(SR_SOURCES
   src/main.cpp

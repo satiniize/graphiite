@@ -4,7 +4,11 @@ layout(location = 1) in vec2 v_texcoord;
 layout(location = 0) out vec4 FragColor;
 // TODO: Rename this bullshit to arc
 // TODO: Add graduated thickness
-layout(std140, set = 3, binding = 0) uniform UniformBlock {
+layout(std140, set = 3, binding = 0) uniform CommonUniforms {
+    float time;
+};
+
+layout(std140, set = 3, binding = 1) uniform UniformBlock {
     vec4 modulate;
     float radius;
     float thickness;

@@ -126,23 +126,23 @@ Renderer::Renderer(uint32_t width, uint32_t height) {
 
   // Sprite fragment shader
   SDL_GPUShader *sprite_fragment_shader = load_shader(
-      this->context.device, "src/shaders/sprite.frag.spv", 1, 0, 0, 1);
+      this->context.device, "src/shaders/sprite.frag.spv", 1, 0, 0, 2);
 
   // ColorRect fragment shader
   SDL_GPUShader *color_rect_fragment_shader = load_shader(
-      this->context.device, "src/shaders/color_rect.frag.spv", 0, 0, 0, 1);
+      this->context.device, "src/shaders/color_rect.frag.spv", 0, 0, 0, 2);
 
   // TextureRect fragment shader
   SDL_GPUShader *texture_rect_fragment_shader = load_shader(
-      this->context.device, "src/shaders/texture_rect.frag.spv", 1, 0, 0, 1);
+      this->context.device, "src/shaders/texture_rect.frag.spv", 1, 0, 0, 2);
 
   // Text fragment shader
   SDL_GPUShader *text_fragment_shader = load_shader(
-      this->context.device, "src/shaders/text.frag.spv", 1, 0, 0, 1);
+      this->context.device, "src/shaders/text.frag.spv", 1, 0, 0, 2);
 
   // Arc fragment shader
   SDL_GPUShader *arc_fragment_shader =
-      load_shader(this->context.device, "src/shaders/arc.frag.spv", 0, 0, 0, 1);
+      load_shader(this->context.device, "src/shaders/arc.frag.spv", 0, 0, 0, 2);
 
   sprite_pipeline_id =
       create_graphics_pipeline(basic_vertex_shader, sprite_fragment_shader);
@@ -666,6 +666,12 @@ bool Renderer::begin_frame() {
       glm::ortho(0.0f, (float)this->width / viewport_scale,
                  -(float)this->height / viewport_scale, 0.0f);
 
+  common_fragment_uniform_buffer.time = SDL_GetTicksNS() / 1e9f;
+
+  SDL_PushGPUFragmentUniformData(_command_buffer, 0,
+                                 &common_fragment_uniform_buffer,
+                                 sizeof(CommonFragmentUniformBuffer));
+
   return true;
 }
 
@@ -713,7 +719,6 @@ bool Renderer::draw_sprite(TextureID texture_id, glm::vec2 translation,
   fragment_sampler_bindings.texture = gpu_textures[texture_id];
   fragment_sampler_bindings.sampler = clamp_sampler;
   // Uniforms
-  sprite_fragment_uniform_buffer.time = SDL_GetTicksNS() / 1e9f;
   sprite_fragment_uniform_buffer.modulate = color;
   glm::mat4 model_matrix = glm::mat4(1.0f);
   model_matrix = glm::translate(model_matrix,
@@ -734,7 +739,7 @@ bool Renderer::draw_sprite(TextureID texture_id, glm::vec2 translation,
                               &fragment_sampler_bindings,
                               1 // Number of textures/samplers to bind
   );
-  SDL_PushGPUFragmentUniformData(_command_buffer, 0,
+  SDL_PushGPUFragmentUniformData(_command_buffer, 1,
                                  &sprite_fragment_uniform_buffer,
                                  sizeof(SpriteFragmentUniformBuffer));
   SDL_PushGPUVertexUniformData(_command_buffer, 0, &basic_vertex_uniform_buffer,
@@ -776,7 +781,7 @@ bool Renderer::draw_color_rect(glm::vec2 position, glm::vec2 size,
   SDL_BindGPUVertexBuffers(_render_pass, 0, vertex_buffer_bindings, 1);
   SDL_BindGPUIndexBuffer(_render_pass, index_buffer_bindings,
                          SDL_GPU_INDEXELEMENTSIZE_16BIT);
-  SDL_PushGPUFragmentUniformData(_command_buffer, 0,
+  SDL_PushGPUFragmentUniformData(_command_buffer, 1,
                                  &color_rect_fragment_uniform_buffer,
                                  sizeof(ColorRectFragmentUniformBuffer));
   SDL_PushGPUVertexUniformData(_command_buffer, 0, &basic_vertex_uniform_buffer,
@@ -834,7 +839,7 @@ bool Renderer::draw_texture_rect(TextureID texture_id, glm::vec2 position,
                               &fragment_sampler_bindings,
                               1 // Number of textures/samplers to bind
   );
-  SDL_PushGPUFragmentUniformData(_command_buffer, 0,
+  SDL_PushGPUFragmentUniformData(_command_buffer, 1,
                                  &texture_rect_fragment_uniform_buffer,
                                  sizeof(TextureRectFragmentUniformBuffer));
   SDL_PushGPUVertexUniformData(_command_buffer, 0, &basic_vertex_uniform_buffer,
@@ -902,7 +907,7 @@ bool Renderer::draw_text(const char *text, int length, float point_size,
     text_vertex_uniform_buffer.time = SDL_GetTicksNS() / 1e9f;
     text_vertex_uniform_buffer.offset = static_cast<float>(i);
 
-    SDL_PushGPUFragmentUniformData(_command_buffer, 0,
+    SDL_PushGPUFragmentUniformData(_command_buffer, 1,
                                    &text_fragment_uniform_buffer,
                                    sizeof(TextFragmentUniformBuffer));
     SDL_PushGPUVertexUniformData(_command_buffer, 0,
@@ -947,7 +952,7 @@ bool Renderer::draw_arc(glm::vec2 position, float radius, float thickness,
   SDL_BindGPUVertexBuffers(_render_pass, 0, vertex_buffer_bindings, 1);
   SDL_BindGPUIndexBuffer(_render_pass, index_buffer_bindings,
                          SDL_GPU_INDEXELEMENTSIZE_16BIT);
-  SDL_PushGPUFragmentUniformData(_command_buffer, 0,
+  SDL_PushGPUFragmentUniformData(_command_buffer, 1,
                                  &arc_fragment_uniform_buffer,
                                  sizeof(ArcFragmentUniformBuffer));
   SDL_PushGPUVertexUniformData(_command_buffer, 0, &basic_vertex_uniform_buffer,
