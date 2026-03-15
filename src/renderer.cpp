@@ -217,6 +217,9 @@ Renderer::Renderer(uint32_t width, uint32_t height) {
   italic_font_atlas_id = load_and_upload_ascii_font_atlas(italic_font_path);
   regular_font_atlas_id = load_and_upload_ascii_font_atlas(regular_font_path);
 
+  unsigned char dummy_pixels[] = {0, 0, 0, 0};
+  dummy_texture_id = upload_texture(dummy_pixels, 1, 1);
+
   create_render_targets();
 
   return;
@@ -771,7 +774,7 @@ bool Renderer::draw_color_rect(glm::vec2 position, glm::vec2 size,
   index_buffer_bindings[0].offset = 0;
   // Dummy Sampler
   SDL_GPUTextureSamplerBinding fragment_sampler_bindings{};
-  fragment_sampler_bindings.texture = NULL;
+  fragment_sampler_bindings.texture = gpu_textures[dummy_texture_id];
   fragment_sampler_bindings.sampler = clamp_sampler;
   // Uniforms
   sdf_rect_fragment_uniform_buffer.modulate = color;

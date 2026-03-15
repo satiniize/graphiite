@@ -7,3 +7,6 @@
 [submodule "lib/libjpeg-turbo"]
 	path = external/libjpeg-turbo
 	url = https://github.com/libjpeg-turbo/libjpeg-turbo.git
+[submodule "external/LibRaw"]
+	path = external/LibRaw
+	url = https://github.com/LibRaw/LibRaw

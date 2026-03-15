@@ -97,6 +97,8 @@ using SamplerID = std::size_t;
 using GeometryID = std::size_t;
 using GraphicsPipelineID = std::size_t;
 
+// TODO: When renderer changes, sprite renderer and clay renderer needs to
+// recompile
 class Renderer {
 public:
   uint32_t width;
@@ -166,6 +168,7 @@ private:
   GraphicsPipelineID next_pipeline_id = 0;
 
   // TextureID font_texture_id = -1;
+  TextureID dummy_texture_id;
   TextureID italic_font_atlas_id;
   TextureID regular_font_atlas_id;
   GeometryID quad_geometry_id;

@@ -4,17 +4,20 @@
 #include "stb_image.h"
 
 #include "image.hpp"
-#include "turbojpeg.h"
 #include <SDL3/SDL_log.h>
 #include <filesystem>
 #include <fstream>
+#include <libraw/libraw.h>
+#include <turbojpeg.h>
 #include <vector>
 
 namespace ImageLoader {
+// TODO: Double check path and file sanitization
 Image load(const std::filesystem::path &path) {
   static const int desired_channels = 4;
 
   int w, h, channels;
+  // Maybe change this to ifstream
   unsigned char *pixels =
       stbi_load(path.c_str(), &w, &h, &channels, desired_channels);
 
@@ -119,6 +122,80 @@ Image load_with_turbojpeg(const std::filesystem::path &path) {
   image.pixels = pixel_data;
 
   tj3Destroy(turbojpeg_instance);
+  return image;
+}
+
+Image load_with_libraw(const std::filesystem::path &path) {
+  if (!std::filesystem::exists(path) || std::filesystem::is_directory(path)) {
+    SDL_Log("Invalid photo path");
+    return {};
+  }
+
+  SDL_Log("Loading file: %s", path.c_str());
+
+  LibRaw processor;
+
+  // sRGB output, 8bpp, camera white balance
+  processor.imgdata.params.output_color = 1; // sRGB
+  processor.imgdata.params.output_bps = 8;
+  processor.imgdata.params.use_camera_wb = 1;
+  processor.imgdata.params.no_auto_bright = 0;
+  processor.imgdata.params.gamm[0] = 1.0 / 2.2;
+  processor.imgdata.params.gamm[1] = 0.0;
+
+  int ret;
+
+  if ((ret = processor.open_file(path.c_str())) != LIBRAW_SUCCESS) {
+    SDL_Log("ERROR: opening RAW file %s: %s", path.c_str(),
+            libraw_strerror(ret));
+    return {};
+  }
+
+  if ((ret = processor.unpack()) != LIBRAW_SUCCESS) {
+    SDL_Log("ERROR: unpacking RAW file %s: %s", path.c_str(),
+            libraw_strerror(ret));
+    return {};
+  }
+
+  if ((ret = processor.dcraw_process()) != LIBRAW_SUCCESS) {
+    SDL_Log("ERROR: processing RAW file %s: %s", path.c_str(),
+            libraw_strerror(ret));
+    return {};
+  }
+
+  libraw_processed_image_t *raw_image = processor.dcraw_make_mem_image(&ret);
+  if (!raw_image) {
+    SDL_Log("ERROR: making mem image for %s: %s", path.c_str(),
+            libraw_strerror(ret));
+    return {};
+  }
+
+  // raw_image->data is packed RGB (3 channels), convert to RGBA (4 channels)
+  const int width = raw_image->width;
+  const int height = raw_image->height;
+  const size_t pixel_count = static_cast<size_t>(width) * height;
+
+  std::vector<uint8_t> pixels(pixel_count * 4);
+
+  const uint8_t *src = raw_image->data;
+  uint8_t *dst = pixels.data();
+
+  for (size_t i = 0; i < pixel_count; i++) {
+    dst[0] = src[0]; // R
+    dst[1] = src[1]; // G
+    dst[2] = src[2]; // B
+    dst[3] = 255;    // A
+    src += 3;
+    dst += 4;
+  }
+
+  LibRaw::dcraw_clear_mem(raw_image);
+
+  Image image;
+  image.width = width;
+  image.height = height;
+  image.pixels = std::move(pixels);
+
   return image;
 }
 

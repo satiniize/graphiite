@@ -33,6 +33,7 @@ ExternalProject_Add(libjpeg_turbo_project
         -DWITH_SIMD=ON
         -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
         -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
+        -DCMAKE_POSITION_INDEPENDENT_CODE=ON
     BUILD_BYPRODUCTS
         "${LIBJPEG_TURBO_INSTALL_DIR}/lib/${LIB_TURBO_NAME}"
         "${LIBJPEG_TURBO_INSTALL_DIR}/lib/${LIB_JPEG_NAME}"
@@ -48,6 +49,7 @@ set_target_properties(libjpeg_turbo PROPERTIES
 
 add_subdirectory(external/SDL EXCLUDE_FROM_ALL)
 add_subdirectory(external/glm EXCLUDE_FROM_ALL)
+add_subdirectory(external/LibRaw EXCLUDE_FROM_ALL)
 
 set(SR_SOURCES
   # src/main.cpp
@@ -70,6 +72,7 @@ target_include_directories(software-renderer PRIVATE
 target_link_libraries(software-renderer PRIVATE
   SDL3::SDL3
   libjpeg_turbo
+  libraw::libraw
 )
 
 add_subdirectory(examples)
