@@ -758,6 +758,7 @@ bool Renderer::draw_sprite(TextureID texture_id, glm::vec2 translation,
   return true;
 }
 
+// TODO: Bind a dummy texture
 bool Renderer::draw_color_rect(glm::vec2 position, glm::vec2 size,
                                glm::vec4 color, glm::vec4 corner_radius) {
   // Vertex buffer
@@ -768,17 +769,16 @@ bool Renderer::draw_color_rect(glm::vec2 position, glm::vec2 size,
   SDL_GPUBufferBinding index_buffer_bindings[1];
   index_buffer_bindings[0].buffer = index_buffers[quad_geometry_id];
   index_buffer_bindings[0].offset = 0;
+  // Dummy Sampler
+  SDL_GPUTextureSamplerBinding fragment_sampler_bindings{};
+  fragment_sampler_bindings.texture = NULL;
+  fragment_sampler_bindings.sampler = clamp_sampler;
   // Uniforms
   sdf_rect_fragment_uniform_buffer.modulate = color;
   sdf_rect_fragment_uniform_buffer.corner_radii = glm::vec4(corner_radius);
   sdf_rect_fragment_uniform_buffer.size = glm::vec4(size.x, size.y, 0.0f, 0.0f);
   sdf_rect_fragment_uniform_buffer.tiling = 0;
   sdf_rect_fragment_uniform_buffer.use_texture = 0;
-
-  // color_rect_fragment_uniform_buffer.modulate = color;
-  // color_rect_fragment_uniform_buffer.corner_radii = glm::vec4(corner_radius);
-  // color_rect_fragment_uniform_buffer.size =
-  //     glm::vec4(size.x, size.y, 0.0f, 0.0f);
 
   glm::mat4 model_matrix = glm::mat4(1.0f);
 
@@ -795,6 +795,11 @@ bool Renderer::draw_color_rect(glm::vec2 position, glm::vec2 size,
   SDL_BindGPUVertexBuffers(_render_pass, 0, vertex_buffer_bindings, 1);
   SDL_BindGPUIndexBuffer(_render_pass, index_buffer_bindings,
                          SDL_GPU_INDEXELEMENTSIZE_16BIT);
+  SDL_BindGPUFragmentSamplers(_render_pass,
+                              0, // The binding point for the sampler
+                              &fragment_sampler_bindings,
+                              1 // Number of textures/samplers to bind
+  );
   SDL_PushGPUFragmentUniformData(_command_buffer, 1,
                                  &sdf_rect_fragment_uniform_buffer,
                                  sizeof(SDFRectFragmentUniformBuffer));

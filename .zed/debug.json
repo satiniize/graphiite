@@ -27,4 +27,18 @@
       "SDL_VIDEODRIVER": "wayland",
     },
   },
+  {
+    "label": "Run raw-viewer Debug Binary",
+    "build": {
+      "command": "bash",
+      "args": ["$ZED_WORKTREE_ROOT/build.sh", "Debug"],
+      "cwd": "$ZED_WORKTREE_ROOT",
+    },
+    "program": "$ZED_WORKTREE_ROOT/build/Debug/raw_viewer",
+    "request": "launch",
+    "adapter": "CodeLLDB",
+    "env": {
+      "SDL_VIDEODRIVER": "wayland",
+    },
+  },
 ]
