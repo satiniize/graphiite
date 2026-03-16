@@ -124,7 +124,7 @@ public:
   bool end_scissor_mode();
 
   glm::vec2 glyph_size;
-  float font_sample_point_size = 58.0f;
+  float font_sample_point_size = 56.0f;
   float viewport_scale = 2.0f;
 
 private:
@@ -164,7 +164,7 @@ private:
   GraphicsPipelineID sprite_pipeline_id;
   GraphicsPipelineID text_pipeline_id;
 
-  SDL_GPUSampleCount sample_count = SDL_GPU_SAMPLECOUNT_1;
+  SDL_GPUSampleCount sample_count = SDL_GPU_SAMPLECOUNT_2;
 
   // TODO: Input file path sanitizing
   const std::string regular_font_path = "assets/fonts/XanhMono-Regular.ttf";

@@ -5,6 +5,7 @@
 
 #include "image.hpp"
 #include <SDL3/SDL_log.h>
+#include <algorithm>
 #include <filesystem>
 #include <fstream>
 #include <libraw/libraw.h>
@@ -136,12 +137,21 @@ Image load_with_libraw(const std::filesystem::path &path) {
   LibRaw processor;
 
   // sRGB output, 8bpp, camera white balance
-  processor.imgdata.params.output_color = 1; // sRGB
-  processor.imgdata.params.output_bps = 8;
-  processor.imgdata.params.use_camera_wb = 1;
-  processor.imgdata.params.no_auto_bright = 0;
-  processor.imgdata.params.gamm[0] = 1.0 / 2.2;
-  processor.imgdata.params.gamm[1] = 0.0;
+  // processor.imgdata.params.output_color = 1; // sRGB
+  // processor.imgdata.params.output_bps = 8;
+  // processor.imgdata.params.use_camera_wb = 1;
+  // processor.imgdata.params.no_auto_bright = 0;
+  // processor.imgdata.params.gamm[0] = 1.0 / 2.2;
+  // processor.imgdata.params.gamm[1] = 0.0;
+
+  processor.imgdata.params.output_color = 0; // RAW
+  // processor.imgdata.params.output_color = 5;   // XYZ
+  processor.imgdata.params.output_bps = 16;    // Bits per sample
+  processor.imgdata.params.use_camera_wb = 0;  // White balance from exif
+  processor.imgdata.params.no_auto_bright = 1; // Extra exposure compensation
+  processor.imgdata.params.gamm[0] = 1.0;
+  processor.imgdata.params.gamm[1] = 1.0;
+  processor.imgdata.params.user_qual = 3; // AHD demosaic
 
   int ret;
 
@@ -170,24 +180,54 @@ Image load_with_libraw(const std::filesystem::path &path) {
     return {};
   }
 
+  libraw_rawdata_t &rawdata = processor.imgdata.rawdata;
+  libraw_image_sizes_t &sizes = processor.imgdata.sizes;
+
+  const int width = sizes.raw_width;
+  const int height = sizes.raw_height;
+
+  const uint16_t *bayer = rawdata.raw_image;
+
   // raw_image->data is packed RGB (3 channels), convert to RGBA (4 channels)
-  const int width = raw_image->width;
-  const int height = raw_image->height;
+  // const int width = raw_image->width;
+  // const int height = raw_image->height;
   const size_t pixel_count = static_cast<size_t>(width) * height;
 
   std::vector<uint8_t> pixels(pixel_count * 4);
 
-  const uint8_t *src = raw_image->data;
+  // const uint8_t *src = raw_image->data;
   uint8_t *dst = pixels.data();
 
-  for (size_t i = 0; i < pixel_count; i++) {
-    dst[0] = src[0]; // R
-    dst[1] = src[1]; // G
-    dst[2] = src[2]; // B
-    dst[3] = 255;    // A
-    src += 3;
-    dst += 4;
+  libraw_colordata_t &color = processor.imgdata.color;
+
+  const float black = color.black;   // or per-channel: color.cblack[c]
+  const float white = color.maximum; // sensor white level
+
+  for (int row = 0; row < height; row++) {
+    for (int col = 0; col < width; col++) {
+      const int index = row * width + col;
+      uint16_t raw_val = bayer[row * width + col];
+      float normalized = (raw_val - black) / (white - black);
+      normalized = std::clamp(normalized, 0.0f, 1.0f);
+      uint8_t out = static_cast<uint8_t>(normalized * 255.0f);
+      int channel = processor.COLOR(row, col);
+      if (channel == 3) {
+        channel = 1;
+      }
+      dst[channel] = out;
+      dst[3] = 255;
+      dst += 4;
+    }
   }
+
+  // for (size_t i = 0; i < pixel_count; i++) {
+  //   dst[0] = src[0]; // R
+  //   dst[1] = src[1]; // G
+  //   dst[2] = src[2]; // B
+  //   dst[3] = 255;    // A
+  //   src += 3;
+  //   dst += 4;
+  // }
 
   LibRaw::dcraw_clear_mem(raw_image);
 

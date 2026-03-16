@@ -19,7 +19,7 @@ BottomBar(Texture &edge_sheen_data, Texture &bg_sheen_data,
           void on_filter(Clay_ElementId elementId, Clay_PointerData pointerInfo,
                          intptr_t userData),
           intptr_t userData) {
-  float bottom_bar_corner_radius = 38.0f;
+  float bottom_bar_corner_radius = 36.0f;
   CLAY({
       .id = CLAY_ID("BottomBar"),
       .layout =
@@ -31,13 +31,13 @@ BottomBar(Texture &edge_sheen_data, Texture &bg_sheen_data,
                   },
               .padding =
                   {
-                      .left = 3,
-                      .right = 3,
-                      .top = 3,
-                      .bottom = 0,
+                      .left = 4,
+                      .right = 4,
+                      .top = 4,
+                      .bottom = 4,
                   },
           },
-      .backgroundColor = Color::PURE_WHITE,
+      .backgroundColor = Color::BLACK,
       .cornerRadius =
           {
               .topLeft = bottom_bar_corner_radius,
@@ -60,13 +60,13 @@ BottomBar(Texture &edge_sheen_data, Texture &bg_sheen_data,
           },
       .border =
           {
-              .color = Color::BLACK,
+              .color = Color::PURE_WHITE,
               .width =
                   {
                       .left = 2,
                       .right = 2,
                       .top = 2,
-                      .bottom = 0,
+                      .bottom = 2,
                   },
           },
   }) {
@@ -86,11 +86,11 @@ BottomBar(Texture &edge_sheen_data, Texture &bg_sheen_data,
                         .bottom = 4,
                     },
             },
-        .backgroundColor = Color::GREY,
+        .backgroundColor = Color::ORANGE,
         .cornerRadius =
             {
-                .topLeft = bottom_bar_corner_radius - 3,
-                .topRight = bottom_bar_corner_radius - 3,
+                .topLeft = bottom_bar_corner_radius - 4,
+                .topRight = bottom_bar_corner_radius - 4,
                 .bottomLeft = 0,
                 .bottomRight = 0,
             },
@@ -139,6 +139,11 @@ BottomBar(Texture &edge_sheen_data, Texture &bg_sheen_data,
                           .width = CLAY_SIZING_FIT(),
                           .height = CLAY_SIZING_GROW(0),
                       },
+                  .padding =
+                      {
+                          .left = 4,
+                          .right = 4,
+                      },
                   .childAlignment =
                       {
                           .x = CLAY_ALIGN_X_CENTER,
@@ -157,6 +162,7 @@ BottomBar(Texture &edge_sheen_data, Texture &bg_sheen_data,
                           .width = CLAY_SIZING_GROW(0),
                           .height = CLAY_SIZING_GROW(0),
                       },
+                  .childGap = 4,
                   .childAlignment =
                       {
                           .x = CLAY_ALIGN_X_RIGHT,
