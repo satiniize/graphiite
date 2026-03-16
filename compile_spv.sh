@@ -1,16 +1,7 @@
 #!/bin/bash
 set -e
 
-glslc --target-env=vulkan1.2 -O -g -fshader-stage=frag -o src/shaders/sprite.frag.spv src/shaders/sprite.frag
-
-glslc --target-env=vulkan1.2 -O -g -fshader-stage=frag -o src/shaders/color_rect.frag.spv src/shaders/color_rect.frag
-
-glslc --target-env=vulkan1.2 -O -g -fshader-stage=frag -o src/shaders/text.frag.spv src/shaders/text.frag
-
-glslc --target-env=vulkan1.2 -O -g -fshader-stage=frag -o src/shaders/arc.frag.spv src/shaders/arc.frag
-
-glslc --target-env=vulkan1.2 -O -g -fshader-stage=frag -o src/shaders/texture_rect.frag.spv src/shaders/texture_rect.frag
-
-glslc --target-env=vulkan1.2 -O -g -fshader-stage=vert -o src/shaders/basic.vert.spv src/shaders/basic.vert
-
-glslc --target-env=vulkan1.2 -O -g -fshader-stage=vert -o src/shaders/text.vert.spv src/shaders/text.vert
+for shader in assets/shaders/*.frag assets/shaders/*.vert; do
+    ext="${shader##*.}"
+    glslc --target-env=vulkan1.2 -O -g -fshader-stage="$ext" -o "${shader}.spv" "$shader"
+done
