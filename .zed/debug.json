@@ -6,7 +6,7 @@
       "args": ["$ZED_WORKTREE_ROOT/build.sh", "Debug"],
       "cwd": "$ZED_WORKTREE_ROOT",
     },
-    "program": "$ZED_WORKTREE_ROOT/build/Debug/photo_sorter",
+    "program": "$ZED_WORKTREE_ROOT/build/Debug/photo-sorter",
     "request": "launch",
     "adapter": "CodeLLDB",
     "env": {
@@ -20,7 +20,7 @@
       "args": ["$ZED_WORKTREE_ROOT/build.sh", "Release"],
       "cwd": "$ZED_WORKTREE_ROOT",
     },
-    "program": "$ZED_WORKTREE_ROOT/build/Release/photo_sorter",
+    "program": "$ZED_WORKTREE_ROOT/build/Release/photo-sorter",
     "request": "launch",
     "adapter": "CodeLLDB",
     "env": {
@@ -28,13 +28,27 @@
     },
   },
   {
-    "label": "Run raw-viewer Debug Binary",
+    "label": "Run oxiide Debug Binary",
     "build": {
       "command": "bash",
       "args": ["$ZED_WORKTREE_ROOT/build.sh", "Debug"],
       "cwd": "$ZED_WORKTREE_ROOT",
     },
-    "program": "$ZED_WORKTREE_ROOT/build/Debug/raw_viewer",
+    "program": "$ZED_WORKTREE_ROOT/build/Debug/oxiide",
+    "request": "launch",
+    "adapter": "CodeLLDB",
+    "env": {
+      "SDL_VIDEODRIVER": "wayland",
+    },
+  },
+  {
+    "label": "Run oxiide Release Binary",
+    "build": {
+      "command": "bash",
+      "args": ["$ZED_WORKTREE_ROOT/build.sh", "Release"],
+      "cwd": "$ZED_WORKTREE_ROOT",
+    },
+    "program": "$ZED_WORKTREE_ROOT/build/Release/oxiide",
     "request": "launch",
     "adapter": "CodeLLDB",
     "env": {

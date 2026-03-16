@@ -81,4 +81,5 @@ target_link_libraries(software-renderer PRIVATE
   clay
 )
 
-add_subdirectory(examples)
+add_subdirectory(examples/oxiide)
+add_subdirectory(examples/photo-sorter)
