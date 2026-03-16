@@ -125,7 +125,7 @@ public:
 
   glm::vec2 glyph_size;
   float font_sample_point_size = 56.0f;
-  float viewport_scale = 2.0f;
+  float viewport_scale = 1.0f;
 
 private:
   Context context;

@@ -801,6 +801,7 @@ bool Renderer::draw_rect(glm::vec2 position, glm::vec2 size, glm::vec4 color,
   return true;
 }
 
+// TODO: Draw rect and draw stroke are nearly identical
 bool Renderer::draw_rect_stroke(glm::vec2 position, glm::vec2 size,
                                 glm::vec4 color, glm::vec4 corner_radius,
                                 bool use_texture, TextureID texture_id,

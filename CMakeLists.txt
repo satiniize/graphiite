@@ -8,6 +8,8 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/$<CONFIGURATION>")
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/$<CONFIGURATION>")
 
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+
 # libjpeg-turbo shenanigans
 set(LIBJPEG_TURBO_PREFIX "${CMAKE_BINARY_DIR}/external/libjpeg_turbo")
 set(LIBJPEG_TURBO_INSTALL_DIR "${LIBJPEG_TURBO_PREFIX}/install")
@@ -50,29 +52,33 @@ set_target_properties(libjpeg_turbo PROPERTIES
 add_subdirectory(external/SDL EXCLUDE_FROM_ALL)
 add_subdirectory(external/glm EXCLUDE_FROM_ALL)
 add_subdirectory(external/LibRaw EXCLUDE_FROM_ALL)
+add_subdirectory(external/stb EXCLUDE_FROM_ALL)
+add_subdirectory(external/tinyfiledialogs EXCLUDE_FROM_ALL)
+add_subdirectory(external/clay EXCLUDE_FROM_ALL)
 
 set(SR_SOURCES
-  # src/main.cpp
   src/sprite_renderer.cpp
   src/renderer.cpp
   src/clay_renderer.cpp
-  src/tinyfiledialogs.c
   src/image_loader.cpp
 )
 
 # add_executable(software-renderer ${SR_SOURCES})
-add_library(software-renderer ${SR_SOURCES})
+add_library(software-renderer STATIC ${SR_SOURCES})
 add_dependencies(software-renderer libjpeg_turbo)
 
 target_include_directories(software-renderer PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/include
-  external/glm
 )
 
 target_link_libraries(software-renderer PRIVATE
   SDL3::SDL3
   libjpeg_turbo
   libraw::libraw
+  glm::glm
+  stb
+  tinyfiledialogs
+  clay
 )
 
 add_subdirectory(examples)

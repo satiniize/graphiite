@@ -1,7 +1,7 @@
 #pragma once
 
-#include "../../clay.h"
 #include "../../texture.hpp"
+#include "clay.h"
 
 #include "../theme.hpp"
 #include "../types/photo.hpp"
