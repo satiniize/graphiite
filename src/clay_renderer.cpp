@@ -1,4 +1,5 @@
 #include "clay_renderer.hpp"
+#include "renderer.hpp"
 
 #include <sys/types.h>
 
@@ -38,9 +39,18 @@ void render_commands(Renderer &renderer,
       // renderer.draw_rect(glm::vec2(rect.x, rect.y), glm::vec2(rect.w,
       // rect.h),
       //                    color, corner_radii, false, -1, false);
-      renderer.draw_rect_stroke(glm::vec2(rect.x, rect.y),
-                                glm::vec2(rect.w, rect.h), color, corner_radii,
-                                false, -1, false, false, glm::vec4(0.0f));
+      RectParams rect_params = {
+          .position = glm::vec2(rect.x, rect.y),
+          .size = glm::vec2(rect.w, rect.h),
+          .color = color,
+          .corner_radii = corner_radii,
+          .use_texture = false,
+          .texture_id = 0,
+          .tiling = false,
+          .draw_stroke = false,
+          .stroke_thickness = glm::vec4(0.0f),
+      };
+      renderer.draw_rect(rect_params);
     } break;
     case CLAY_RENDER_COMMAND_TYPE_TEXT: {
       // TODO: Implement and improve text rendering
@@ -105,9 +115,18 @@ void render_commands(Renderer &renderer,
                                  (float)render_data_border->width.right,
                                  (float)render_data_border->width.top,
                                  (float)render_data_border->width.bottom);
-      renderer.draw_rect_stroke(glm::vec2(rect.x, rect.y),
-                                glm::vec2(rect.w, rect.h), color, corner_radii,
-                                false, -1, false, true, stroke_thickness);
+      RectParams rect_params = {
+          .position = glm::vec2(rect.x, rect.y),
+          .size = glm::vec2(rect.w, rect.h),
+          .color = color,
+          .corner_radii = corner_radii,
+          .use_texture = false,
+          .texture_id = 0,
+          .tiling = false,
+          .draw_stroke = true,
+          .stroke_thickness = stroke_thickness,
+      };
+      renderer.draw_rect(rect_params);
     } break;
     case CLAY_RENDER_COMMAND_TYPE_SCISSOR_START: {
       // TODO: Investigate this weird off by one pixel error
@@ -121,8 +140,6 @@ void render_commands(Renderer &renderer,
       renderer.end_scissor_mode();
     } break;
     case CLAY_RENDER_COMMAND_TYPE_IMAGE: {
-      // TODO: Support rounded corners
-      // TODO: In image data should have settings for tiling or stretched
       Clay_ImageRenderData *render_data_image =
           &render_command->renderData.image;
 
@@ -143,22 +160,18 @@ void render_commands(Renderer &renderer,
           render_data_image->cornerRadius.bottomRight,
       };
 
-      // renderer.draw_sprite(
-      //     image_path, glm::vec2(rect.x + rect.w / 2.0f, rect.y + rect.h
-      //     / 2.0f), 0.0f, glm::vec2(rect.w, rect.h), glm::vec4(1.0f));
-
-      // Draw the image
-      // renderer.draw_texture_rect(image_data.id, glm::vec2(rect.x, rect.y),
-      // glm::vec2(rect.w, rect.h), modulate_color,
-      // corner_radii, image_data.tiling);
-      // renderer.draw_rect(glm::vec2(rect.x, rect.y), glm::vec2(rect.w,
-      // rect.h),
-      //                    modulate_color, corner_radii, true, image_data.id,
-      //                    image_data.tiling);
-      renderer.draw_rect_stroke(glm::vec2(rect.x, rect.y),
-                                glm::vec2(rect.w, rect.h), modulate_color,
-                                corner_radii, true, image_data.id,
-                                image_data.tiling, false, glm::vec4(0.0f));
+      RectParams rect_params = {
+          .position = glm::vec2(rect.x, rect.y),
+          .size = glm::vec2(rect.w, rect.h),
+          .color = modulate_color,
+          .corner_radii = corner_radii,
+          .use_texture = true,
+          .texture_id = image_data.id,
+          .tiling = image_data.tiling,
+          .draw_stroke = false,
+          .stroke_thickness = glm::vec4(0.0f),
+      };
+      renderer.draw_rect(rect_params);
 
     } break;
     default:

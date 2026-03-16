@@ -74,6 +74,21 @@ static SDFRectStrokeFragmentUniformBuffer
 using GeometryID = std::size_t;
 using GraphicsPipelineID = std::size_t;
 
+struct RectParams {
+  // Fundamentals
+  glm::vec2 position;
+  glm::vec2 size;
+  glm::vec4 color;
+  glm::vec4 corner_radii = glm::vec4(0.0f);
+  // Texture
+  bool use_texture = false;
+  TextureID texture_id = -1;
+  bool tiling = false;
+  // Stroke
+  bool draw_stroke = false;
+  glm::vec4 stroke_thickness = glm::vec4(0.0f);
+};
+
 // TODO: When renderer changes, sprite renderer and clay renderer needs to
 // recompile
 class Renderer {
@@ -101,10 +116,7 @@ public:
   // Drawing functions
   bool draw_sprite(TextureID texture_id, glm::vec2 translation, float rotation,
                    glm::vec2 scale, glm::vec4 color);
-  bool draw_rect_stroke(glm::vec2 position, glm::vec2 size, glm::vec4 color,
-                        glm::vec4 corner_radius, bool use_texture,
-                        TextureID texture_id, bool tiling, bool draw_stroke,
-                        glm::vec4 stroke_thickness);
+  bool draw_rect(RectParams params);
   bool draw_text(const char *text, int length, float point_size,
                  glm::vec2 position, glm::vec4 color);
   // Scissor mode

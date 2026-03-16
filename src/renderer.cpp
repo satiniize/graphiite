@@ -742,11 +742,7 @@ bool Renderer::draw_sprite(TextureID texture_id, glm::vec2 translation,
   return true;
 }
 
-bool Renderer::draw_rect_stroke(glm::vec2 position, glm::vec2 size,
-                                glm::vec4 color, glm::vec4 corner_radius,
-                                bool use_texture, TextureID texture_id,
-                                bool tiling, bool draw_stroke,
-                                glm::vec4 stroke_thickness) {
+bool Renderer::draw_rect(RectParams params) {
   // Bind vertex buffer
   SDL_GPUBufferBinding vertex_buffer_bindings[1];
   vertex_buffer_bindings[0].buffer = vertex_buffers[quad_geometry_id];
@@ -756,30 +752,37 @@ bool Renderer::draw_rect_stroke(glm::vec2 position, glm::vec2 size,
   index_buffer_bindings[0].buffer = index_buffers[quad_geometry_id];
   index_buffer_bindings[0].offset = 0;
   // Samplers
-  if (use_texture && gpu_textures.find(texture_id) == gpu_textures.end()) {
+  if (params.use_texture &&
+      gpu_textures.find(params.texture_id) == gpu_textures.end()) {
     SDL_Log("Sprite not loaded");
     SDL_Quit();
     return false;
   }
   SDL_GPUTextureSamplerBinding fragment_sampler_bindings{};
-  fragment_sampler_bindings.texture =
-      use_texture ? gpu_textures[texture_id] : gpu_textures[dummy_texture_id];
-  fragment_sampler_bindings.sampler = tiling ? wrap_sampler : clamp_sampler;
+  fragment_sampler_bindings.texture = params.use_texture
+                                          ? gpu_textures[params.texture_id]
+                                          : gpu_textures[dummy_texture_id];
+  fragment_sampler_bindings.sampler =
+      params.tiling ? wrap_sampler : clamp_sampler;
   // Uniforms
-  sdf_rect_stroke_fragment_uniform_buffer.modulate = color;
+  sdf_rect_stroke_fragment_uniform_buffer.modulate = params.color;
   sdf_rect_stroke_fragment_uniform_buffer.corner_radii =
-      glm::vec4(corner_radius);
+      glm::vec4(params.corner_radii);
   sdf_rect_stroke_fragment_uniform_buffer.size =
-      glm::vec4(size.x, size.y, 0.0f, 0.0f);
-  sdf_rect_stroke_fragment_uniform_buffer.stroke_thickness = stroke_thickness;
-  sdf_rect_stroke_fragment_uniform_buffer.tiling = tiling ? 1 : 0;
-  sdf_rect_stroke_fragment_uniform_buffer.use_texture = use_texture ? 1 : 0;
-  sdf_rect_stroke_fragment_uniform_buffer.draw_stroke = draw_stroke ? 1 : 0;
+      glm::vec4(params.size.x, params.size.y, 0.0f, 0.0f);
+  sdf_rect_stroke_fragment_uniform_buffer.stroke_thickness =
+      params.stroke_thickness;
+  sdf_rect_stroke_fragment_uniform_buffer.tiling = params.tiling ? 1 : 0;
+  sdf_rect_stroke_fragment_uniform_buffer.use_texture =
+      params.use_texture ? 1 : 0;
+  sdf_rect_stroke_fragment_uniform_buffer.draw_stroke =
+      params.draw_stroke ? 1 : 0;
   glm::mat4 model_matrix = glm::mat4(1.0f);
-  model_matrix = glm::translate(model_matrix,
-                                glm::vec3(position.x + size.x / 2.0f,
-                                          -(position.y + size.y / 2.0f), 0.0f));
-  model_matrix = glm::scale(model_matrix, glm::vec3(size, 1.0f));
+  model_matrix = glm::translate(
+      model_matrix,
+      glm::vec3(params.position.x + params.size.x / 2.0f,
+                -(params.position.y + params.size.y / 2.0f), 0.0f));
+  model_matrix = glm::scale(model_matrix, glm::vec3(params.size, 1.0f));
   basic_vertex_uniform_buffer.mvp_matrix =
       this->projection_matrix * model_matrix;
 
