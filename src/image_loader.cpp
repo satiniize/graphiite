@@ -1,6 +1,5 @@
 #include "image_loader.hpp"
 
-#define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
 #include "image.hpp"
@@ -37,6 +36,8 @@ Image load(const std::filesystem::path &path) {
   return image;
 }
 
+// This only loads a thumbnail size image currently
+// TODO: Add user configurable size
 Image load_with_turbojpeg(const std::filesystem::path &path) {
   if (!std::filesystem::exists(path) || std::filesystem::is_directory(path)) {
     SDL_Log("Invalid photo path");

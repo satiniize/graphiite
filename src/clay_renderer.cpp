@@ -35,8 +35,12 @@ void render_commands(Renderer &renderer,
       // Draw the rect
       // renderer.draw_color_rect(glm::vec2(rect.x, rect.y),
       // glm::vec2(rect.w, rect.h), color, corner_radii);
-      renderer.draw_rect(glm::vec2(rect.x, rect.y), glm::vec2(rect.w, rect.h),
-                         color, corner_radii, false, -1, false);
+      // renderer.draw_rect(glm::vec2(rect.x, rect.y), glm::vec2(rect.w,
+      // rect.h),
+      //                    color, corner_radii, false, -1, false);
+      renderer.draw_rect_stroke(glm::vec2(rect.x, rect.y),
+                                glm::vec2(rect.w, rect.h), color, corner_radii,
+                                false, -1, false, false, glm::vec4(0.0f));
     } break;
     case CLAY_RENDER_COMMAND_TYPE_TEXT: {
       // TODO: Implement and improve text rendering
@@ -103,7 +107,7 @@ void render_commands(Renderer &renderer,
                                  (float)render_data_border->width.bottom);
       renderer.draw_rect_stroke(glm::vec2(rect.x, rect.y),
                                 glm::vec2(rect.w, rect.h), color, corner_radii,
-                                false, -1, false, stroke_thickness);
+                                false, -1, false, true, stroke_thickness);
     } break;
     case CLAY_RENDER_COMMAND_TYPE_SCISSOR_START: {
       // TODO: Investigate this weird off by one pixel error
@@ -147,9 +151,15 @@ void render_commands(Renderer &renderer,
       // renderer.draw_texture_rect(image_data.id, glm::vec2(rect.x, rect.y),
       // glm::vec2(rect.w, rect.h), modulate_color,
       // corner_radii, image_data.tiling);
-      renderer.draw_rect(glm::vec2(rect.x, rect.y), glm::vec2(rect.w, rect.h),
-                         modulate_color, corner_radii, true, image_data.id,
-                         image_data.tiling);
+      // renderer.draw_rect(glm::vec2(rect.x, rect.y), glm::vec2(rect.w,
+      // rect.h),
+      //                    modulate_color, corner_radii, true, image_data.id,
+      //                    image_data.tiling);
+      renderer.draw_rect_stroke(glm::vec2(rect.x, rect.y),
+                                glm::vec2(rect.w, rect.h), modulate_color,
+                                corner_radii, true, image_data.id,
+                                image_data.tiling, false, glm::vec4(0.0f));
+
     } break;
     default:
       SDL_Log("Unknown render command type: %d", render_command->commandType);

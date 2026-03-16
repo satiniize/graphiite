@@ -52,14 +52,6 @@ struct TextFragmentUniformBuffer {
   glm::vec4 uv_rect;
 };
 
-struct SDFRectFragmentUniformBuffer {
-  glm::vec4 size;
-  glm::vec4 modulate;
-  glm::vec4 corner_radii;
-  uint32_t tiling;
-  uint32_t use_texture;
-};
-
 struct SDFRectStrokeFragmentUniformBuffer {
   glm::vec4 size;
   glm::vec4 modulate;
@@ -67,6 +59,7 @@ struct SDFRectStrokeFragmentUniformBuffer {
   glm::vec4 stroke_thickness;
   uint32_t tiling;
   uint32_t use_texture;
+  uint32_t draw_stroke;
 };
 
 static BasicVertexUniformBuffer basic_vertex_uniform_buffer{};
@@ -75,12 +68,9 @@ static TextVertexUniformBuffer text_vertex_uniform_buffer{};
 static CommonFragmentUniformBuffer common_fragment_uniform_buffer{};
 static SpriteFragmentUniformBuffer sprite_fragment_uniform_buffer{};
 static TextFragmentUniformBuffer text_fragment_uniform_buffer{};
-static SDFRectFragmentUniformBuffer sdf_rect_fragment_uniform_buffer{};
 static SDFRectStrokeFragmentUniformBuffer
     sdf_rect_stroke_fragment_uniform_buffer{};
 
-using FontID = std::size_t;
-using SamplerID = std::size_t;
 using GeometryID = std::size_t;
 using GraphicsPipelineID = std::size_t;
 
@@ -94,7 +84,8 @@ public:
   Renderer(uint32_t width, uint32_t height);
   ~Renderer();
   // These are mature
-  TextureID upload_texture(unsigned char *pixels, int w, int h);
+  TextureID upload_texture(unsigned char *pixels, int w, int h,
+                           bool is_16bit = false);
   GeometryID upload_geometry(const Vertex *vertices, size_t vertex_size,
                              const Uint16 *indices, size_t index_size);
   GraphicsPipelineID create_graphics_pipeline(SDL_GPUShader *vertex_shader,
@@ -110,12 +101,9 @@ public:
   // Drawing functions
   bool draw_sprite(TextureID texture_id, glm::vec2 translation, float rotation,
                    glm::vec2 scale, glm::vec4 color);
-  bool draw_rect(glm::vec2 position, glm::vec2 size, glm::vec4 color,
-                 glm::vec4 corner_radius, bool use_texture,
-                 TextureID texture_id, bool tiling);
   bool draw_rect_stroke(glm::vec2 position, glm::vec2 size, glm::vec4 color,
                         glm::vec4 corner_radius, bool use_texture,
-                        TextureID texture_id, bool tiling,
+                        TextureID texture_id, bool tiling, bool draw_stroke,
                         glm::vec4 stroke_thickness);
   bool draw_text(const char *text, int length, float point_size,
                  glm::vec2 position, glm::vec4 color);
@@ -154,13 +142,11 @@ private:
   GeometryID next_geometry_id = 0;
   GraphicsPipelineID next_pipeline_id = 0;
 
-  // TextureID font_texture_id = -1;
   TextureID dummy_texture_id;
   TextureID italic_font_atlas_id;
   TextureID regular_font_atlas_id;
   GeometryID quad_geometry_id;
   GraphicsPipelineID sdf_rect_stroke_pipeline_id;
-  GraphicsPipelineID sdf_rect_pipeline_id;
   GraphicsPipelineID sprite_pipeline_id;
   GraphicsPipelineID text_pipeline_id;
 

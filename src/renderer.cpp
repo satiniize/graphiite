@@ -7,7 +7,6 @@
 #include <fstream>
 #include <glm/gtc/matrix_transform.hpp>
 
-#define STB_TRUETYPE_IMPLEMENTATION
 #include "stb_truetype.h"
 
 // TOOD: Use unique_ptr for SDL_GPUDevice and SDL_GPUTexture
@@ -132,10 +131,6 @@ Renderer::Renderer(uint32_t width, uint32_t height) {
   SDL_GPUShader *text_fragment_shader = load_shader(
       this->context.device, "assets/shaders/text.frag.spv", 1, 0, 0, 2);
 
-  // SDFRect fragment shader
-  SDL_GPUShader *sdf_rect_fragment_shader = load_shader(
-      this->context.device, "assets/shaders/sdf_rect.frag.spv", 1, 0, 0, 2);
-
   SDL_GPUShader *sdf_rect_stroke_fragment_shader =
       load_shader(this->context.device,
                   "assets/shaders/sdf_rect_stroke.frag.spv", 1, 0, 0, 2);
@@ -144,8 +139,6 @@ Renderer::Renderer(uint32_t width, uint32_t height) {
       create_graphics_pipeline(basic_vertex_shader, sprite_fragment_shader);
   text_pipeline_id =
       create_graphics_pipeline(text_vertex_shader, text_fragment_shader);
-  sdf_rect_pipeline_id =
-      create_graphics_pipeline(basic_vertex_shader, sdf_rect_fragment_shader);
   sdf_rect_stroke_pipeline_id = create_graphics_pipeline(
       basic_vertex_shader, sdf_rect_stroke_fragment_shader);
 
@@ -154,7 +147,7 @@ Renderer::Renderer(uint32_t width, uint32_t height) {
   SDL_ReleaseGPUShader(context.device, text_vertex_shader);
   SDL_ReleaseGPUShader(context.device, sprite_fragment_shader);
   SDL_ReleaseGPUShader(context.device, text_fragment_shader);
-  SDL_ReleaseGPUShader(context.device, sdf_rect_fragment_shader);
+  // SDL_ReleaseGPUShader(context.device, sdf_rect_fragment_shader);
 
   // Create gpu sampler
   SDL_GPUSamplerCreateInfo clamp_sampler_info{};
@@ -242,10 +235,14 @@ Renderer::~Renderer() {
   return;
 }
 
-TextureID Renderer::upload_texture(unsigned char *pixels, int w, int h) {
+TextureID Renderer::upload_texture(unsigned char *pixels, int w, int h,
+                                   bool is_16bit) {
+  int bytes_per_pixel = is_16bit ? 8 : 4;
+
   SDL_GPUTextureCreateInfo texture_info{};
   texture_info.type = SDL_GPU_TEXTURETYPE_2D;
-  texture_info.format = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM;
+  texture_info.format = is_16bit ? SDL_GPU_TEXTUREFORMAT_R16G16B16A16_UNORM
+                                 : SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM;
   texture_info.usage = SDL_GPU_TEXTUREUSAGE_SAMPLER;
   texture_info.width = w;
   texture_info.height = h;
@@ -266,14 +263,14 @@ TextureID Renderer::upload_texture(unsigned char *pixels, int w, int h) {
   // Set up transfer buffer
   SDL_GPUTransferBufferCreateInfo texture_transfer_create_info{};
   texture_transfer_create_info.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD;
-  texture_transfer_create_info.size = w * h * 4; // 4 is RGBA8888
+  texture_transfer_create_info.size = w * h * bytes_per_pixel; // 4 is RGBA8888
   SDL_GPUTransferBuffer *texture_transfer_buffer = SDL_CreateGPUTransferBuffer(
       this->context.device, &texture_transfer_create_info);
 
   // Transfer data
   void *texture_data_ptr = SDL_MapGPUTransferBuffer(
       this->context.device, texture_transfer_buffer, false);
-  SDL_memcpy(texture_data_ptr, (void *)pixels, w * h * 4);
+  SDL_memcpy(texture_data_ptr, (void *)pixels, w * h * bytes_per_pixel);
 
   SDL_UnmapGPUTransferBuffer(this->context.device, texture_transfer_buffer);
 
@@ -745,67 +742,11 @@ bool Renderer::draw_sprite(TextureID texture_id, glm::vec2 translation,
   return true;
 }
 
-bool Renderer::draw_rect(glm::vec2 position, glm::vec2 size, glm::vec4 color,
-                         glm::vec4 corner_radius, bool use_texture,
-                         TextureID texture_id, bool tiling) {
-  // Bind vertex buffer
-  SDL_GPUBufferBinding vertex_buffer_bindings[1];
-  vertex_buffer_bindings[0].buffer = vertex_buffers[quad_geometry_id];
-  vertex_buffer_bindings[0].offset = 0;
-  // Bind index buffer
-  SDL_GPUBufferBinding index_buffer_bindings[1];
-  index_buffer_bindings[0].buffer = index_buffers[quad_geometry_id];
-  index_buffer_bindings[0].offset = 0;
-  // Samplers
-  if (use_texture && gpu_textures.find(texture_id) == gpu_textures.end()) {
-    SDL_Log("Sprite not loaded");
-    SDL_Quit();
-    return false;
-  }
-  SDL_GPUTextureSamplerBinding fragment_sampler_bindings{};
-  fragment_sampler_bindings.texture =
-      use_texture ? gpu_textures[texture_id] : gpu_textures[dummy_texture_id];
-  fragment_sampler_bindings.sampler = tiling ? wrap_sampler : clamp_sampler;
-  // Uniforms
-  sdf_rect_fragment_uniform_buffer.modulate = color;
-  sdf_rect_fragment_uniform_buffer.corner_radii = glm::vec4(corner_radius);
-  sdf_rect_fragment_uniform_buffer.size = glm::vec4(size.x, size.y, 0.0f, 0.0f);
-  sdf_rect_fragment_uniform_buffer.tiling = tiling ? 1 : 0;
-  sdf_rect_fragment_uniform_buffer.use_texture = use_texture ? 1 : 0;
-  glm::mat4 model_matrix = glm::mat4(1.0f);
-  model_matrix = glm::translate(model_matrix,
-                                glm::vec3(position.x + size.x / 2.0f,
-                                          -(position.y + size.y / 2.0f), 0.0f));
-  model_matrix = glm::scale(model_matrix, glm::vec3(size, 1.0f));
-  basic_vertex_uniform_buffer.mvp_matrix =
-      this->projection_matrix * model_matrix;
-
-  SDL_BindGPUGraphicsPipeline(_render_pass,
-                              graphics_pipelines[sdf_rect_pipeline_id]);
-  SDL_BindGPUVertexBuffers(_render_pass, 0, vertex_buffer_bindings, 1);
-  SDL_BindGPUIndexBuffer(_render_pass, index_buffer_bindings,
-                         SDL_GPU_INDEXELEMENTSIZE_16BIT);
-  SDL_BindGPUFragmentSamplers(_render_pass,
-                              0, // The binding point for the sampler
-                              &fragment_sampler_bindings,
-                              1 // Number of textures/samplers to bind
-  );
-  SDL_PushGPUFragmentUniformData(_command_buffer, 1,
-                                 &sdf_rect_fragment_uniform_buffer,
-                                 sizeof(SDFRectFragmentUniformBuffer));
-  SDL_PushGPUVertexUniformData(_command_buffer, 0, &basic_vertex_uniform_buffer,
-                               sizeof(BasicVertexUniformBuffer));
-  SDL_DrawGPUIndexedPrimitives(_render_pass, 6, 1, 0, 0,
-                               0); // TODO: Determine index count
-
-  return true;
-}
-
-// TODO: Draw rect and draw stroke are nearly identical
 bool Renderer::draw_rect_stroke(glm::vec2 position, glm::vec2 size,
                                 glm::vec4 color, glm::vec4 corner_radius,
                                 bool use_texture, TextureID texture_id,
-                                bool tiling, glm::vec4 stroke_thickness) {
+                                bool tiling, bool draw_stroke,
+                                glm::vec4 stroke_thickness) {
   // Bind vertex buffer
   SDL_GPUBufferBinding vertex_buffer_bindings[1];
   vertex_buffer_bindings[0].buffer = vertex_buffers[quad_geometry_id];
@@ -833,6 +774,7 @@ bool Renderer::draw_rect_stroke(glm::vec2 position, glm::vec2 size,
   sdf_rect_stroke_fragment_uniform_buffer.stroke_thickness = stroke_thickness;
   sdf_rect_stroke_fragment_uniform_buffer.tiling = tiling ? 1 : 0;
   sdf_rect_stroke_fragment_uniform_buffer.use_texture = use_texture ? 1 : 0;
+  sdf_rect_stroke_fragment_uniform_buffer.draw_stroke = draw_stroke ? 1 : 0;
   glm::mat4 model_matrix = glm::mat4(1.0f);
   model_matrix = glm::translate(model_matrix,
                                 glm::vec3(position.x + size.x / 2.0f,
