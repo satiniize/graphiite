@@ -97,6 +97,13 @@ struct RectParams {
   glm::vec4 stroke_thickness = glm::vec4(0.0f);
 };
 
+struct RenderTargetParams {
+  int width;
+  int height;
+  SDL_GPUTextureFormat format = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM;
+  int sample_count = 1;
+};
+
 // TODO: When renderer changes, sprite renderer and clay renderer needs to
 // recompile
 class Renderer {
@@ -106,7 +113,8 @@ public:
 
   Renderer(uint32_t width, uint32_t height);
   ~Renderer();
-  // These are mature
+  // Texture ID is a key in gpu_textures for the cpu to handle easily.
+  //
   TextureID create_render_target(int w, int h);
   TextureID upload_texture(unsigned char *pixels, int w, int h,
                            bool is_16bit = false);
@@ -145,6 +153,10 @@ public:
 private:
   Context context;
 
+  // GPU resource IDs
+  TextureID next_texture_id = 0;
+  GeometryID next_geometry_id = 0;
+  GraphicsPipelineID next_pipeline_id = 0;
   std::unordered_map<TextureID, SDL_GPUTexture *> gpu_textures;
   std::unordered_map<GeometryID, SDL_GPUBuffer *> vertex_buffers;
   std::unordered_map<GeometryID, SDL_GPUBuffer *> index_buffers;
@@ -163,11 +175,6 @@ private:
   SDL_GPUTexture *swapchain_texture;
 
   glm::mat4 projection_matrix;
-
-  // GPU resource IDs
-  TextureID next_texture_id = 0;
-  GeometryID next_geometry_id = 0;
-  GraphicsPipelineID next_pipeline_id = 0;
 
   TextureID dummy_texture_id;
   TextureID italic_font_atlas_id;

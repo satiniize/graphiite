@@ -242,6 +242,7 @@ Renderer::~Renderer() {
   return;
 }
 
+// TODO: HAVE A FORMAT AND SAMPLE COUNT PARAM
 TextureID Renderer::create_render_target(int w, int h) {
   SDL_GPUTextureCreateInfo info = {
       .type = SDL_GPU_TEXTURETYPE_2D,
@@ -873,10 +874,10 @@ bool Renderer::draw_rect(RectParams params) {
                               &fragment_sampler_bindings,
                               1 // Number of textures/samplers to bind
   );
-  SDL_PushGPUFragmentUniformData(_command_buffer, 1, &fragment_uniforms,
-                                 sizeof(SDFRectStrokeFragmentUniformBuffer));
   SDL_PushGPUVertexUniformData(_command_buffer, 0, &vertex_uniforms,
                                sizeof(BasicVertexUniformBuffer));
+  SDL_PushGPUFragmentUniformData(_command_buffer, 1, &fragment_uniforms,
+                                 sizeof(SDFRectStrokeFragmentUniformBuffer));
   SDL_DrawGPUIndexedPrimitives(_render_pass, 6, 1, 0, 0,
                                0); // TODO: Determine index count
 
