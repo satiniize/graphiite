@@ -62,14 +62,22 @@ struct SDFRectStrokeFragmentUniformBuffer {
   uint32_t draw_stroke;
 };
 
+struct RawProcessorFragmentUniformBuffer {
+  glm::mat4 correction_matrix;
+  glm::mat4 crosstalk_matrix;
+  glm::mat4 dye_absorption_matrix;
+  glm::vec4 d_min;
+  glm::vec4 d_max;
+  glm::vec4 k;
+  glm::vec4 x0;
+};
+
 static BasicVertexUniformBuffer basic_vertex_uniform_buffer{};
 static TextVertexUniformBuffer text_vertex_uniform_buffer{};
 
 static CommonFragmentUniformBuffer common_fragment_uniform_buffer{};
 static SpriteFragmentUniformBuffer sprite_fragment_uniform_buffer{};
 static TextFragmentUniformBuffer text_fragment_uniform_buffer{};
-static SDFRectStrokeFragmentUniformBuffer
-    sdf_rect_stroke_fragment_uniform_buffer{};
 
 using GeometryID = std::size_t;
 using GraphicsPipelineID = std::size_t;
@@ -99,12 +107,15 @@ public:
   Renderer(uint32_t width, uint32_t height);
   ~Renderer();
   // These are mature
+  TextureID create_render_target(int w, int h);
   TextureID upload_texture(unsigned char *pixels, int w, int h,
                            bool is_16bit = false);
   GeometryID upload_geometry(const Vertex *vertices, size_t vertex_size,
                              const Uint16 *indices, size_t index_size);
-  GraphicsPipelineID create_graphics_pipeline(SDL_GPUShader *vertex_shader,
-                                              SDL_GPUShader *fragment_shader);
+  GraphicsPipelineID
+  create_graphics_pipeline(SDL_GPUShader *vertex_shader,
+                           SDL_GPUShader *fragment_shader,
+                           bool is_non_swapchain_pipeline = false);
   // TODO: These aren't mature, redesign please
   TextureID load_and_upload_ascii_font_atlas(
       const std::string &font_path); // TODO: Seperation of concerns
@@ -114,6 +125,7 @@ public:
   bool begin_frame();
   bool end_frame();
   // Drawing functions
+  void film_pass();
   bool draw_sprite(TextureID texture_id, glm::vec2 translation, float rotation,
                    glm::vec2 scale, glm::vec4 color);
   bool draw_rect(RectParams params);
@@ -126,6 +138,9 @@ public:
   glm::vec2 glyph_size;
   float font_sample_point_size = 56.0f;
   float viewport_scale = 1.0f;
+
+  TextureID film_source_texture_id;
+  TextureID film_render_target_id;
 
 private:
   Context context;
@@ -157,10 +172,15 @@ private:
   TextureID dummy_texture_id;
   TextureID italic_font_atlas_id;
   TextureID regular_font_atlas_id;
+
+  // TODO: Make this a public API so we don't have to do this
+
   GeometryID quad_geometry_id;
+
   GraphicsPipelineID sdf_rect_stroke_pipeline_id;
   GraphicsPipelineID sprite_pipeline_id;
   GraphicsPipelineID text_pipeline_id;
+  GraphicsPipelineID film_pipeline_id;
 
   SDL_GPUSampleCount sample_count = SDL_GPU_SAMPLECOUNT_2;
 

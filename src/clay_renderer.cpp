@@ -18,6 +18,7 @@ void render_commands(Renderer &renderer,
     const uint16_t z_index = static_cast<uint16_t>(render_command->zIndex);
     // SDL_Log("z_index: %u", z_index);
 
+    // TODO: Properly clamp corner radii by ratio
     switch (render_command->commandType) {
     case CLAY_RENDER_COMMAND_TYPE_RECTANGLE: {
       Clay_RectangleRenderData *render_data_rectangle =

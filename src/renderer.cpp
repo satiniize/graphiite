@@ -135,19 +135,26 @@ Renderer::Renderer(uint32_t width, uint32_t height) {
       load_shader(this->context.device,
                   "assets/shaders/sdf_rect_stroke.frag.spv", 1, 0, 0, 2);
 
+  SDL_GPUShader *film_fragment_shader =
+      load_shader(this->context.device, "assets/shaders/raw_processor.frag.spv",
+                  1, 0, 0, 2);
+
   sprite_pipeline_id =
       create_graphics_pipeline(basic_vertex_shader, sprite_fragment_shader);
   text_pipeline_id =
       create_graphics_pipeline(text_vertex_shader, text_fragment_shader);
   sdf_rect_stroke_pipeline_id = create_graphics_pipeline(
       basic_vertex_shader, sdf_rect_stroke_fragment_shader);
+  film_pipeline_id =
+      create_graphics_pipeline(basic_vertex_shader, film_fragment_shader, true);
 
   // We don't need to store the shaders after creating the pipeline
   SDL_ReleaseGPUShader(context.device, basic_vertex_shader);
   SDL_ReleaseGPUShader(context.device, text_vertex_shader);
   SDL_ReleaseGPUShader(context.device, sprite_fragment_shader);
   SDL_ReleaseGPUShader(context.device, text_fragment_shader);
-  // SDL_ReleaseGPUShader(context.device, sdf_rect_fragment_shader);
+  SDL_ReleaseGPUShader(context.device, film_fragment_shader);
+  SDL_ReleaseGPUShader(context.device, sdf_rect_stroke_fragment_shader);
 
   // Create gpu sampler
   SDL_GPUSamplerCreateInfo clamp_sampler_info{};
@@ -233,6 +240,24 @@ Renderer::~Renderer() {
   SDL_Quit();
 
   return;
+}
+
+TextureID Renderer::create_render_target(int w, int h) {
+  SDL_GPUTextureCreateInfo info = {
+      .type = SDL_GPU_TEXTURETYPE_2D,
+      .format =
+          SDL_GetGPUSwapchainTextureFormat(context.device, context.window),
+      .usage = SDL_GPU_TEXTUREUSAGE_COLOR_TARGET | SDL_GPU_TEXTUREUSAGE_SAMPLER,
+      .width = static_cast<uint32_t>(w),
+      .height = static_cast<uint32_t>(h),
+      .layer_count_or_depth = 1,
+      .num_levels = 1,
+      .sample_count = SDL_GPU_SAMPLECOUNT_1,
+  };
+
+  SDL_GPUTexture *render_target = SDL_CreateGPUTexture(context.device, &info);
+  gpu_textures[next_texture_id] = render_target;
+  return next_texture_id++;
 }
 
 TextureID Renderer::upload_texture(unsigned char *pixels, int w, int h,
@@ -399,7 +424,8 @@ GeometryID Renderer::upload_geometry(const Vertex *vertices, size_t vertex_size,
 // LGTM
 GraphicsPipelineID
 Renderer::create_graphics_pipeline(SDL_GPUShader *vertex_shader,
-                                   SDL_GPUShader *fragment_shader) {
+                                   SDL_GPUShader *fragment_shader,
+                                   bool is_non_swapchain_pipeline) {
   static const uint32_t num_vertex_buffers = 1;
   SDL_GPUVertexBufferDescription
       vertex_buffer_descriptions[num_vertex_buffers] = {};
@@ -458,7 +484,8 @@ Renderer::create_graphics_pipeline(SDL_GPUShader *vertex_shader,
       .rasterizer_state = {},
       .multisample_state =
           {
-              .sample_count = this->sample_count,
+              .sample_count = is_non_swapchain_pipeline ? SDL_GPU_SAMPLECOUNT_1
+                                                        : this->sample_count,
               .sample_mask = 0,
               .enable_mask = false,
               .enable_alpha_to_coverage = false,
@@ -692,6 +719,64 @@ bool Renderer::end_frame() {
   return true;
 }
 
+// TODO: SOMETHING IS WRONG HERE, MIGHT BE WRONG TEXTURE FORMATS/SRC DST FOR
+// FILM
+// SOMEHOW THIS COMMAND BUFFER/RENDER PASS IS AFFECTING THE SUBSEQUENT CALLS
+// MIGHT BE SOMETHING RELATED WITH MSAA RENDER TARGETS AND RESOLVE TARGETS
+// YES, THE INTERMEDIATE MSAA RENDER TARGET AND RESOLVE TEXTURES ARE THE ONES
+// AFFECTED BY THE BUG
+void Renderer::film_pass() {
+  if (film_render_target_id == -1 || film_source_texture_id == -1)
+    return;
+
+  SDL_GPUCommandBuffer *film_cmd = SDL_AcquireGPUCommandBuffer(context.device);
+
+  SDL_GPUColorTargetInfo color_target = {};
+  color_target.texture = gpu_textures[film_render_target_id];
+  color_target.load_op = SDL_GPU_LOADOP_CLEAR;
+  color_target.store_op = SDL_GPU_STOREOP_STORE;
+
+  SDL_GPURenderPass *pass =
+      SDL_BeginGPURenderPass(film_cmd, &color_target, 1, nullptr);
+
+  // fullscreen quad, no MVP transform needed — identity matrix
+  SDL_GPUBufferBinding vb = {.buffer = vertex_buffers[quad_geometry_id]};
+  SDL_GPUBufferBinding ib = {.buffer = index_buffers[quad_geometry_id]};
+  SDL_GPUTextureSamplerBinding sampler = {
+      .texture = gpu_textures[film_source_texture_id],
+      .sampler = clamp_sampler};
+
+  SDL_BindGPUGraphicsPipeline(pass, graphics_pipelines[film_pipeline_id]);
+  SDL_BindGPUVertexBuffers(pass, 0, &vb, 1);
+  SDL_BindGPUIndexBuffer(pass, &ib, SDL_GPU_INDEXELEMENTSIZE_16BIT);
+  SDL_BindGPUFragmentSamplers(pass, 0, &sampler, 1);
+
+  // identity MVP so the quad fills the render target
+  BasicVertexUniformBuffer vert_uniforms{};
+  vert_uniforms.mvp_matrix = glm::mat4(1.0f);
+  vert_uniforms.mvp_matrix =
+      glm::scale(vert_uniforms.mvp_matrix, glm::vec3(2.0f));
+  SDL_PushGPUVertexUniformData(film_cmd, 0, &vert_uniforms,
+                               sizeof(BasicVertexUniformBuffer));
+
+  // push your film uniforms (UniformBlock) here at binding 1
+  RawProcessorFragmentUniformBuffer frag_uniforms{};
+  frag_uniforms.correction_matrix = glm::mat4(1.0f);     // LGTM
+  frag_uniforms.crosstalk_matrix = glm::mat4(1.0f);      // LGTM
+  frag_uniforms.dye_absorption_matrix = glm::mat4(1.0f); // LGTM
+  frag_uniforms.d_min = glm::vec4(0.0f);
+  frag_uniforms.d_max = glm::vec4(2.0f);
+  frag_uniforms.k = glm::vec4(4.0f, 3.0f, 3.0f, 1.0f);
+  frag_uniforms.x0 = glm::vec4(-1.5f);
+  SDL_PushGPUFragmentUniformData(film_cmd, 1, &frag_uniforms,
+                                 sizeof(RawProcessorFragmentUniformBuffer));
+
+  SDL_DrawGPUIndexedPrimitives(pass, 6, 1, 0, 0, 0);
+  SDL_EndGPURenderPass(pass);
+
+  SDL_SubmitGPUCommandBuffer(film_cmd); // ← submit and flush before main pass
+}
+
 bool Renderer::draw_sprite(TextureID texture_id, glm::vec2 translation,
                            float rotation, glm::vec2 scale, glm::vec4 color) {
   // Vertex buffer
@@ -765,26 +850,23 @@ bool Renderer::draw_rect(RectParams params) {
   fragment_sampler_bindings.sampler =
       params.tiling ? wrap_sampler : clamp_sampler;
   // Uniforms
-  sdf_rect_stroke_fragment_uniform_buffer.modulate = params.color;
-  sdf_rect_stroke_fragment_uniform_buffer.corner_radii =
-      glm::vec4(params.corner_radii);
-  sdf_rect_stroke_fragment_uniform_buffer.size =
-      glm::vec4(params.size.x, params.size.y, 0.0f, 0.0f);
-  sdf_rect_stroke_fragment_uniform_buffer.stroke_thickness =
-      params.stroke_thickness;
-  sdf_rect_stroke_fragment_uniform_buffer.tiling = params.tiling ? 1 : 0;
-  sdf_rect_stroke_fragment_uniform_buffer.use_texture =
-      params.use_texture ? 1 : 0;
-  sdf_rect_stroke_fragment_uniform_buffer.draw_stroke =
-      params.draw_stroke ? 1 : 0;
+  SDFRectStrokeFragmentUniformBuffer fragment_uniforms{};
+  fragment_uniforms.modulate = params.color;
+  fragment_uniforms.corner_radii = glm::vec4(params.corner_radii);
+  fragment_uniforms.size = glm::vec4(params.size.x, params.size.y, 0.0f, 0.0f);
+  fragment_uniforms.stroke_thickness = params.stroke_thickness;
+  fragment_uniforms.tiling = params.tiling ? 1 : 0;
+  fragment_uniforms.use_texture = params.use_texture ? 1 : 0;
+  fragment_uniforms.draw_stroke = params.draw_stroke ? 1 : 0;
+
+  BasicVertexUniformBuffer vertex_uniforms{};
   glm::mat4 model_matrix = glm::mat4(1.0f);
   model_matrix = glm::translate(
       model_matrix,
       glm::vec3(params.position.x + params.size.x / 2.0f,
                 -(params.position.y + params.size.y / 2.0f), 0.0f));
   model_matrix = glm::scale(model_matrix, glm::vec3(params.size, 1.0f));
-  basic_vertex_uniform_buffer.mvp_matrix =
-      this->projection_matrix * model_matrix;
+  vertex_uniforms.mvp_matrix = this->projection_matrix * model_matrix;
 
   SDL_BindGPUGraphicsPipeline(_render_pass,
                               graphics_pipelines[sdf_rect_stroke_pipeline_id]);
@@ -796,16 +878,15 @@ bool Renderer::draw_rect(RectParams params) {
                               &fragment_sampler_bindings,
                               1 // Number of textures/samplers to bind
   );
-  SDL_PushGPUFragmentUniformData(_command_buffer, 1,
-                                 &sdf_rect_stroke_fragment_uniform_buffer,
+  SDL_PushGPUFragmentUniformData(_command_buffer, 1, &fragment_uniforms,
                                  sizeof(SDFRectStrokeFragmentUniformBuffer));
-  SDL_PushGPUVertexUniformData(_command_buffer, 0, &basic_vertex_uniform_buffer,
+  SDL_PushGPUVertexUniformData(_command_buffer, 0, &vertex_uniforms,
                                sizeof(BasicVertexUniformBuffer));
   SDL_DrawGPUIndexedPrimitives(_render_pass, 6, 1, 0, 0,
                                0); // TODO: Determine index count
 
   return true;
-};
+}
 
 // TODO: Implement batch rendering/instancing using storage buffers?
 bool Renderer::draw_text(const char *text, int length, float point_size,
