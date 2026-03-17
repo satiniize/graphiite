@@ -182,7 +182,7 @@ private:
   GraphicsPipelineID text_pipeline_id;
   GraphicsPipelineID film_pipeline_id;
 
-  SDL_GPUSampleCount sample_count = SDL_GPU_SAMPLECOUNT_2;
+  SDL_GPUSampleCount sample_count = SDL_GPU_SAMPLECOUNT_1;
 
   // TODO: Input file path sanitizing
   const std::string regular_font_path = "assets/fonts/XanhMono-Regular.ttf";

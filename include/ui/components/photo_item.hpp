@@ -36,8 +36,7 @@ static inline void PhotoItem(Texture &edge_sheen_data, Texture &bg_sheen_data,
                   },
               .layoutDirection = CLAY_TOP_TO_BOTTOM,
           },
-      .backgroundColor =
-          photo.selected ? Color::SELECTED_GREEN : Color::PURE_WHITE,
+      .backgroundColor = photo.selected ? Color::SELECTED_GREEN : Color::WHITE,
       .cornerRadius = CLAY_CORNER_RADIUS(static_cast<float>(corner_radius)),
       .image =
           {
@@ -64,7 +63,7 @@ static inline void PhotoItem(Texture &edge_sheen_data, Texture &bg_sheen_data,
                 .padding = CLAY_PADDING_ALL(static_cast<uint16_t>(
                     corner_radius - 3 - checkbox_corner_radius)),
             },
-        .backgroundColor = Color::PURE_WHITE,
+        .backgroundColor = Color::WHITE,
         .cornerRadius =
             CLAY_CORNER_RADIUS(static_cast<float>(corner_radius - 3)),
         .aspectRatio =
@@ -97,7 +96,7 @@ static inline void PhotoItem(Texture &edge_sheen_data, Texture &bg_sheen_data,
                   .padding = CLAY_PADDING_ALL(3),
               },
           .backgroundColor =
-              photo.selected ? Color::SELECTED_GREEN : Color::PURE_WHITE,
+              photo.selected ? Color::SELECTED_GREEN : Color::WHITE,
           .cornerRadius =
               CLAY_CORNER_RADIUS(static_cast<float>(checkbox_corner_radius)),
           .image =
@@ -125,7 +124,7 @@ static inline void PhotoItem(Texture &edge_sheen_data, Texture &bg_sheen_data,
                             .height = CLAY_SIZING_GROW(0),
                         },
                 },
-            .backgroundColor = Color::PURE_WHITE,
+            .backgroundColor = Color::WHITE,
             .cornerRadius = CLAY_CORNER_RADIUS(
                 static_cast<float>(checkbox_corner_radius - 3)),
             .image =

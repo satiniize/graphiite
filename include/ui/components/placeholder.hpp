@@ -31,7 +31,7 @@ static inline void Placeholder() {
     }) {
       CLAY_TEXT(CLAY_STRING("Looks like you haven't opened a folder yet."),
                 CLAY_TEXT_CONFIG({
-                    .textColor = Color::PURE_WHITE,
+                    .textColor = Color::WHITE,
                     .fontSize = FontSize::MEDIUM,
                     .wrapMode = CLAY_TEXT_WRAP_WORDS,
                     .textAlignment = CLAY_TEXT_ALIGN_CENTER,

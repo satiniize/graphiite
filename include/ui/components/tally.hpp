@@ -56,8 +56,7 @@ static inline void Tally(Texture &edge_sheen_data, Texture &bg_sheen_data,
                         .y = CLAY_ALIGN_Y_CENTER,
                     },
             },
-        .backgroundColor =
-            Clay_Hovered() ? Color::PURE_WHITE : Color::LIGHT_GREY,
+        .backgroundColor = Clay_Hovered() ? Color::WHITE : Color::LIGHT_GREY,
         .cornerRadius = CLAY_CORNER_RADIUS(diameter / 2.0f - 4.0f),
         .image =
             {

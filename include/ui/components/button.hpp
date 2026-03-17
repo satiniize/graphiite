@@ -21,7 +21,7 @@ Button(Texture &edge_sheen_data, Texture &bg_sheen_data, Clay_String label,
                   },
               .padding = CLAY_PADDING_ALL(4),
           },
-      .backgroundColor = Color::PURE_WHITE,
+      .backgroundColor = Color::WHITE,
       .cornerRadius = CLAY_CORNER_RADIUS(button_height / 2.0f),
       .image =
           {
@@ -61,8 +61,7 @@ Button(Texture &edge_sheen_data, Texture &bg_sheen_data, Clay_String label,
                         .y = CLAY_ALIGN_Y_CENTER,
                     },
             },
-        .backgroundColor =
-            Clay_Hovered() ? Color::PURE_WHITE : Color::LIGHT_GREY,
+        .backgroundColor = Clay_Hovered() ? Color::WHITE : Color::LIGHT_GREY,
         .cornerRadius = CLAY_CORNER_RADIUS(button_height / 2.0f - 4.0f),
         .image =
             {
@@ -70,7 +69,7 @@ Button(Texture &edge_sheen_data, Texture &bg_sheen_data, Clay_String label,
             },
     }) {
       CLAY_TEXT(label, CLAY_TEXT_CONFIG({
-                           .textColor = Color::PURE_WHITE,
+                           .textColor = Color::WHITE,
                            .fontSize = FontSize::MEDIUM,
                            .wrapMode = CLAY_TEXT_WRAP_NONE,
                            .textAlignment = CLAY_TEXT_ALIGN_CENTER,

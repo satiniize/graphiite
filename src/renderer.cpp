@@ -719,12 +719,7 @@ bool Renderer::end_frame() {
   return true;
 }
 
-// TODO: SOMETHING IS WRONG HERE, MIGHT BE WRONG TEXTURE FORMATS/SRC DST FOR
-// FILM
-// SOMEHOW THIS COMMAND BUFFER/RENDER PASS IS AFFECTING THE SUBSEQUENT CALLS
-// MIGHT BE SOMETHING RELATED WITH MSAA RENDER TARGETS AND RESOLVE TARGETS
-// YES, THE INTERMEDIATE MSAA RENDER TARGET AND RESOLVE TEXTURES ARE THE ONES
-// AFFECTED BY THE BUG
+// TODO: Make this available without interfering with renderer
 void Renderer::film_pass() {
   if (film_render_target_id == -1 || film_source_texture_id == -1)
     return;

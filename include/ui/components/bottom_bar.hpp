@@ -60,7 +60,7 @@ BottomBar(Texture &edge_sheen_data, Texture &bg_sheen_data,
           },
       .border =
           {
-              .color = Color::PURE_WHITE,
+              .color = Color::WHITE,
               .width =
                   {
                       .left = 2,
