@@ -61,9 +61,10 @@ set(SR_SOURCES
   src/renderer.cpp
   src/clay_renderer.cpp
   src/image_loader.cpp
+  src/clay_manager.cpp
+  src/input_manager.cpp
 )
 
-# add_executable(software-renderer ${SR_SOURCES})
 add_library(software-renderer STATIC ${SR_SOURCES})
 add_dependencies(software-renderer libjpeg_turbo)
 
