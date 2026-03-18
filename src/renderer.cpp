@@ -725,13 +725,16 @@ void Renderer::film_pass() {
   if (film_render_target_id == -1 || film_source_texture_id == -1)
     return;
 
+  // Start command buffer
   SDL_GPUCommandBuffer *film_cmd = SDL_AcquireGPUCommandBuffer(context.device);
 
+  // Define what to render to
   SDL_GPUColorTargetInfo color_target = {};
   color_target.texture = gpu_textures[film_render_target_id];
   color_target.load_op = SDL_GPU_LOADOP_CLEAR;
   color_target.store_op = SDL_GPU_STOREOP_STORE;
 
+  // Start pass
   SDL_GPURenderPass *pass =
       SDL_BeginGPURenderPass(film_cmd, &color_target, 1, nullptr);
 
@@ -773,6 +776,7 @@ void Renderer::film_pass() {
   SDL_SubmitGPUCommandBuffer(film_cmd); // ← submit and flush before main pass
 }
 
+// LGTM
 bool Renderer::draw_sprite(TextureID texture_id, glm::vec2 translation,
                            float rotation, glm::vec2 scale, glm::vec4 color) {
   // Vertex buffer
@@ -780,106 +784,101 @@ bool Renderer::draw_sprite(TextureID texture_id, glm::vec2 translation,
   vertex_buffer_bindings[0].buffer = vertex_buffers[quad_geometry_id];
   vertex_buffer_bindings[0].offset = 0;
   // Index buffer
-  SDL_GPUBufferBinding index_buffer_bindings[1];
-  index_buffer_bindings[0].buffer = index_buffers[quad_geometry_id];
-  index_buffer_bindings[0].offset = 0;
+  SDL_GPUBufferBinding index_buffer_bindings{
+      .buffer = index_buffers[quad_geometry_id],
+      .offset = 0,
+  };
   // Samplers
   if (gpu_textures.find(texture_id) == gpu_textures.end()) {
-    SDL_Log("Sprite not loaded");
-    return false;
+    // TODO: Maybe bind a dummy texture instead
+    SDL_Log("Texture not found in draw_sprite. Ignoring..");
   }
-  SDL_GPUTextureSamplerBinding fragment_sampler_bindings{};
-  fragment_sampler_bindings.texture = gpu_textures[texture_id];
-  fragment_sampler_bindings.sampler = clamp_sampler;
+  SDL_GPUTextureSamplerBinding fragment_sampler_bindings[1];
+  fragment_sampler_bindings[0].texture = gpu_textures[texture_id];
+  fragment_sampler_bindings[0].sampler = clamp_sampler;
   // Uniforms
-  sprite_fragment_uniform_buffer.modulate = color;
+  SpriteFragmentUniformBuffer fragment_uniforms = {
+      .modulate = color,
+  };
   glm::mat4 model_matrix = glm::mat4(1.0f);
   model_matrix = glm::translate(model_matrix,
                                 glm::vec3(translation.x, -translation.y, 0.0f));
   model_matrix = glm::rotate(model_matrix, glm::radians(rotation),
                              glm::vec3(0.0f, 0.0f, 1.0f));
   model_matrix = glm::scale(model_matrix, glm::vec3(scale, 1.0f));
-  basic_vertex_uniform_buffer.mvp_matrix =
-      this->projection_matrix * model_matrix;
+  BasicVertexUniformBuffer vertex_uniforms{
+      .mvp_matrix = this->projection_matrix * model_matrix};
 
   SDL_BindGPUGraphicsPipeline(_render_pass,
                               graphics_pipelines[sprite_pipeline_id]);
   SDL_BindGPUVertexBuffers(_render_pass, 0, vertex_buffer_bindings, 1);
-  SDL_BindGPUIndexBuffer(_render_pass, index_buffer_bindings,
+  SDL_BindGPUIndexBuffer(_render_pass, &index_buffer_bindings,
                          SDL_GPU_INDEXELEMENTSIZE_16BIT);
-  SDL_BindGPUFragmentSamplers(_render_pass,
-                              0, // The binding point for the sampler
-                              &fragment_sampler_bindings,
-                              1 // Number of textures/samplers to bind
-  );
+  SDL_BindGPUFragmentSamplers(_render_pass, 0, fragment_sampler_bindings, 1);
+  SDL_PushGPUVertexUniformData(_command_buffer, 0, &vertex_uniforms,
+                               sizeof(BasicVertexUniformBuffer));
   SDL_PushGPUFragmentUniformData(_command_buffer, 1,
                                  &sprite_fragment_uniform_buffer,
                                  sizeof(SpriteFragmentUniformBuffer));
-  SDL_PushGPUVertexUniformData(_command_buffer, 0, &basic_vertex_uniform_buffer,
-                               sizeof(BasicVertexUniformBuffer));
-  SDL_DrawGPUIndexedPrimitives(_render_pass, 6, 1, 0, 0,
-                               0); // TODO: Determine index count
+  SDL_DrawGPUIndexedPrimitives(_render_pass, 6, 1, 0, 0, 0);
 
   return true;
 }
 
+// LGTM
 bool Renderer::draw_rect(RectParams params) {
   // Bind vertex buffer
   SDL_GPUBufferBinding vertex_buffer_bindings[1];
   vertex_buffer_bindings[0].buffer = vertex_buffers[quad_geometry_id];
   vertex_buffer_bindings[0].offset = 0;
   // Bind index buffer
-  SDL_GPUBufferBinding index_buffer_bindings[1];
-  index_buffer_bindings[0].buffer = index_buffers[quad_geometry_id];
-  index_buffer_bindings[0].offset = 0;
+  SDL_GPUBufferBinding index_buffer_bindings{
+      .buffer = index_buffers[quad_geometry_id],
+      .offset = 0,
+  };
   // Samplers
   if (params.use_texture &&
       gpu_textures.find(params.texture_id) == gpu_textures.end()) {
-    SDL_Log("Sprite not loaded");
-    SDL_Quit();
-    return false;
+    // TODO: Maybe bind a dummy texture instead
+    SDL_Log("Texture not found in draw_rect. Ignoring..");
   }
-  SDL_GPUTextureSamplerBinding fragment_sampler_bindings{};
-  fragment_sampler_bindings.texture = params.use_texture
-                                          ? gpu_textures[params.texture_id]
-                                          : gpu_textures[dummy_texture_id];
-  fragment_sampler_bindings.sampler =
+  SDL_GPUTextureSamplerBinding fragment_sampler_bindings[1];
+  fragment_sampler_bindings[0].texture = params.use_texture
+                                             ? gpu_textures[params.texture_id]
+                                             : gpu_textures[dummy_texture_id];
+  fragment_sampler_bindings[0].sampler =
       params.tiling ? wrap_sampler : clamp_sampler;
   // Uniforms
-  SDFRectStrokeFragmentUniformBuffer fragment_uniforms{};
-  fragment_uniforms.modulate = params.color;
-  fragment_uniforms.corner_radii = glm::vec4(params.corner_radii);
-  fragment_uniforms.size = glm::vec4(params.size.x, params.size.y, 0.0f, 0.0f);
-  fragment_uniforms.stroke_thickness = params.stroke_thickness;
-  fragment_uniforms.tiling = params.tiling ? 1 : 0;
-  fragment_uniforms.use_texture = params.use_texture ? 1 : 0;
-  fragment_uniforms.draw_stroke = params.draw_stroke ? 1 : 0;
-
-  BasicVertexUniformBuffer vertex_uniforms{};
+  SDFRectStrokeFragmentUniformBuffer fragment_uniforms{
+      .size = glm::vec4(params.size.x, params.size.y, 0.0f, 0.0f),
+      .modulate = params.color,
+      .corner_radii = glm::vec4(params.corner_radii),
+      .stroke_thickness = params.stroke_thickness,
+      .tiling = static_cast<uint32_t>(params.tiling ? 1 : 0),
+      .use_texture = static_cast<uint32_t>(params.use_texture ? 1 : 0),
+      .draw_stroke = static_cast<uint32_t>(params.draw_stroke ? 1 : 0),
+  };
   glm::mat4 model_matrix = glm::mat4(1.0f);
   model_matrix = glm::translate(
       model_matrix,
       glm::vec3(params.position.x + params.size.x / 2.0f,
                 -(params.position.y + params.size.y / 2.0f), 0.0f));
   model_matrix = glm::scale(model_matrix, glm::vec3(params.size, 1.0f));
-  vertex_uniforms.mvp_matrix = this->projection_matrix * model_matrix;
+  BasicVertexUniformBuffer vertex_uniforms{
+      .mvp_matrix = this->projection_matrix * model_matrix,
+  };
 
   SDL_BindGPUGraphicsPipeline(_render_pass,
                               graphics_pipelines[sdf_rect_stroke_pipeline_id]);
   SDL_BindGPUVertexBuffers(_render_pass, 0, vertex_buffer_bindings, 1);
-  SDL_BindGPUIndexBuffer(_render_pass, index_buffer_bindings,
+  SDL_BindGPUIndexBuffer(_render_pass, &index_buffer_bindings,
                          SDL_GPU_INDEXELEMENTSIZE_16BIT);
-  SDL_BindGPUFragmentSamplers(_render_pass,
-                              0, // The binding point for the sampler
-                              &fragment_sampler_bindings,
-                              1 // Number of textures/samplers to bind
-  );
+  SDL_BindGPUFragmentSamplers(_render_pass, 0, fragment_sampler_bindings, 1);
   SDL_PushGPUVertexUniformData(_command_buffer, 0, &vertex_uniforms,
                                sizeof(BasicVertexUniformBuffer));
   SDL_PushGPUFragmentUniformData(_command_buffer, 1, &fragment_uniforms,
                                  sizeof(SDFRectStrokeFragmentUniformBuffer));
-  SDL_DrawGPUIndexedPrimitives(_render_pass, 6, 1, 0, 0,
-                               0); // TODO: Determine index count
+  SDL_DrawGPUIndexedPrimitives(_render_pass, 6, 1, 0, 0, 0);
 
   return true;
 }

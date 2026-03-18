@@ -192,6 +192,7 @@ private:
   SDL_GPUSampleCount sample_count = SDL_GPU_SAMPLECOUNT_1;
 
   // TODO: Input file path sanitizing
-  const std::string regular_font_path = "assets/fonts/XanhMono-Regular.ttf";
+  const std::string regular_font_path =
+      "assets/fonts/AtkinsonHyperlegibleMono-Medium.ttf";
   const std::string italic_font_path = "assets/fonts/XanhMono-Italic.ttf";
 };

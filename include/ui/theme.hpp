@@ -20,6 +20,6 @@ inline constexpr Clay_Color SELECTED_GREEN = {127, 255, 0, 255};
 
 namespace FontSize {
 inline constexpr uint16_t SMALL = 16;
-inline constexpr uint16_t MEDIUM = 28;
+inline constexpr uint16_t MEDIUM = 20;
 inline constexpr uint16_t LARGE = 28;
 } // namespace FontSize
