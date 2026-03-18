@@ -133,7 +133,7 @@ public:
   bool begin_frame();
   bool end_frame();
   // Drawing functions
-  void film_pass();
+  void film_pass(RawProcessorFragmentUniformBuffer frag_uniforms);
   bool draw_sprite(TextureID texture_id, glm::vec2 translation, float rotation,
                    glm::vec2 scale, glm::vec4 color);
   bool draw_rect(RectParams params);

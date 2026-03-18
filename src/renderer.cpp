@@ -721,7 +721,7 @@ bool Renderer::end_frame() {
 }
 
 // TODO: Make this available without interfering with renderer
-void Renderer::film_pass() {
+void Renderer::film_pass(RawProcessorFragmentUniformBuffer frag_uniforms) {
   if (film_render_target_id == -1 || film_source_texture_id == -1)
     return;
 
@@ -759,14 +759,14 @@ void Renderer::film_pass() {
                                sizeof(BasicVertexUniformBuffer));
 
   // push your film uniforms (UniformBlock) here at binding 1
-  RawProcessorFragmentUniformBuffer frag_uniforms{};
-  frag_uniforms.correction_matrix = glm::mat4(1.0f);     // LGTM
-  frag_uniforms.crosstalk_matrix = glm::mat4(1.0f);      // LGTM
-  frag_uniforms.dye_absorption_matrix = glm::mat4(1.0f); // LGTM
-  frag_uniforms.d_min = glm::vec4(0.0f);
-  frag_uniforms.d_max = glm::vec4(2.0f);
-  frag_uniforms.k = glm::vec4(4.0f, 3.0f, 3.0f, 1.0f);
-  frag_uniforms.x0 = glm::vec4(-1.5f);
+  // RawProcessorFragmentUniformBuffer frag_uniforms{};
+  // frag_uniforms.correction_matrix = glm::mat4(1.0f);     // LGTM
+  // frag_uniforms.crosstalk_matrix = glm::mat4(1.0f);      // LGTM
+  // frag_uniforms.dye_absorption_matrix = glm::mat4(1.0f); // LGTM
+  // frag_uniforms.d_min = glm::vec4(0.0f);
+  // frag_uniforms.d_max = glm::vec4(2.0f);
+  // frag_uniforms.k = glm::vec4(4.0f, 3.0f, 3.0f, 1.0f);
+  // frag_uniforms.x0 = glm::vec4(-1.5f);
   SDL_PushGPUFragmentUniformData(film_cmd, 1, &frag_uniforms,
                                  sizeof(RawProcessorFragmentUniformBuffer));
 
