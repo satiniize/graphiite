@@ -1,6 +1,7 @@
 # Software Renderer
 
-![Screenshot](assets/screenshot.png)
+![Desk](assets/screenshots/escalators.png)
+![Desk](assets/screenshots/greyscale.png)
 
 This project started out as a software rendering based 2D game engine. However, it has slowly evolved to become a literal "software renderer" to render UI for desktop applications. You can access the old software rendering game engine under [pre-sdl-gpu-archive](https://github.com/satiniize/software-renderer/tree/pre-sdl-gpu-archive) branch.
 
