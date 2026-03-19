@@ -1,5 +1,6 @@
 #include "renderer.hpp"
 #include "SDL3/SDL_log.h"
+#include "image.hpp"
 #include "texture.hpp"
 
 #include <SDL3/SDL.h>
@@ -201,8 +202,13 @@ Renderer::Renderer(uint32_t width, uint32_t height) {
   italic_font_atlas_id = load_and_upload_ascii_font_atlas(italic_font_path);
   regular_font_atlas_id = load_and_upload_ascii_font_atlas(regular_font_path);
 
-  unsigned char dummy_pixels[] = {0, 0, 0, 0};
-  dummy_texture_id = upload_texture(dummy_pixels, 1, 1);
+  Image dummy_image;
+  dummy_image.pixels = {0, 0, 0, 0};
+  dummy_image.width = 1;
+  dummy_image.height = 1;
+  dummy_image.channels = 4;
+  dummy_image.format = PixelFormat::RGBA8;
+  dummy_texture_id = upload_texture(dummy_image);
 
   create_render_targets();
 
@@ -261,17 +267,17 @@ TextureID Renderer::create_render_target(int w, int h) {
   return next_texture_id++;
 }
 
-TextureID Renderer::upload_texture(unsigned char *pixels, int w, int h,
-                                   bool is_16bit) {
-  int bytes_per_pixel = is_16bit ? 8 : 4;
+TextureID Renderer::upload_texture(const Image &image) {
+  int bytes_per_pixel = image.bytes_per_pixel();
 
   SDL_GPUTextureCreateInfo texture_info{};
   texture_info.type = SDL_GPU_TEXTURETYPE_2D;
-  texture_info.format = is_16bit ? SDL_GPU_TEXTUREFORMAT_R16G16B16A16_UNORM
-                                 : SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM;
+  texture_info.format = image.format == PixelFormat::RGBA16
+                            ? SDL_GPU_TEXTUREFORMAT_R16G16B16A16_UNORM
+                            : SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM;
   texture_info.usage = SDL_GPU_TEXTUREUSAGE_SAMPLER;
-  texture_info.width = w;
-  texture_info.height = h;
+  texture_info.width = image.width;
+  texture_info.height = image.height;
   texture_info.layer_count_or_depth = 1;
   texture_info.num_levels = 1;
   // sample_count
@@ -289,14 +295,16 @@ TextureID Renderer::upload_texture(unsigned char *pixels, int w, int h,
   // Set up transfer buffer
   SDL_GPUTransferBufferCreateInfo texture_transfer_create_info{};
   texture_transfer_create_info.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD;
-  texture_transfer_create_info.size = w * h * bytes_per_pixel; // 4 is RGBA8888
+  texture_transfer_create_info.size =
+      image.width * image.height * bytes_per_pixel; // 4 is RGBA8888
   SDL_GPUTransferBuffer *texture_transfer_buffer = SDL_CreateGPUTransferBuffer(
       this->context.device, &texture_transfer_create_info);
 
   // Transfer data
   void *texture_data_ptr = SDL_MapGPUTransferBuffer(
       this->context.device, texture_transfer_buffer, false);
-  SDL_memcpy(texture_data_ptr, (void *)pixels, w * h * bytes_per_pixel);
+  SDL_memcpy(texture_data_ptr, image.pixels.data(),
+             image.width * image.height * bytes_per_pixel);
 
   SDL_UnmapGPUTransferBuffer(this->context.device, texture_transfer_buffer);
 
@@ -311,8 +319,8 @@ TextureID Renderer::upload_texture(unsigned char *pixels, int w, int h,
   texture_transfer_info.offset = 0;
   SDL_GPUTextureRegion texture_region{};
   texture_region.texture = texture;
-  texture_region.w = w;
-  texture_region.h = h;
+  texture_region.w = image.width;
+  texture_region.h = image.height;
   texture_region.d = 1; // Depth for 2D texture is 1
   SDL_UploadToGPUTexture(copyPass, &texture_transfer_info, &texture_region,
                          false);
@@ -543,7 +551,12 @@ Renderer::load_and_upload_ascii_font_atlas(const std::string &font_path) {
   int atlas_w = advance * 10;
   int atlas_h = glyph_height * 10;
   // RGBA atlas, zeroed (transparent black)
-  std::vector<uint8_t> atlas(atlas_w * atlas_h * 4, 0);
+  Image font_atlas;
+  font_atlas.pixels = std::vector<uint8_t>(atlas_w * atlas_h * 4, 0);
+  font_atlas.width = atlas_w;
+  font_atlas.height = atlas_h;
+  font_atlas.channels = 4;
+  font_atlas.format = PixelFormat::RGBA8;
 
   // Printable ascii characters (33 - 126)
   for (int cp = 32; cp <= 126; cp++) {
@@ -566,18 +579,17 @@ Renderer::load_and_upload_ascii_font_atlas(const std::string &font_path) {
           continue;
 
         int idx = (ay * atlas_w + ax) * 4;
-        atlas[idx + 0] = 255;                  // R
-        atlas[idx + 1] = 255;                  // G
-        atlas[idx + 2] = 255;                  // B
-        atlas[idx + 3] = bitmap[gy * gw + gx]; // A
+        font_atlas.pixels[idx + 0] = 255;                  // R
+        font_atlas.pixels[idx + 1] = 255;                  // G
+        font_atlas.pixels[idx + 2] = 255;                  // B
+        font_atlas.pixels[idx + 3] = bitmap[gy * gw + gx]; // A
       }
     }
 
     stbtt_FreeBitmap(bitmap, nullptr);
   }
 
-  TextureID font_texture_id =
-      this->upload_texture(atlas.data(), atlas_w, atlas_h);
+  TextureID font_texture_id = this->upload_texture(font_atlas);
 
   return font_texture_id;
 }
@@ -757,22 +769,11 @@ void Renderer::film_pass(RawProcessorFragmentUniformBuffer frag_uniforms) {
       glm::scale(vert_uniforms.mvp_matrix, glm::vec3(2.0f));
   SDL_PushGPUVertexUniformData(film_cmd, 0, &vert_uniforms,
                                sizeof(BasicVertexUniformBuffer));
-
-  // push your film uniforms (UniformBlock) here at binding 1
-  // RawProcessorFragmentUniformBuffer frag_uniforms{};
-  // frag_uniforms.correction_matrix = glm::mat4(1.0f);     // LGTM
-  // frag_uniforms.crosstalk_matrix = glm::mat4(1.0f);      // LGTM
-  // frag_uniforms.dye_absorption_matrix = glm::mat4(1.0f); // LGTM
-  // frag_uniforms.d_min = glm::vec4(0.0f);
-  // frag_uniforms.d_max = glm::vec4(2.0f);
-  // frag_uniforms.k = glm::vec4(4.0f, 3.0f, 3.0f, 1.0f);
-  // frag_uniforms.x0 = glm::vec4(-1.5f);
   SDL_PushGPUFragmentUniformData(film_cmd, 1, &frag_uniforms,
                                  sizeof(RawProcessorFragmentUniformBuffer));
 
   SDL_DrawGPUIndexedPrimitives(pass, 6, 1, 0, 0, 0);
   SDL_EndGPURenderPass(pass);
-
   SDL_SubmitGPUCommandBuffer(film_cmd); // ← submit and flush before main pass
 }
 

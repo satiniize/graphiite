@@ -7,6 +7,7 @@
 #include <SDL3/SDL_video.h>
 #include <glm/mat4x4.hpp>
 
+#include "image.hpp"
 #include "texture.hpp"
 
 struct Context {
@@ -116,8 +117,7 @@ public:
   // Texture ID is a key in gpu_textures for the cpu to handle easily.
   //
   TextureID create_render_target(int w, int h);
-  TextureID upload_texture(unsigned char *pixels, int w, int h,
-                           bool is_16bit = false);
+  TextureID upload_texture(const Image &image);
   GeometryID upload_geometry(const Vertex *vertices, size_t vertex_size,
                              const Uint16 *indices, size_t index_size);
   GraphicsPipelineID
