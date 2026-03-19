@@ -267,22 +267,24 @@ TextureID Renderer::create_render_target(int w, int h) {
   return next_texture_id++;
 }
 
+// TODO: This is only valid for sampler textures
 TextureID Renderer::upload_texture(const Image &image) {
   int bytes_per_pixel = image.bytes_per_pixel();
+  int num_bytes =
+      static_cast<uint32_t>(image.width * image.height * bytes_per_pixel);
 
-  SDL_GPUTextureCreateInfo texture_info{};
-  texture_info.type = SDL_GPU_TEXTURETYPE_2D;
-  texture_info.format = image.format == PixelFormat::RGBA16
-                            ? SDL_GPU_TEXTUREFORMAT_R16G16B16A16_UNORM
-                            : SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM;
-  texture_info.usage = SDL_GPU_TEXTUREUSAGE_SAMPLER;
-  texture_info.width = image.width;
-  texture_info.height = image.height;
-  texture_info.layer_count_or_depth = 1;
-  texture_info.num_levels = 1;
-  // sample_count
-  // TODO: GPUTexture should be able to be used as a render target
-  // Make use for pixel perfect scaling and post processing
+  SDL_GPUTextureCreateInfo texture_info{
+      .type = SDL_GPU_TEXTURETYPE_2D,
+      .format = image.format == PixelFormat::RGBA8
+                    ? SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM
+                    : SDL_GPU_TEXTUREFORMAT_R16G16B16A16_UNORM,
+      .usage = SDL_GPU_TEXTUREUSAGE_SAMPLER,
+      .width = image.width,
+      .height = image.height,
+      .layer_count_or_depth = 1,
+      .num_levels = 1,
+      .sample_count = SDL_GPU_SAMPLECOUNT_1,
+  };
 
   SDL_GPUTexture *texture =
       SDL_CreateGPUTexture(this->context.device, &texture_info);
@@ -293,18 +295,17 @@ TextureID Renderer::upload_texture(const Image &image) {
   }
 
   // Set up transfer buffer
-  SDL_GPUTransferBufferCreateInfo texture_transfer_create_info{};
-  texture_transfer_create_info.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD;
-  texture_transfer_create_info.size =
-      image.width * image.height * bytes_per_pixel; // 4 is RGBA8888
+  SDL_GPUTransferBufferCreateInfo texture_transfer_create_info{
+      .usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD,
+      .size = static_cast<Uint32>(num_bytes),
+  };
   SDL_GPUTransferBuffer *texture_transfer_buffer = SDL_CreateGPUTransferBuffer(
       this->context.device, &texture_transfer_create_info);
 
   // Transfer data
   void *texture_data_ptr = SDL_MapGPUTransferBuffer(
       this->context.device, texture_transfer_buffer, false);
-  SDL_memcpy(texture_data_ptr, image.pixels.data(),
-             image.width * image.height * bytes_per_pixel);
+  SDL_memcpy(texture_data_ptr, image.pixels.data(), num_bytes);
 
   SDL_UnmapGPUTransferBuffer(this->context.device, texture_transfer_buffer);
 
@@ -314,27 +315,30 @@ TextureID Renderer::upload_texture(const Image &image) {
   SDL_GPUCopyPass *copyPass = SDL_BeginGPUCopyPass(_command_buffer);
 
   // Upload texture data to the GPU texture
-  SDL_GPUTextureTransferInfo texture_transfer_info{};
-  texture_transfer_info.transfer_buffer = texture_transfer_buffer;
-  texture_transfer_info.offset = 0;
-  SDL_GPUTextureRegion texture_region{};
-  texture_region.texture = texture;
-  texture_region.w = image.width;
-  texture_region.h = image.height;
-  texture_region.d = 1; // Depth for 2D texture is 1
+  SDL_GPUTextureTransferInfo texture_transfer_info{
+      .transfer_buffer = texture_transfer_buffer,
+      .offset = 0,
+      .pixels_per_row = image.width,
+      .rows_per_layer = image.height,
+  };
+  SDL_GPUTextureRegion texture_region{
+      .texture = texture,
+      .mip_level = 0,
+      .layer = 0,
+      .x = 0,
+      .y = 0,
+      .z = 0,
+      .w = image.width,
+      .h = image.height,
+      .d = 1,
+  };
   SDL_UploadToGPUTexture(copyPass, &texture_transfer_info, &texture_region,
                          false);
-
-  // End copy pass
   SDL_EndGPUCopyPass(copyPass);
   SDL_SubmitGPUCommandBuffer(_command_buffer);
-
   SDL_ReleaseGPUTransferBuffer(this->context.device, texture_transfer_buffer);
-  // SDL_DestroySurface(image_data);
 
   gpu_textures[next_texture_id] = texture;
-
-  // SDL_Log("Loaded texture: %s", path.c_str());
 
   return next_texture_id++;
 }

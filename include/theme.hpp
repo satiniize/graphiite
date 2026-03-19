@@ -1,5 +1,5 @@
 #pragma once
-#include "clay.h"
+#include <clay.h>
 #include <cstdint>
 
 namespace Color {

@@ -63,6 +63,7 @@ set(SR_SOURCES
   src/image_loader.cpp
   src/clay_manager.cpp
   src/input_manager.cpp
+  src/components.cpp
 )
 
 add_library(software-renderer STATIC ${SR_SOURCES})
@@ -83,4 +84,4 @@ target_link_libraries(software-renderer PRIVATE
 )
 
 add_subdirectory(examples/oxiide)
-add_subdirectory(examples/photo-sorter)
+# add_subdirectory(examples/photo-sorter)

@@ -2,7 +2,7 @@
 
 #include <filesystem>
 
-#include "../../texture.hpp"
+#include "texture.hpp"
 
 struct Photo {
   Texture image_data;
