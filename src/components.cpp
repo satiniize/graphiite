@@ -9,28 +9,44 @@ static const float TRAVEL = TRACK_WIDTH - 24;
 void Components::slider_interaction(Clay_ElementId elementId,
                                     Clay_PointerData pointerInfo,
                                     intptr_t userData) {
-  if (pointerInfo.state == CLAY_POINTER_DATA_PRESSED_THIS_FRAME ||
-      pointerInfo.state == CLAY_POINTER_DATA_PRESSED) {
-    float *normalized = reinterpret_cast<float *>(userData);
-    Clay_ElementData trackData = Clay_GetElementData(elementId);
-    if (trackData.found) {
-      float localX = pointerInfo.position.x - trackData.boundingBox.x;
-      // Offset by half handle so value=0 means handle flush left,
-      // value=1 means handle flush right
-      float raw = (localX - HANDLE_SIZE / 2.0f) / TRAVEL;
-      // Clamp to [0, 1]
-      if (raw < 0.0f)
-        raw = 0.0f;
-      if (raw > 1.0f)
-        raw = 1.0f;
-      *normalized = raw;
-    }
+  if (pointerInfo.state == CLAY_POINTER_DATA_PRESSED_THIS_FRAME) {
+    // Begin drag
+    g_slider_drag.active = true;
+    g_slider_drag.target = reinterpret_cast<float *>(userData);
+    g_slider_drag.id = elementId;
   }
 }
 
-void Components::Slider(float *value) {
+void Components::UpdateSliderDrag(bool is_mouse_down,
+                                  Clay_Vector2 pointerPosition) {
+  // Release on mouse up
+  if (!is_mouse_down) {
+    g_slider_drag.active = false;
+    g_slider_drag.target = nullptr;
+    g_slider_drag.id = CLAY_IDI("SliderTrack", -1);
+    return;
+  }
+
+  if (!g_slider_drag.active || g_slider_drag.target == nullptr)
+    return;
+
+  Clay_ElementData trackData = Clay_GetElementData(g_slider_drag.id);
+  if (!trackData.found)
+    return;
+
+  float localX = pointerPosition.x - trackData.boundingBox.x;
+  float raw = (localX - HANDLE_SIZE / 2.0f) / TRAVEL;
+  if (raw < 0.0f)
+    raw = 0.0f;
+  if (raw > 1.0f)
+    raw = 1.0f;
+
+  *g_slider_drag.target = raw;
+}
+
+void Components::Slider(float *value, uint32_t id) {
   CLAY({
-      // .id = CLAY_IDI("SliderTrack", id),
+      .id = CLAY_IDI("SliderTrack", id),
       .layout =
           {
               .sizing =
@@ -101,7 +117,8 @@ void Components::Slider(float *value) {
                           .y = CLAY_ALIGN_Y_CENTER,
                       },
               },
-          .backgroundColor = Color::DARK_GREY,
+          .backgroundColor =
+              g_slider_drag.id.id == id ? Color::MIDDLE_GREY : Color::DARK_GREY,
           .cornerRadius = CLAY_CORNER_RADIUS(6 - 2),
           .border =
               {

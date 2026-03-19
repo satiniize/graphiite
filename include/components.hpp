@@ -5,9 +5,17 @@
 #include <vector>
 
 namespace Components {
+struct SliderDragState {
+  bool active = false;
+  float *target = nullptr;
+  Clay_ElementId id;
+};
+static SliderDragState g_slider_drag;
+
 void slider_interaction(Clay_ElementId elementId, Clay_PointerData pointerInfo,
                         intptr_t userData);
-void Slider(float *value);
+void UpdateSliderDrag(bool is_mouse_down, Clay_Vector2 pointerPosition);
+void Slider(float *value, uint32_t id);
 void Button(Texture &edge_sheen_data, Texture &bg_sheen_data, Clay_String label,
             void button_interaction(Clay_ElementId elementId,
                                     Clay_PointerData pointerInfo,
