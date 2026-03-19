@@ -16,6 +16,7 @@ void slider_interaction(Clay_ElementId elementId, Clay_PointerData pointerInfo,
                         intptr_t userData);
 void UpdateSliderDrag(bool is_mouse_down, Clay_Vector2 pointerPosition);
 void Slider(float *value, uint32_t id);
+void Knob();
 void Button(Texture &edge_sheen_data, Texture &bg_sheen_data, Clay_String label,
             void button_interaction(Clay_ElementId elementId,
                                     Clay_PointerData pointerInfo,

@@ -143,6 +143,23 @@ void Components::Slider(float *value, uint32_t id) {
   }
 }
 
+void Components::Knob() {
+  CLAY({
+      .layout =
+          {
+              .sizing =
+                  {
+                      .width = CLAY_SIZING_FIXED(40),
+                      .height = CLAY_SIZING_FIXED(40),
+                  },
+          },
+      .backgroundColor = Color::WHITE,
+      .cornerRadius = CLAY_CORNER_RADIUS(20),
+      .userData = NULL,
+  }) {}
+}
+
+// TODO: Redo everything below this line
 void Components::Button(Texture &edge_sheen_data, Texture &bg_sheen_data,
                         Clay_String label,
                         void button_interaction(Clay_ElementId elementId,
