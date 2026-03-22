@@ -71,6 +71,7 @@ struct RawProcessorFragmentUniformBuffer {
   glm::vec4 d_max;
   glm::vec4 k;
   glm::vec4 x0;
+  float exposure_compensation;
 };
 
 static BasicVertexUniformBuffer basic_vertex_uniform_buffer{};

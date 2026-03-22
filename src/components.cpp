@@ -1,4 +1,5 @@
 #include "components.hpp"
+#include "clay_renderer.hpp"
 #include "theme.hpp"
 
 static const float HANDLE_SIZE = 24.0f;
@@ -155,8 +156,39 @@ void Components::Knob() {
           },
       .backgroundColor = Color::WHITE,
       .cornerRadius = CLAY_CORNER_RADIUS(20),
-      .userData = NULL,
-  }) {}
+  }) {
+    // Rotator
+    CLAY({
+        .layout =
+            {
+                .sizing =
+                    {
+                        .width = CLAY_SIZING_GROW(0),
+                        .height = CLAY_SIZING_GROW(0),
+                    },
+                .padding = CLAY_PADDING_ALL(2),
+                .childAlignment =
+                    {
+                        .x = CLAY_ALIGN_X_CENTER,
+                        .y = CLAY_ALIGN_Y_TOP,
+                    },
+            },
+        .userData = NULL,
+    }) {
+      // Divot
+      CLAY({
+          .layout =
+              {
+                  .sizing =
+                      {
+                          .width = CLAY_SIZING_FIXED(4),
+                          .height = CLAY_SIZING_FIXED(12),
+                      },
+              },
+          .backgroundColor = Color::BLACK,
+      }) {}
+    }
+  }
 }
 
 // TODO: Redo everything below this line

@@ -1,12 +1,19 @@
 #include <image.hpp>
 
 enum class GradientType {
-  Linear,
-  Radial,
-  Angular,
+  LINEAR,
+  RADIAL,
+  ANGULAR,
+};
+
+struct GradientStop {
+  float position;
+  // Color color;
 };
 
 class Gradient {
 public:
-  static Image create(GradientType type);
+  static Image createLinear();
+  static Image createRadial();
+  static Image createAngular();
 };
