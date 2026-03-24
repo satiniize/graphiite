@@ -210,6 +210,9 @@ Renderer::~Renderer() {
 }
 
 // TODO: HAVE A FORMAT AND SAMPLE COUNT PARAM
+// I believe this is mainly used by the user, so this should be something to
+// draw onto since its a blank texture, and you can only really download or
+// sample a gpu texture
 TextureID Renderer::create_render_target(int w, int h) {
   SDL_GPUTextureCreateInfo info = {
       .type = SDL_GPU_TEXTURETYPE_2D,
@@ -228,7 +231,6 @@ TextureID Renderer::create_render_target(int w, int h) {
   return next_texture_id++;
 }
 
-// TODO: This is only valid for sampler textures
 TextureID Renderer::upload_texture(const Image &image) {
   int bytes_per_pixel = image.bytes_per_pixel();
   int num_bytes =
@@ -743,16 +745,14 @@ bool Renderer::end_frame() {
 }
 
 // TODO: Make this available without interfering with renderer
-void Renderer::film_pass(RawProcessorFragmentUniformBuffer frag_uniforms) {
+void Renderer::film_pass(RawProcessorFragmentUniformBuffer fragment_uniforms) {
   if (film_render_target_id == -1 || film_source_texture_id == -1)
     return;
-
-  // Start compute frame
 
   // Start command buffer
   SDL_GPUCommandBuffer *film_cmd = SDL_AcquireGPUCommandBuffer(context.device);
 
-  // Define what to render to
+  // Render target
   SDL_GPUColorTargetInfo color_target = {};
   color_target.texture = gpu_textures[film_render_target_id];
   color_target.load_op = SDL_GPU_LOADOP_CLEAR;
@@ -761,27 +761,39 @@ void Renderer::film_pass(RawProcessorFragmentUniformBuffer frag_uniforms) {
   SDL_GPURenderPass *pass =
       SDL_BeginGPURenderPass(film_cmd, &color_target, 1, nullptr);
 
-  SDL_GPUBufferBinding vb = {.buffer = vertex_buffers[quad_geometry_id]};
-  SDL_GPUBufferBinding ib = {.buffer = index_buffers[quad_geometry_id]};
-  SDL_GPUTextureSamplerBinding sampler = {
-      .texture = gpu_textures[film_source_texture_id],
-      .sampler = clamp_sampler};
+  // Vertex buffer
+  SDL_GPUBufferBinding vertex_buffer_bindings[1];
+  vertex_buffer_bindings[0].buffer = vertex_buffers[quad_geometry_id];
+  vertex_buffer_bindings[0].offset = 0;
+  // Index buffer
+  SDL_GPUBufferBinding index_buffer_bindings = {
+      .buffer = index_buffers[quad_geometry_id],
+      .offset = 0,
+  };
+  // Samplers
+  SDL_GPUTextureSamplerBinding fragment_sampler_bindings[1];
+  fragment_sampler_bindings[0].texture = gpu_textures[film_source_texture_id];
+  fragment_sampler_bindings[0].sampler = clamp_sampler;
+  BasicVertexUniformBuffer vertex_uniforms{};
+  vertex_uniforms.mvp_matrix = glm::mat4(1.0f);
+  vertex_uniforms.mvp_matrix =
+      glm::scale(vertex_uniforms.mvp_matrix, glm::vec3(2.0f));
 
+  // Draw calls; these are nearly identical between all the other draw functions
   SDL_BindGPUGraphicsPipeline(pass, graphics_pipelines[film_pipeline_id]);
-  SDL_BindGPUVertexBuffers(pass, 0, &vb, 1);
-  SDL_BindGPUIndexBuffer(pass, &ib, SDL_GPU_INDEXELEMENTSIZE_16BIT);
-  SDL_BindGPUFragmentSamplers(pass, 0, &sampler, 1);
-
-  BasicVertexUniformBuffer vert_uniforms{};
-  vert_uniforms.mvp_matrix = glm::mat4(1.0f);
-  vert_uniforms.mvp_matrix =
-      glm::scale(vert_uniforms.mvp_matrix, glm::vec3(2.0f));
-  SDL_PushGPUVertexUniformData(film_cmd, 0, &vert_uniforms,
+  SDL_BindGPUVertexBuffers(pass, 0, vertex_buffer_bindings, 1);
+  SDL_BindGPUIndexBuffer(pass, &index_buffer_bindings,
+                         SDL_GPU_INDEXELEMENTSIZE_16BIT);
+  SDL_BindGPUFragmentSamplers(pass, 0, fragment_sampler_bindings, 1);
+  SDL_PushGPUVertexUniformData(film_cmd, 0, &vertex_uniforms,
                                sizeof(BasicVertexUniformBuffer));
-  SDL_PushGPUFragmentUniformData(film_cmd, 1, &frag_uniforms,
+  SDL_PushGPUFragmentUniformData(film_cmd, 1, &fragment_uniforms,
                                  sizeof(RawProcessorFragmentUniformBuffer));
   SDL_DrawGPUIndexedPrimitives(pass, 6, 1, 0, 0, 0);
 
+  // TODO: Theretically should be able to have multiple passes here?
+
+  // End pass
   SDL_EndGPURenderPass(pass);
   SDL_SubmitGPUCommandBuffer(film_cmd); // ← submit and flush before main pass
 }

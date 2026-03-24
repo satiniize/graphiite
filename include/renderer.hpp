@@ -106,11 +106,6 @@ struct RenderTargetParams {
   int sample_count = 1;
 };
 
-enum class ShaderStage {
-  VERTEX,
-  FRAGMENT,
-};
-
 struct PipelineParams {
   int num_vertex_uniform_buffers = 0;
   int num_vertex_samplers = 0;
@@ -120,7 +115,8 @@ struct PipelineParams {
   int num_fragment_samplers = 0;
   int num_fragment_storage_buffers = 0;
   int num_fragment_storage_textures = 0;
-  // TODO: Easy way to differentiate swapchain vs non-swapchain pipelines
+  // TODO: Find an easy way to differentiate swapchain vs non-swapchain
+  // pipelines. in Vulkan IIRC theres render pipelines and compute pipelines.
   SDL_GPUSampleCount sample_count = SDL_GPU_SAMPLECOUNT_1;
   bool compute_pipeline = false;
 };
@@ -186,6 +182,7 @@ private:
   SDL_GPUSampler *clamp_sampler;
   SDL_GPUSampler *wrap_sampler;
 
+  // TODO: Really iffy way to handle the main render pass
   SDL_GPURenderPass *_render_pass;
   SDL_GPUCommandBuffer *_command_buffer;
 
@@ -198,8 +195,6 @@ private:
   TextureID dummy_texture_id;
   TextureID italic_font_atlas_id;
   TextureID regular_font_atlas_id;
-
-  // TODO: Make this a public API so we don't have to do this
 
   GeometryID quad_geometry_id;
 

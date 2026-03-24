@@ -102,6 +102,7 @@ void Components::Slider(float *value, uint32_t id) {
                     },
                 .pointerCaptureMode = CLAY_POINTER_CAPTURE_MODE_PASSTHROUGH,
                 .attachTo = CLAY_ATTACH_TO_PARENT,
+                .clipTo = CLAY_CLIP_TO_ATTACHED_PARENT,
             },
     }) {
       CLAY({
@@ -144,6 +145,7 @@ void Components::Slider(float *value, uint32_t id) {
   }
 }
 
+// TODO: Figure out how to add rotation to CLAY
 void Components::Knob() {
   CLAY({
       .layout =
@@ -191,9 +193,7 @@ void Components::Knob() {
   }
 }
 
-// TODO: Redo everything below this line
-void Components::Button(Texture &edge_sheen_data, Texture &bg_sheen_data,
-                        Clay_String label,
+void Components::Button(Clay_String label,
                         void button_interaction(Clay_ElementId elementId,
                                                 Clay_PointerData pointerInfo,
                                                 intptr_t userData),
@@ -208,25 +208,10 @@ void Components::Button(Texture &edge_sheen_data, Texture &bg_sheen_data,
                       .height =
                           CLAY_SIZING_FIXED(static_cast<float>(button_height)),
                   },
-              .padding = CLAY_PADDING_ALL(4),
+              .padding = CLAY_PADDING_ALL(2),
           },
-      .backgroundColor = Color::WHITE,
-      .cornerRadius = CLAY_CORNER_RADIUS(button_height / 2.0f),
-      .image =
-          {
-              .imageData = static_cast<void *>(&edge_sheen_data),
-          },
-      .border =
-          {
-              .color = Color::BLACK,
-              .width =
-                  {
-                      .left = 2,
-                      .right = 2,
-                      .top = 2,
-                      .bottom = 2,
-                  },
-          },
+      .backgroundColor = Color::BLACK,
+      .cornerRadius = CLAY_CORNER_RADIUS(12),
   }) {
     Clay_OnHover(button_interaction, userData);
     CLAY({
@@ -250,11 +235,18 @@ void Components::Button(Texture &edge_sheen_data, Texture &bg_sheen_data,
                         .y = CLAY_ALIGN_Y_CENTER,
                     },
             },
-        .backgroundColor = Clay_Hovered() ? Color::WHITE : Color::LIGHT_GREY,
-        .cornerRadius = CLAY_CORNER_RADIUS(button_height / 2.0f - 4.0f),
-        .image =
+        .backgroundColor = Clay_Hovered() ? Color::ORANGE_HOVER : Color::ORANGE,
+        .cornerRadius = CLAY_CORNER_RADIUS(8),
+        .border =
             {
-                .imageData = static_cast<void *>(&bg_sheen_data),
+                .color = Color::WHITE,
+                .width =
+                    {
+                        .left = 2,
+                        .right = 2,
+                        .top = 2,
+                        .bottom = 2,
+                    },
             },
     }) {
       CLAY_TEXT(label, CLAY_TEXT_CONFIG({
@@ -267,6 +259,7 @@ void Components::Button(Texture &edge_sheen_data, Texture &bg_sheen_data,
   }
 }
 
+// TODO: Redo everything below this line
 void Components::handle_photo_item_interaction(Clay_ElementId elementId,
                                                Clay_PointerData pointerInfo,
                                                intptr_t userData) {
@@ -694,8 +687,7 @@ void Components::BottomBar(
                   .layoutDirection = CLAY_LEFT_TO_RIGHT,
               },
       }) {
-        Button(edge_sheen_data, bg_sheen_data, CLAY_STRING("Open Folder"),
-               on_open_folder, userData);
+        Button(CLAY_STRING("Open Folder"), on_open_folder, userData);
         CLAY({
             .layout =
                 {
@@ -732,8 +724,7 @@ void Components::BottomBar(
                       },
               },
       }) {
-        Button(edge_sheen_data, bg_sheen_data, CLAY_STRING("Finalize"),
-               on_finalize);
+        Button(CLAY_STRING("Finalize"), on_finalize);
       }
       // Right Align
       CLAY({
@@ -752,9 +743,8 @@ void Components::BottomBar(
                   .layoutDirection = CLAY_LEFT_TO_RIGHT,
               },
       }) {
-        Button(edge_sheen_data, bg_sheen_data, CLAY_STRING("Sort"), on_sort);
-        Button(edge_sheen_data, bg_sheen_data, CLAY_STRING("Filters"),
-               on_filter);
+        Button(CLAY_STRING("Sort"), on_sort);
+        Button(CLAY_STRING("Filters"), on_filter);
       }
     }
   }
