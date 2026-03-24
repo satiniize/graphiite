@@ -132,7 +132,7 @@ public:
   uint32_t width;
   uint32_t height;
 
-  Renderer(uint32_t width, uint32_t height);
+  Renderer(std::string name, uint32_t width, uint32_t height);
   ~Renderer();
   // Texture ID is a key in gpu_textures for the cpu to handle easily.
   //
