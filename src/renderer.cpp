@@ -15,205 +15,6 @@
 // TODO: I don't like how both of these function relies on loading the file in
 // house. upload_texture and upload_geometry abstract away how the data is
 // obtained, they just manage how to upload it to the GPU
-SDL_GPUShader *load_shader(SDL_GPUDevice *device, std::string path,
-                           int num_samplers, int num_storage_textures,
-                           int num_storage_buffers, int num_uniform_buffers) {
-  // Load the shader code
-  size_t code_size;
-  void *code = SDL_LoadFile(path.c_str(), &code_size);
-  if (code == NULL) {
-    SDL_Log("Failed to load shader from disk! %s", path.c_str());
-    return NULL;
-  }
-  // Determine shader stage
-  SDL_GPUShaderStage stage = SDL_GPU_SHADERSTAGE_VERTEX;
-  if (SDL_strstr(path.c_str(), ".vert")) {
-    stage = SDL_GPU_SHADERSTAGE_VERTEX;
-  } else if (SDL_strstr(path.c_str(), ".frag")) {
-    stage = SDL_GPU_SHADERSTAGE_FRAGMENT;
-  } else {
-    SDL_Log("Invalid shader stage!");
-    return NULL;
-  }
-  // Create the shader
-  SDL_GPUShaderCreateInfo vertex_info{};
-  vertex_info.code_size = code_size;
-  vertex_info.code = (Uint8 *)code;
-  vertex_info.entrypoint = "main";                 // Most likely
-  vertex_info.format = SDL_GPU_SHADERFORMAT_SPIRV; // For now
-  vertex_info.stage = stage;
-  vertex_info.num_samplers = num_samplers;
-  vertex_info.num_storage_textures = num_storage_textures;
-  vertex_info.num_storage_buffers = num_storage_buffers;
-  vertex_info.num_uniform_buffers = num_uniform_buffers;
-
-  SDL_GPUShader *shader = SDL_CreateGPUShader(device, &vertex_info);
-
-  // Free the file because we don't need it
-  SDL_free(code);
-
-  if (shader == NULL) {
-    SDL_Log("Failed to create shader!");
-    return NULL;
-  }
-
-  return shader;
-}
-
-Renderer::Renderer(uint32_t width, uint32_t height) {
-  this->width = width;
-  this->height = height;
-
-  this->context = Context{};
-  this->context.title = "Software Renderer";
-
-  // SDL setup
-  if (!SDL_Init(SDL_INIT_VIDEO)) {
-    SDL_Log("Couldn't initialize SDL: %s", SDL_GetError());
-    return;
-  }
-  SDL_Log("SDL video driver: %s", SDL_GetCurrentVideoDriver());
-
-  // Create GPU device
-  this->context.device =
-      SDL_CreateGPUDevice(SDL_GPU_SHADERFORMAT_SPIRV, true, NULL);
-  if (this->context.device == NULL) {
-    SDL_Log("GPUCreateDevice failed");
-    return;
-  }
-
-  // Create window
-  SDL_WindowFlags flags =
-      SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY;
-  this->context.window =
-      SDL_CreateWindow(this->context.title, width, height, flags);
-  if (!this->context.window) {
-    SDL_Log("Couldn't create window: %s", SDL_GetError());
-    return;
-  }
-
-  // Claim window and GPU device
-  if (!SDL_ClaimWindowForGPUDevice(this->context.device,
-                                   this->context.window)) {
-    SDL_Log("GPUClaimWindow failed");
-    return;
-  }
-
-  SDL_GPUTextureFormat format =
-      SDL_GetGPUSwapchainTextureFormat(context.device, context.window);
-
-  if (!SDL_GPUTextureSupportsSampleCount(context.device, format,
-                                         this->sample_count)) {
-    SDL_Log("MSAA not supported");
-    this->sample_count = SDL_GPU_SAMPLECOUNT_1;
-  }
-
-  // Disable V Sync for FPS testing
-  // Doesn't seem to work in wayland
-  // SDL_SetGPUSwapchainParameters(this->context.device, this->context.window,
-  //                               SDL_GPU_SWAPCHAINCOMPOSITION_SDR,
-  //                               SDL_GPU_PRESENTMODE_IMMEDIATE);
-
-  // Create shaders
-  // TODO: Make this easier, read the file and see how many is needed
-  // Basic vertex shader
-  SDL_GPUShader *basic_vertex_shader = load_shader(
-      this->context.device, "assets/shaders/basic.vert.spv", 0, 0, 0, 1);
-
-  // Text vertex shader
-  SDL_GPUShader *text_vertex_shader = load_shader(
-      this->context.device, "assets/shaders/text.vert.spv", 0, 0, 0, 1);
-
-  // Sprite fragment shader
-  SDL_GPUShader *sprite_fragment_shader = load_shader(
-      this->context.device, "assets/shaders/sprite.frag.spv", 1, 0, 0, 2);
-
-  // Text fragment shader
-  SDL_GPUShader *text_fragment_shader = load_shader(
-      this->context.device, "assets/shaders/text.frag.spv", 1, 0, 0, 2);
-
-  SDL_GPUShader *sdf_rect_stroke_fragment_shader =
-      load_shader(this->context.device,
-                  "assets/shaders/sdf_rect_stroke.frag.spv", 1, 0, 0, 2);
-
-  SDL_GPUShader *film_fragment_shader =
-      load_shader(this->context.device, "assets/shaders/raw_processor.frag.spv",
-                  1, 0, 0, 2);
-
-  sprite_pipeline_id =
-      create_graphics_pipeline(basic_vertex_shader, sprite_fragment_shader);
-  text_pipeline_id =
-      create_graphics_pipeline(text_vertex_shader, text_fragment_shader);
-  sdf_rect_stroke_pipeline_id = create_graphics_pipeline(
-      basic_vertex_shader, sdf_rect_stroke_fragment_shader);
-  film_pipeline_id =
-      create_graphics_pipeline(basic_vertex_shader, film_fragment_shader, true);
-
-  // We don't need to store the shaders after creating the pipeline
-  SDL_ReleaseGPUShader(context.device, basic_vertex_shader);
-  SDL_ReleaseGPUShader(context.device, text_vertex_shader);
-  SDL_ReleaseGPUShader(context.device, sprite_fragment_shader);
-  SDL_ReleaseGPUShader(context.device, text_fragment_shader);
-  SDL_ReleaseGPUShader(context.device, film_fragment_shader);
-  SDL_ReleaseGPUShader(context.device, sdf_rect_stroke_fragment_shader);
-
-  // Create gpu sampler
-  SDL_GPUSamplerCreateInfo clamp_sampler_info{};
-  clamp_sampler_info.mag_filter = SDL_GPU_FILTER_LINEAR;
-  clamp_sampler_info.min_filter = SDL_GPU_FILTER_LINEAR;
-  clamp_sampler_info.mipmap_mode = SDL_GPU_SAMPLERMIPMAPMODE_LINEAR;
-  clamp_sampler_info.address_mode_u = SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE;
-  clamp_sampler_info.address_mode_v = SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE;
-  clamp_sampler_info.address_mode_w = SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE;
-
-  clamp_sampler = SDL_CreateGPUSampler(context.device, &clamp_sampler_info);
-  if (!clamp_sampler) {
-    SDL_Log("Failed to create GPU sampler");
-    return;
-  }
-
-  SDL_GPUSamplerCreateInfo wrap_sampler_info{};
-  wrap_sampler_info.mag_filter = SDL_GPU_FILTER_LINEAR;
-  wrap_sampler_info.min_filter = SDL_GPU_FILTER_LINEAR;
-  wrap_sampler_info.mipmap_mode = SDL_GPU_SAMPLERMIPMAPMODE_LINEAR;
-  wrap_sampler_info.address_mode_u = SDL_GPU_SAMPLERADDRESSMODE_REPEAT;
-  wrap_sampler_info.address_mode_v = SDL_GPU_SAMPLERADDRESSMODE_REPEAT;
-  wrap_sampler_info.address_mode_w = SDL_GPU_SAMPLERADDRESSMODE_REPEAT;
-
-  wrap_sampler = SDL_CreateGPUSampler(context.device, &wrap_sampler_info);
-  if (!wrap_sampler) {
-    SDL_Log("Failed to create GPU sampler");
-    return;
-  }
-
-  static Vertex quad_vertices[]{
-      {-0.5f, 0.5f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f},  // top left
-      {0.5f, 0.5f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f},   // top right
-      {-0.5f, -0.5f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f, 1.0f}, // bottom left
-      {0.5f, -0.5f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f}   // bottom right
-  };
-
-  static Uint16 quad_indices[]{0, 1, 2, 2, 1, 3};
-
-  quad_geometry_id =
-      upload_geometry(quad_vertices, std::size(quad_vertices) * sizeof(Vertex),
-                      quad_indices, std::size(quad_indices) * sizeof(Uint16));
-
-  italic_font_atlas_id = load_and_upload_ascii_font_atlas(italic_font_path);
-  regular_font_atlas_id = load_and_upload_ascii_font_atlas(regular_font_path);
-
-  Image dummy_image;
-  dummy_image.pixels = {0, 0, 0, 0};
-  dummy_image.width = 1;
-  dummy_image.height = 1;
-  dummy_image.channels = 4;
-  dummy_image.format = PixelFormat::RGBA8;
-  dummy_texture_id = upload_texture(dummy_image);
-
-  create_render_targets();
-
-  return;
-}
 
 Renderer::~Renderer() {
   for (auto &[path, graphics_pipeline] : graphics_pipelines) {
@@ -434,11 +235,67 @@ GeometryID Renderer::upload_geometry(const Vertex *vertices, size_t vertex_size,
   return next_geometry_id++;
 };
 
+std::vector<char> load_shader(const std::string &path) {
+  std::ifstream file(path, std::ios::binary | std::ios::ate);
+  if (!file.is_open()) {
+    SDL_Log("Failed to load shader from disk! %s", path.c_str());
+    return {};
+  }
+  size_t code_size = file.tellg();
+  std::vector<char> code(code_size);
+  file.seekg(0);
+  file.read(code.data(), code_size);
+  return code;
+}
+
+SDL_GPUShader *upload_shader(SDL_GPUDevice *device, std::vector<char> code,
+                             ShaderStage stage, int num_uniform_buffers,
+                             int num_samplers, int num_storage_buffers,
+                             int num_storage_textures) {
+  // Create the shader
+  SDL_GPUShaderCreateInfo vertex_info{};
+  vertex_info.code_size = code.size();
+  vertex_info.code = (Uint8 *)code.data();
+  vertex_info.entrypoint = "main";
+  vertex_info.format = SDL_GPU_SHADERFORMAT_SPIRV;
+  vertex_info.stage = stage == ShaderStage::VERTEX
+                          ? SDL_GPU_SHADERSTAGE_VERTEX
+                          : SDL_GPU_SHADERSTAGE_FRAGMENT;
+  vertex_info.num_samplers = num_samplers;
+  vertex_info.num_storage_textures = num_storage_textures;
+  vertex_info.num_storage_buffers = num_storage_buffers;
+  vertex_info.num_uniform_buffers = num_uniform_buffers;
+
+  SDL_GPUShader *shader = SDL_CreateGPUShader(device, &vertex_info);
+
+  if (shader == NULL) {
+    SDL_Log("Failed to create shader!");
+    return NULL;
+  }
+
+  return shader;
+}
+
 // LGTM
 GraphicsPipelineID
-Renderer::create_graphics_pipeline(SDL_GPUShader *vertex_shader,
-                                   SDL_GPUShader *fragment_shader,
-                                   bool is_non_swapchain_pipeline) {
+Renderer::create_graphics_pipeline(PipelineParams params,
+                                   std::vector<char> vertex_code,
+                                   std::vector<char> fragment_code) {
+  SDL_GPUShader *vertex_shader = upload_shader(
+      context.device, vertex_code, ShaderStage::VERTEX,
+      params.num_vertex_uniform_buffers, params.num_vertex_samplers,
+      params.num_vertex_storage_buffers, params.num_vertex_storage_textures);
+  SDL_GPUShader *fragment_shader = upload_shader(
+      context.device, fragment_code, ShaderStage::FRAGMENT,
+      params.num_fragment_uniform_buffers, params.num_fragment_samplers,
+      params.num_fragment_storage_buffers,
+      params.num_fragment_storage_textures);
+
+  if (vertex_shader == NULL || fragment_shader == NULL) {
+    SDL_Log("Failed to create shader!");
+    return 0;
+  }
+
   static const uint32_t num_vertex_buffers = 1;
   SDL_GPUVertexBufferDescription
       vertex_buffer_descriptions[num_vertex_buffers] = {};
@@ -497,8 +354,8 @@ Renderer::create_graphics_pipeline(SDL_GPUShader *vertex_shader,
       .rasterizer_state = {},
       .multisample_state =
           {
-              .sample_count = is_non_swapchain_pipeline ? SDL_GPU_SAMPLECOUNT_1
-                                                        : this->sample_count,
+              .sample_count = params.compute_pipeline ? SDL_GPU_SAMPLECOUNT_1
+                                                      : this->sample_count,
               .sample_mask = 0,
               .enable_mask = false,
               .enable_alpha_to_coverage = false,
@@ -515,6 +372,9 @@ Renderer::create_graphics_pipeline(SDL_GPUShader *vertex_shader,
   SDL_GPUGraphicsPipeline *graphics_pipeline =
       SDL_CreateGPUGraphicsPipeline(context.device, &pipeline_info);
 
+  SDL_ReleaseGPUShader(context.device, vertex_shader);
+  SDL_ReleaseGPUShader(context.device, fragment_shader);
+
   if (!graphics_pipeline) {
     SDL_Log("Failed to create graphics pipeline");
     return -1;
@@ -523,6 +383,153 @@ Renderer::create_graphics_pipeline(SDL_GPUShader *vertex_shader,
   graphics_pipelines[next_pipeline_id] = graphics_pipeline;
 
   return next_pipeline_id++;
+}
+
+Renderer::Renderer(uint32_t width, uint32_t height) {
+  this->width = width;
+  this->height = height;
+
+  this->context = Context{};
+  this->context.title = "Software Renderer";
+
+  // SDL setup
+  if (!SDL_Init(SDL_INIT_VIDEO)) {
+    SDL_Log("Couldn't initialize SDL: %s", SDL_GetError());
+    return;
+  }
+  SDL_Log("SDL video driver: %s", SDL_GetCurrentVideoDriver());
+
+  // Create GPU device
+  this->context.device =
+      SDL_CreateGPUDevice(SDL_GPU_SHADERFORMAT_SPIRV, true, NULL);
+  if (this->context.device == NULL) {
+    SDL_Log("GPUCreateDevice failed");
+    return;
+  }
+
+  // Create window
+  SDL_WindowFlags flags =
+      SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY;
+  this->context.window =
+      SDL_CreateWindow(this->context.title, width, height, flags);
+  if (!this->context.window) {
+    SDL_Log("Couldn't create window: %s", SDL_GetError());
+    return;
+  }
+
+  // Claim window and GPU device
+  if (!SDL_ClaimWindowForGPUDevice(this->context.device,
+                                   this->context.window)) {
+    SDL_Log("GPUClaimWindow failed");
+    return;
+  }
+
+  SDL_GPUTextureFormat format =
+      SDL_GetGPUSwapchainTextureFormat(context.device, context.window);
+
+  if (!SDL_GPUTextureSupportsSampleCount(context.device, format,
+                                         this->sample_count)) {
+    SDL_Log("MSAA not supported");
+    this->sample_count = SDL_GPU_SAMPLECOUNT_1;
+  }
+
+  // Disable V Sync for FPS testing
+  // Doesn't seem to work in wayland
+  // SDL_SetGPUSwapchainParameters(this->context.device, this->context.window,
+  //                               SDL_GPU_SWAPCHAINCOMPOSITION_SDR,
+  //                               SDL_GPU_PRESENTMODE_IMMEDIATE);
+
+  std::vector<char> basic_vertex_shader_code =
+      load_shader("assets/shaders/basic.vert.spv");
+  std::vector<char> text_vertex_shader_code =
+      load_shader("assets/shaders/text.vert.spv");
+
+  std::vector<char> sprite_fragment_shader_code =
+      load_shader("assets/shaders/sprite.frag.spv");
+  std::vector<char> text_fragment_shader_code =
+      load_shader("assets/shaders/text.frag.spv");
+  std::vector<char> sdf_rect_stroke_fragment_shader_code =
+      load_shader("assets/shaders/sdf_rect_stroke.frag.spv");
+  std::vector<char> film_fragment_shader_code =
+      load_shader("assets/shaders/raw_processor.frag.spv");
+
+  sprite_pipeline_id = create_graphics_pipeline(
+      (PipelineParams){.num_vertex_uniform_buffers = 1,
+                       .num_fragment_uniform_buffers = 2,
+                       .num_fragment_samplers = 1},
+      basic_vertex_shader_code, sprite_fragment_shader_code);
+  text_pipeline_id = create_graphics_pipeline(
+      (PipelineParams){.num_vertex_uniform_buffers = 1,
+                       .num_fragment_uniform_buffers = 2,
+                       .num_fragment_samplers = 1},
+      text_vertex_shader_code, text_fragment_shader_code);
+  sdf_rect_stroke_pipeline_id = create_graphics_pipeline(
+      (PipelineParams){.num_vertex_uniform_buffers = 1,
+                       .num_fragment_uniform_buffers = 2,
+                       .num_fragment_samplers = 1},
+      basic_vertex_shader_code, sdf_rect_stroke_fragment_shader_code);
+  film_pipeline_id = create_graphics_pipeline(
+      (PipelineParams){.num_vertex_uniform_buffers = 1,
+                       .num_fragment_uniform_buffers = 2,
+                       .num_fragment_samplers = 1},
+      basic_vertex_shader_code, film_fragment_shader_code);
+
+  // Create gpu sampler
+  SDL_GPUSamplerCreateInfo clamp_sampler_info{};
+  clamp_sampler_info.mag_filter = SDL_GPU_FILTER_LINEAR;
+  clamp_sampler_info.min_filter = SDL_GPU_FILTER_LINEAR;
+  clamp_sampler_info.mipmap_mode = SDL_GPU_SAMPLERMIPMAPMODE_LINEAR;
+  clamp_sampler_info.address_mode_u = SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE;
+  clamp_sampler_info.address_mode_v = SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE;
+  clamp_sampler_info.address_mode_w = SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE;
+
+  clamp_sampler = SDL_CreateGPUSampler(context.device, &clamp_sampler_info);
+  if (!clamp_sampler) {
+    SDL_Log("Failed to create GPU sampler");
+    return;
+  }
+
+  SDL_GPUSamplerCreateInfo wrap_sampler_info{};
+  wrap_sampler_info.mag_filter = SDL_GPU_FILTER_LINEAR;
+  wrap_sampler_info.min_filter = SDL_GPU_FILTER_LINEAR;
+  wrap_sampler_info.mipmap_mode = SDL_GPU_SAMPLERMIPMAPMODE_LINEAR;
+  wrap_sampler_info.address_mode_u = SDL_GPU_SAMPLERADDRESSMODE_REPEAT;
+  wrap_sampler_info.address_mode_v = SDL_GPU_SAMPLERADDRESSMODE_REPEAT;
+  wrap_sampler_info.address_mode_w = SDL_GPU_SAMPLERADDRESSMODE_REPEAT;
+
+  wrap_sampler = SDL_CreateGPUSampler(context.device, &wrap_sampler_info);
+  if (!wrap_sampler) {
+    SDL_Log("Failed to create GPU sampler");
+    return;
+  }
+
+  static Vertex quad_vertices[]{
+      {-0.5f, 0.5f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f},  // top left
+      {0.5f, 0.5f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f},   // top right
+      {-0.5f, -0.5f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f, 1.0f}, // bottom left
+      {0.5f, -0.5f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f}   // bottom right
+  };
+
+  static Uint16 quad_indices[]{0, 1, 2, 2, 1, 3};
+
+  quad_geometry_id =
+      upload_geometry(quad_vertices, std::size(quad_vertices) * sizeof(Vertex),
+                      quad_indices, std::size(quad_indices) * sizeof(Uint16));
+
+  italic_font_atlas_id = load_and_upload_ascii_font_atlas(italic_font_path);
+  regular_font_atlas_id = load_and_upload_ascii_font_atlas(regular_font_path);
+
+  Image dummy_image;
+  dummy_image.pixels = {0, 0, 0, 0};
+  dummy_image.width = 1;
+  dummy_image.height = 1;
+  dummy_image.channels = 4;
+  dummy_image.format = PixelFormat::RGBA8;
+  dummy_texture_id = upload_texture(dummy_image);
+
+  create_render_targets();
+
+  return;
 }
 
 TextureID
@@ -741,6 +748,8 @@ void Renderer::film_pass(RawProcessorFragmentUniformBuffer frag_uniforms) {
   if (film_render_target_id == -1 || film_source_texture_id == -1)
     return;
 
+  // Start compute frame
+
   // Start command buffer
   SDL_GPUCommandBuffer *film_cmd = SDL_AcquireGPUCommandBuffer(context.device);
 
@@ -750,11 +759,9 @@ void Renderer::film_pass(RawProcessorFragmentUniformBuffer frag_uniforms) {
   color_target.load_op = SDL_GPU_LOADOP_CLEAR;
   color_target.store_op = SDL_GPU_STOREOP_STORE;
 
-  // Start pass
   SDL_GPURenderPass *pass =
       SDL_BeginGPURenderPass(film_cmd, &color_target, 1, nullptr);
 
-  // fullscreen quad, no MVP transform needed — identity matrix
   SDL_GPUBufferBinding vb = {.buffer = vertex_buffers[quad_geometry_id]};
   SDL_GPUBufferBinding ib = {.buffer = index_buffers[quad_geometry_id]};
   SDL_GPUTextureSamplerBinding sampler = {
@@ -766,7 +773,6 @@ void Renderer::film_pass(RawProcessorFragmentUniformBuffer frag_uniforms) {
   SDL_BindGPUIndexBuffer(pass, &ib, SDL_GPU_INDEXELEMENTSIZE_16BIT);
   SDL_BindGPUFragmentSamplers(pass, 0, &sampler, 1);
 
-  // identity MVP so the quad fills the render target
   BasicVertexUniformBuffer vert_uniforms{};
   vert_uniforms.mvp_matrix = glm::mat4(1.0f);
   vert_uniforms.mvp_matrix =
@@ -775,8 +781,8 @@ void Renderer::film_pass(RawProcessorFragmentUniformBuffer frag_uniforms) {
                                sizeof(BasicVertexUniformBuffer));
   SDL_PushGPUFragmentUniformData(film_cmd, 1, &frag_uniforms,
                                  sizeof(RawProcessorFragmentUniformBuffer));
-
   SDL_DrawGPUIndexedPrimitives(pass, 6, 1, 0, 0, 0);
+
   SDL_EndGPURenderPass(pass);
   SDL_SubmitGPUCommandBuffer(film_cmd); // ← submit and flush before main pass
 }

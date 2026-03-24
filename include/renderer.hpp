@@ -106,6 +106,25 @@ struct RenderTargetParams {
   int sample_count = 1;
 };
 
+enum class ShaderStage {
+  VERTEX,
+  FRAGMENT,
+};
+
+struct PipelineParams {
+  int num_vertex_uniform_buffers = 0;
+  int num_vertex_samplers = 0;
+  int num_vertex_storage_buffers = 0;
+  int num_vertex_storage_textures = 0;
+  int num_fragment_uniform_buffers = 0;
+  int num_fragment_samplers = 0;
+  int num_fragment_storage_buffers = 0;
+  int num_fragment_storage_textures = 0;
+  // TODO: Easy way to differentiate swapchain vs non-swapchain pipelines
+  SDL_GPUSampleCount sample_count = SDL_GPU_SAMPLECOUNT_1;
+  bool compute_pipeline = false;
+};
+
 // TODO: When renderer changes, sprite renderer and clay renderer needs to
 // recompile
 class Renderer {
@@ -121,10 +140,9 @@ public:
   TextureID upload_texture(const Image &image);
   GeometryID upload_geometry(const Vertex *vertices, size_t vertex_size,
                              const Uint16 *indices, size_t index_size);
-  GraphicsPipelineID
-  create_graphics_pipeline(SDL_GPUShader *vertex_shader,
-                           SDL_GPUShader *fragment_shader,
-                           bool is_non_swapchain_pipeline = false);
+  GraphicsPipelineID create_graphics_pipeline(PipelineParams params,
+                                              std::vector<char> vertex_code,
+                                              std::vector<char> fragment_code);
   // TODO: These aren't mature, redesign please
   TextureID load_and_upload_ascii_font_atlas(
       const std::string &font_path); // TODO: Seperation of concerns
