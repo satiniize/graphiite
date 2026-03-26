@@ -1,5 +1,6 @@
 #include "components.hpp"
 #include "clay_renderer.hpp"
+#include "texture.hpp"
 #include "theme.hpp"
 
 static const float HANDLE_SIZE = 24.0f;
@@ -45,7 +46,7 @@ void Components::UpdateSliderDrag(bool is_mouse_down,
   *g_slider_drag.target = raw;
 }
 
-void Components::Slider(float *value, uint32_t id) {
+void Components::Slider(float *value, uint32_t id, Texture &bevel_texture) {
   CLAY({
       .id = CLAY_IDI("SliderTrack", id),
       .layout =
@@ -88,10 +89,14 @@ void Components::Slider(float *value, uint32_t id) {
                         .width = CLAY_SIZING_FIXED(24),
                         .height = CLAY_SIZING_FIXED(40),
                     },
-                .padding = {.left = 2, .right = 2, .top = 2, .bottom = 2},
+                .padding = CLAY_PADDING_ALL(4),
             },
-        .backgroundColor = Color::BLACK,
+        .backgroundColor = Color::WHITE,
         .cornerRadius = CLAY_CORNER_RADIUS(6),
+        .image =
+            {
+                .imageData = static_cast<void *>(&bevel_texture),
+            },
         .floating =
             {
                 .offset = Clay_Vector2{offset, 0.0f},
@@ -103,6 +108,11 @@ void Components::Slider(float *value, uint32_t id) {
                 .pointerCaptureMode = CLAY_POINTER_CAPTURE_MODE_PASSTHROUGH,
                 .attachTo = CLAY_ATTACH_TO_PARENT,
                 .clipTo = CLAY_CLIP_TO_ATTACHED_PARENT,
+            },
+        .border =
+            {
+                .color = Color::BLACK,
+                .width = CLAY_BORDER_ALL(2),
             },
     }) {
       CLAY({
@@ -122,11 +132,6 @@ void Components::Slider(float *value, uint32_t id) {
           .backgroundColor =
               g_slider_drag.id.id == id ? Color::MIDDLE_GREY : Color::DARK_GREY,
           .cornerRadius = CLAY_CORNER_RADIUS(6 - 2),
-          .border =
-              {
-                  .color = Color::WHITE,
-                  .width = CLAY_BORDER_ALL(2),
-              },
       }) {
         CLAY({
             .layout =
@@ -236,7 +241,7 @@ void Components::Button(Clay_String label,
                     },
             },
         .backgroundColor = Clay_Hovered() ? Color::ORANGE_HOVER : Color::ORANGE,
-        .cornerRadius = CLAY_CORNER_RADIUS(8),
+        .cornerRadius = CLAY_CORNER_RADIUS(10),
         .border =
             {
                 .color = Color::WHITE,

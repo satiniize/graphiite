@@ -64,6 +64,7 @@ set(SR_SOURCES
   src/clay_manager.cpp
   src/input_manager.cpp
   src/components.cpp
+  src/image.cpp
 )
 
 add_library(software-renderer STATIC ${SR_SOURCES})

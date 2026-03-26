@@ -5,6 +5,7 @@
 
 #include <SDL3/SDL_log.h>
 
+// TODO: Unsure if this and clay manager should be combined or not, probably not
 namespace ClayRenderer {
 void render_commands(Renderer &renderer,
                      Clay_RenderCommandArray render_commands) {
@@ -16,15 +17,11 @@ void render_commands(Renderer &renderer,
     const SDL_FRect rect = {bounding_box.x, bounding_box.y, bounding_box.width,
                             bounding_box.height};
     const uint16_t z_index = static_cast<uint16_t>(render_command->zIndex);
-    // SDL_Log("z_index: %u", z_index);
-
     // TODO: Properly clamp corner radii by ratio
     switch (render_command->commandType) {
     case CLAY_RENDER_COMMAND_TYPE_RECTANGLE: {
       Clay_RectangleRenderData *render_data_rectangle =
           &render_command->renderData.rectangle;
-
-      // Get variables
       glm::vec4 color((float)render_data_rectangle->backgroundColor.r / 255.0f,
                       (float)render_data_rectangle->backgroundColor.g / 255.0f,
                       (float)render_data_rectangle->backgroundColor.b / 255.0f,
@@ -33,13 +30,6 @@ void render_commands(Renderer &renderer,
                              render_data_rectangle->cornerRadius.topRight,
                              render_data_rectangle->cornerRadius.bottomLeft,
                              render_data_rectangle->cornerRadius.bottomRight);
-
-      // Draw the rect
-      // renderer.draw_color_rect(glm::vec2(rect.x, rect.y),
-      // glm::vec2(rect.w, rect.h), color, corner_radii);
-      // renderer.draw_rect(glm::vec2(rect.x, rect.y), glm::vec2(rect.w,
-      // rect.h),
-      //                    color, corner_radii, false, -1, false);
       RectParams rect_params = {
           .position = glm::vec2(rect.x, rect.y),
           .size = glm::vec2(rect.w, rect.h),
@@ -54,20 +44,6 @@ void render_commands(Renderer &renderer,
       renderer.draw_rect(rect_params);
     } break;
     case CLAY_RENDER_COMMAND_TYPE_TEXT: {
-      // TODO: Implement and improve text rendering
-      // // A string slice containing the text to be rendered.
-      // // Note: this is not guaranteed to be null terminated.
-      // Clay_StringSlice stringContents;
-      // // Conventionally represented as 0-255 for each channel, but
-      // interpretation is up to the renderer. Clay_Color textColor;
-      // // An integer representing the font to use to render this text,
-      // transparently passed through from the text declaration. uint16_t
-      // fontId; uint16_t fontSize;
-      // // Specifies the extra whitespace gap in pixels between each character.
-      // uint16_t letterSpacing;
-      // // The height of the bounding box for this line of text.
-      // uint16_t lineHeight;
-
       Clay_TextRenderData *render_data_text = &render_command->renderData.text;
 
       // Get variables
@@ -89,19 +65,7 @@ void render_commands(Renderer &renderer,
       Clay_BorderRenderData *render_data_border =
           &render_command->renderData.border;
       const float minRadius = SDL_min(rect.w, rect.h) / 2.0f;
-      // TODO: This campling is a bit naive as now we can't define semicircle
-      // corners
-      // const Clay_CornerRadius clampedRadii = {
-      //     .topLeft =
-      //         SDL_min(render_data_border->cornerRadius.topLeft, minRadius),
-      //     .topRight =
-      //         SDL_min(render_data_border->cornerRadius.topRight, minRadius),
-      //     .bottomLeft =
-      //         SDL_min(render_data_border->cornerRadius.bottomLeft,
-      //         minRadius),
-      //     .bottomRight =
-      //         SDL_min(render_data_border->cornerRadius.bottomRight,
-      //         minRadius)};
+
       glm::vec4 corner_radii = {
           render_data_border->cornerRadius.topLeft,
           render_data_border->cornerRadius.topRight,

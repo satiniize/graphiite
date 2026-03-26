@@ -139,6 +139,7 @@ public:
   GraphicsPipelineID create_graphics_pipeline(PipelineParams params,
                                               std::vector<char> vertex_code,
                                               std::vector<char> fragment_code);
+  Image download_texture(TextureID texture_id);
   // TODO: These aren't mature, redesign please
   TextureID load_and_upload_ascii_font_atlas(
       const std::string &font_path); // TODO: Seperation of concerns
