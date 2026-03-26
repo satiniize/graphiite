@@ -4,6 +4,7 @@
 
 #include "texture.hpp"
 
+// TODO: Move this to photo-sorter
 struct Photo {
   Texture image_data;
   bool selected;

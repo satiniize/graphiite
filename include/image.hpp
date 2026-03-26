@@ -31,6 +31,7 @@ public:
         PixelFormat format = PixelFormat::RGBA8);
 
   static ImageGenerator angular_gradient(std::vector<GradientStop> stops);
+  static ImageGenerator noise();
 
   uint8_t bytes_per_pixel() const { return static_cast<uint8_t>(format); }
   void fill(ImageGenerator generator);
