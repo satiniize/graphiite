@@ -76,6 +76,7 @@ void render_commands(Renderer &renderer,
                       (float)render_data_border->color.g / 255.0f,
                       (float)render_data_border->color.b / 255.0f,
                       (float)render_data_border->color.a / 255.0f);
+      // left, right, top, bottom
       glm::vec4 stroke_thickness((float)render_data_border->width.left,
                                  (float)render_data_border->width.right,
                                  (float)render_data_border->width.top,

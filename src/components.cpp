@@ -129,8 +129,9 @@ void Components::Slider(float *value, uint32_t id, Texture &bevel_texture) {
                           .y = CLAY_ALIGN_Y_CENTER,
                       },
               },
-          .backgroundColor =
-              g_slider_drag.id.id == id ? Color::MIDDLE_GREY : Color::DARK_GREY,
+          .backgroundColor = g_slider_drag.id.id == id
+                                 ? Color::MIDDLE_GREY
+                                 : Color::DARK_GREY, // Hoevered
           .cornerRadius = CLAY_CORNER_RADIUS(6 - 2),
       }) {
         CLAY({
@@ -202,7 +203,7 @@ void Components::Button(Clay_String label,
                         void button_interaction(Clay_ElementId elementId,
                                                 Clay_PointerData pointerInfo,
                                                 intptr_t userData),
-                        intptr_t userData) {
+                        Texture &orange_bevel_texture, intptr_t userData) {
   uint16_t button_height = 48;
   CLAY({
       .layout =
@@ -213,10 +214,25 @@ void Components::Button(Clay_String label,
                       .height =
                           CLAY_SIZING_FIXED(static_cast<float>(button_height)),
                   },
-              .padding = CLAY_PADDING_ALL(2),
+              .padding = CLAY_PADDING_ALL(4),
           },
-      .backgroundColor = Color::BLACK,
+      .backgroundColor = Color::WHITE,
       .cornerRadius = CLAY_CORNER_RADIUS(12),
+      .image =
+          {
+              .imageData = static_cast<void *>(&orange_bevel_texture),
+          },
+      .border =
+          {
+              .color = Color::BLACK,
+              .width =
+                  {
+                      .left = 2,
+                      .right = 2,
+                      .top = 2,
+                      .bottom = 2,
+                  },
+          },
   }) {
     Clay_OnHover(button_interaction, userData);
     CLAY({
@@ -242,20 +258,9 @@ void Components::Button(Clay_String label,
             },
         .backgroundColor = Clay_Hovered() ? Color::ORANGE_HOVER : Color::ORANGE,
         .cornerRadius = CLAY_CORNER_RADIUS(10),
-        .border =
-            {
-                .color = Color::WHITE,
-                .width =
-                    {
-                        .left = 2,
-                        .right = 2,
-                        .top = 2,
-                        .bottom = 2,
-                    },
-            },
     }) {
       CLAY_TEXT(label, CLAY_TEXT_CONFIG({
-                           .textColor = Color::WHITE,
+                           .textColor = Color::BLACK,
                            .fontSize = FontSize::MEDIUM,
                            .wrapMode = CLAY_TEXT_WRAP_NONE,
                            .textAlignment = CLAY_TEXT_ALIGN_CENTER,
@@ -692,7 +697,8 @@ void Components::BottomBar(
                   .layoutDirection = CLAY_LEFT_TO_RIGHT,
               },
       }) {
-        Button(CLAY_STRING("Open Folder"), on_open_folder, userData);
+        Button(CLAY_STRING("Open Folder"), on_open_folder, bg_sheen_data,
+               userData);
         CLAY({
             .layout =
                 {
@@ -729,7 +735,7 @@ void Components::BottomBar(
                       },
               },
       }) {
-        Button(CLAY_STRING("Finalize"), on_finalize);
+        Button(CLAY_STRING("Finalize"), on_finalize, bg_sheen_data);
       }
       // Right Align
       CLAY({
@@ -748,8 +754,8 @@ void Components::BottomBar(
                   .layoutDirection = CLAY_LEFT_TO_RIGHT,
               },
       }) {
-        Button(CLAY_STRING("Sort"), on_sort);
-        Button(CLAY_STRING("Filters"), on_filter);
+        Button(CLAY_STRING("Sort"), on_sort, bg_sheen_data);
+        Button(CLAY_STRING("Filters"), on_filter, bg_sheen_data);
       }
     }
   }

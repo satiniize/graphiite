@@ -8,11 +8,34 @@ Image::Image(uint16_t width, uint16_t height, PixelFormat format) {
   this->height = height;
 }
 
-ImageGenerator Image::angular_gradient() {
-  return [](float x, float y, float w, float h) -> glm::vec4 {
-    float angle = atan2(y - h / 2.0f, x - w / 2.0f);
+static glm::vec4 lerp(glm::vec4 a, glm::vec4 b, float t) {
+  return a + (b - a) * t;
+}
+
+// TODO: Add gradient stops
+// With the assumption gradient stops are ordered ascending
+ImageGenerator Image::angular_gradient(std::vector<GradientStop> stops) {
+  return [stops](float x, float y, float w, float h) -> glm::vec4 {
+    float angle = atan2(y - h / 2.0f, -x + w / 2.0f);
     float t = (angle + M_PI) / (2.0f * M_PI);
-    return glm::vec4(t, t, t, 1.0f);
+    GradientStop a = {.position = 0.0f,
+                      .color = glm::vec4(0.0f, 0.0f, 0.0f, 0.0f)};
+    GradientStop b = stops.back();
+    b.position -= 1.0f;
+
+    for (auto stop : stops) {
+      a = b;
+      b = stop;
+      if (t < b.position) {
+        return lerp(a.color, b.color,
+                    (t - a.position) / (b.position - a.position));
+      }
+    }
+
+    a = b;
+    b = stops.front();
+    b.position += 1.0f;
+    return lerp(a.color, b.color, (t - a.position) / (b.position - a.position));
   };
 }
 

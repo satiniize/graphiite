@@ -21,7 +21,7 @@ void Button(Clay_String label,
             void button_interaction(Clay_ElementId elementId,
                                     Clay_PointerData pointerInfo,
                                     intptr_t userData),
-            intptr_t userData = NULL);
+            Texture &orange_bevel_texture, intptr_t userData = NULL);
 void handle_photo_item_interaction(Clay_ElementId elementId,
                                    Clay_PointerData pointerInfo,
                                    intptr_t userData);

@@ -6,7 +6,7 @@ namespace Color {
 inline constexpr Clay_Color GREY = {96, 96, 96, 255};
 inline constexpr Clay_Color OFF_WHITE = {245, 245, 235, 255};
 inline constexpr Clay_Color ORANGE = {255, 127, 0, 255};
-inline constexpr Clay_Color ORANGE_HOVER = {255, 192, 0, 255};
+inline constexpr Clay_Color ORANGE_HOVER = {255, 192, 95, 255};
 
 inline constexpr Clay_Color BLACK = {12, 12, 12, 255};
 inline constexpr Clay_Color LIGHT_GREY = {192, 192, 192, 255};

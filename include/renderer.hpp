@@ -160,7 +160,7 @@ public:
   bool end_scissor_mode();
 
   glm::vec2 glyph_size;
-  float font_sample_point_size = 56.0f;
+  float font_sample_point_size = 48.0f;
   float viewport_scale = 1.0f;
 
   TextureID film_source_texture_id;
