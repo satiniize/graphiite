@@ -145,11 +145,13 @@ public:
       const std::string &font_path); // TODO: Seperation of concerns
   void create_render_targets();      // TODO: Shotgun
   // Loop functions
-  bool update_swapchain_texture(); // TODO: Not much of a descriptive name
-  bool begin_frame();
-  bool end_frame();
+  bool begin_compute_pass();
+  bool end_compute_pass();
+  bool begin_render_pass();
+  bool end_render_pass();
+  // Compute functions
+  bool compute_film(RawProcessorFragmentUniformBuffer fragment_uniforms);
   // Drawing functions
-  void film_pass(RawProcessorFragmentUniformBuffer frag_uniforms);
   bool draw_sprite(TextureID texture_id, glm::vec2 translation, float rotation,
                    glm::vec2 scale, glm::vec4 color);
   bool draw_rect(RectParams params);

@@ -644,7 +644,73 @@ void Renderer::create_render_targets() {
   resolve_target = SDL_CreateGPUTexture(context.device, &resolve_target_info);
 }
 
-bool Renderer::update_swapchain_texture() {
+bool Renderer::begin_compute_pass() {
+  // Start command buffer
+  SDL_GPUCommandBuffer *film_cmd = SDL_AcquireGPUCommandBuffer(context.device);
+
+  // Render target
+  SDL_GPUColorTargetInfo color_target = {};
+  color_target.texture = gpu_textures[film_render_target_id];
+  color_target.load_op = SDL_GPU_LOADOP_CLEAR;
+  color_target.store_op = SDL_GPU_STOREOP_STORE;
+
+  SDL_GPURenderPass *pass =
+      SDL_BeginGPURenderPass(film_cmd, &color_target, 1, nullptr);
+
+  _command_buffer = film_cmd;
+  _render_pass = pass;
+  return true;
+}
+
+bool Renderer::end_compute_pass() {
+  // End pass
+  SDL_EndGPURenderPass(_render_pass);
+  SDL_SubmitGPUCommandBuffer(
+      _command_buffer); // ← submit and flush before main pass
+  return true;
+}
+
+bool Renderer::compute_film(
+    RawProcessorFragmentUniformBuffer fragment_uniforms) {
+  if (film_render_target_id == -1 || film_source_texture_id == -1)
+    return false;
+
+  // Vertex buffer
+  SDL_GPUBufferBinding vertex_buffer_bindings[1];
+  vertex_buffer_bindings[0].buffer = vertex_buffers[quad_geometry_id];
+  vertex_buffer_bindings[0].offset = 0;
+  // Index buffer
+  SDL_GPUBufferBinding index_buffer_bindings = {
+      .buffer = index_buffers[quad_geometry_id],
+      .offset = 0,
+  };
+  // Samplers
+  SDL_GPUTextureSamplerBinding fragment_sampler_bindings[1];
+  fragment_sampler_bindings[0].texture = gpu_textures[film_source_texture_id];
+  fragment_sampler_bindings[0].sampler = clamp_sampler;
+  BasicVertexUniformBuffer vertex_uniforms{};
+  vertex_uniforms.mvp_matrix = glm::mat4(1.0f);
+  vertex_uniforms.mvp_matrix =
+      glm::scale(vertex_uniforms.mvp_matrix, glm::vec3(2.0f));
+
+  // Draw calls; these are nearly identical between all the other draw functions
+  SDL_BindGPUGraphicsPipeline(_render_pass,
+                              graphics_pipelines[film_pipeline_id]);
+  SDL_BindGPUVertexBuffers(_render_pass, 0, vertex_buffer_bindings, 1);
+  SDL_BindGPUIndexBuffer(_render_pass, &index_buffer_bindings,
+                         SDL_GPU_INDEXELEMENTSIZE_16BIT);
+  SDL_BindGPUFragmentSamplers(_render_pass, 0, fragment_sampler_bindings, 1);
+  SDL_PushGPUVertexUniformData(_command_buffer, 0, &vertex_uniforms,
+                               sizeof(BasicVertexUniformBuffer));
+  SDL_PushGPUFragmentUniformData(_command_buffer, 1, &fragment_uniforms,
+                                 sizeof(RawProcessorFragmentUniformBuffer));
+  SDL_DrawGPUIndexedPrimitives(_render_pass, 6, 1, 0, 0, 0);
+
+  return true;
+}
+
+// TODO: Why was this seperated again?
+bool Renderer::begin_render_pass() {
   _command_buffer = SDL_AcquireGPUCommandBuffer(context.device);
 
   if (!_command_buffer) {
@@ -667,6 +733,7 @@ bool Renderer::update_swapchain_texture() {
     return false;
   }
 
+  // Resize render targets if necessary
   if (new_width != this->width || new_height != this->height) {
     if (color_render_target)
       SDL_ReleaseGPUTexture(context.device, color_render_target);
@@ -680,10 +747,6 @@ bool Renderer::update_swapchain_texture() {
     this->height = new_height;
   }
 
-  return true;
-}
-
-bool Renderer::begin_frame() {
   SDL_GPUColorTargetInfo color_target_info{};
   // color_target_info.texture = this->swapchain_texture;
   color_target_info.texture = this->color_render_target;
@@ -719,7 +782,7 @@ bool Renderer::begin_frame() {
   return true;
 }
 
-bool Renderer::end_frame() {
+bool Renderer::end_render_pass() {
   SDL_EndGPURenderPass(_render_pass);
 
   SDL_GPUTexture *blitSourceTexture =
@@ -742,60 +805,6 @@ bool Renderer::end_frame() {
   this->viewport_scale = SDL_GetWindowPixelDensity(this->context.window);
 
   return true;
-}
-
-// TODO: Make this available without interfering with renderer
-void Renderer::film_pass(RawProcessorFragmentUniformBuffer fragment_uniforms) {
-  if (film_render_target_id == -1 || film_source_texture_id == -1)
-    return;
-
-  // Start command buffer
-  SDL_GPUCommandBuffer *film_cmd = SDL_AcquireGPUCommandBuffer(context.device);
-
-  // Render target
-  SDL_GPUColorTargetInfo color_target = {};
-  color_target.texture = gpu_textures[film_render_target_id];
-  color_target.load_op = SDL_GPU_LOADOP_CLEAR;
-  color_target.store_op = SDL_GPU_STOREOP_STORE;
-
-  SDL_GPURenderPass *pass =
-      SDL_BeginGPURenderPass(film_cmd, &color_target, 1, nullptr);
-
-  // Vertex buffer
-  SDL_GPUBufferBinding vertex_buffer_bindings[1];
-  vertex_buffer_bindings[0].buffer = vertex_buffers[quad_geometry_id];
-  vertex_buffer_bindings[0].offset = 0;
-  // Index buffer
-  SDL_GPUBufferBinding index_buffer_bindings = {
-      .buffer = index_buffers[quad_geometry_id],
-      .offset = 0,
-  };
-  // Samplers
-  SDL_GPUTextureSamplerBinding fragment_sampler_bindings[1];
-  fragment_sampler_bindings[0].texture = gpu_textures[film_source_texture_id];
-  fragment_sampler_bindings[0].sampler = clamp_sampler;
-  BasicVertexUniformBuffer vertex_uniforms{};
-  vertex_uniforms.mvp_matrix = glm::mat4(1.0f);
-  vertex_uniforms.mvp_matrix =
-      glm::scale(vertex_uniforms.mvp_matrix, glm::vec3(2.0f));
-
-  // Draw calls; these are nearly identical between all the other draw functions
-  SDL_BindGPUGraphicsPipeline(pass, graphics_pipelines[film_pipeline_id]);
-  SDL_BindGPUVertexBuffers(pass, 0, vertex_buffer_bindings, 1);
-  SDL_BindGPUIndexBuffer(pass, &index_buffer_bindings,
-                         SDL_GPU_INDEXELEMENTSIZE_16BIT);
-  SDL_BindGPUFragmentSamplers(pass, 0, fragment_sampler_bindings, 1);
-  SDL_PushGPUVertexUniformData(film_cmd, 0, &vertex_uniforms,
-                               sizeof(BasicVertexUniformBuffer));
-  SDL_PushGPUFragmentUniformData(film_cmd, 1, &fragment_uniforms,
-                                 sizeof(RawProcessorFragmentUniformBuffer));
-  SDL_DrawGPUIndexedPrimitives(pass, 6, 1, 0, 0, 0);
-
-  // TODO: Theretically should be able to have multiple passes here?
-
-  // End pass
-  SDL_EndGPURenderPass(pass);
-  SDL_SubmitGPUCommandBuffer(film_cmd); // ← submit and flush before main pass
 }
 
 // LGTM

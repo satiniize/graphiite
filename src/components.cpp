@@ -257,7 +257,7 @@ void Components::Button(Clay_String label,
                     },
             },
         .backgroundColor = Clay_Hovered() ? Color::ORANGE_HOVER : Color::ORANGE,
-        .cornerRadius = CLAY_CORNER_RADIUS(10),
+        .cornerRadius = CLAY_CORNER_RADIUS(8),
     }) {
       CLAY_TEXT(label, CLAY_TEXT_CONFIG({
                            .textColor = Color::BLACK,
