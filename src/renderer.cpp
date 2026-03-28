@@ -52,6 +52,7 @@ Renderer::Renderer(std::string name, uint32_t width, uint32_t height) {
   }
 
   // Create window
+  // TODO: abstract this away to a display class
   SDL_WindowFlags flags =
       SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY;
   this->context.window =
@@ -83,6 +84,8 @@ Renderer::Renderer(std::string name, uint32_t width, uint32_t height) {
   //                               SDL_GPU_SWAPCHAINCOMPOSITION_SDR,
   //                               SDL_GPU_PRESENTMODE_IMMEDIATE);
 
+  SDL_Log("Start loading shader code");
+
   std::vector<char> basic_vertex_shader_code =
       load_shader("assets/shaders/basic.vert.spv");
   std::vector<char> text_vertex_shader_code =
@@ -94,29 +97,31 @@ Renderer::Renderer(std::string name, uint32_t width, uint32_t height) {
       load_shader("assets/shaders/text.frag.spv");
   std::vector<char> sdf_rect_stroke_fragment_shader_code =
       load_shader("assets/shaders/sdf_rect_stroke.frag.spv");
-  std::vector<char> film_fragment_shader_code =
-      load_shader("assets/shaders/raw_processor.frag.spv");
+  std::vector<char> film_compute_shader_code =
+      load_shader("assets/shaders/film_compute.comp.spv");
 
   sprite_pipeline_id = create_graphics_pipeline(
-      (PipelineParams){.num_vertex_uniform_buffers = 1,
-                       .num_fragment_uniform_buffers = 2,
-                       .num_fragment_samplers = 1},
+      GraphicsPipelineParams{.num_vertex_uniform_buffers = 1,
+                             .num_fragment_uniform_buffers = 2,
+                             .num_fragment_samplers = 1},
       basic_vertex_shader_code, sprite_fragment_shader_code);
   text_pipeline_id = create_graphics_pipeline(
-      (PipelineParams){.num_vertex_uniform_buffers = 1,
-                       .num_fragment_uniform_buffers = 2,
-                       .num_fragment_samplers = 1},
+      GraphicsPipelineParams{.num_vertex_uniform_buffers = 1,
+                             .num_fragment_uniform_buffers = 2,
+                             .num_fragment_samplers = 1},
       text_vertex_shader_code, text_fragment_shader_code);
   sdf_rect_stroke_pipeline_id = create_graphics_pipeline(
-      (PipelineParams){.num_vertex_uniform_buffers = 1,
-                       .num_fragment_uniform_buffers = 2,
-                       .num_fragment_samplers = 1},
+      GraphicsPipelineParams{.num_vertex_uniform_buffers = 1,
+                             .num_fragment_uniform_buffers = 2,
+                             .num_fragment_samplers = 1},
       basic_vertex_shader_code, sdf_rect_stroke_fragment_shader_code);
-  film_pipeline_id = create_graphics_pipeline(
-      (PipelineParams){.num_vertex_uniform_buffers = 1,
-                       .num_fragment_uniform_buffers = 2,
-                       .num_fragment_samplers = 1},
-      basic_vertex_shader_code, film_fragment_shader_code);
+  film_pipeline_id = create_compute_pipeline(
+      ComputePipelineParams{.num_samplers = 1,
+                            .num_readwrite_storage_textures = 1,
+                            .num_uniform_buffers = 1},
+      film_compute_shader_code);
+
+  SDL_Log("End loading shader code");
 
   // Create gpu sampler
   SDL_GPUSamplerCreateInfo clamp_sampler_info{};
@@ -127,8 +132,8 @@ Renderer::Renderer(std::string name, uint32_t width, uint32_t height) {
   clamp_sampler_info.address_mode_v = SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE;
   clamp_sampler_info.address_mode_w = SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE;
 
-  clamp_sampler = SDL_CreateGPUSampler(context.device, &clamp_sampler_info);
-  if (!clamp_sampler) {
+  _clamp_sampler = SDL_CreateGPUSampler(context.device, &clamp_sampler_info);
+  if (!_clamp_sampler) {
     SDL_Log("Failed to create GPU sampler");
     return;
   }
@@ -141,8 +146,8 @@ Renderer::Renderer(std::string name, uint32_t width, uint32_t height) {
   wrap_sampler_info.address_mode_v = SDL_GPU_SAMPLERADDRESSMODE_REPEAT;
   wrap_sampler_info.address_mode_w = SDL_GPU_SAMPLERADDRESSMODE_REPEAT;
 
-  wrap_sampler = SDL_CreateGPUSampler(context.device, &wrap_sampler_info);
-  if (!wrap_sampler) {
+  _wrap_sampler = SDL_CreateGPUSampler(context.device, &wrap_sampler_info);
+  if (!_wrap_sampler) {
     SDL_Log("Failed to create GPU sampler");
     return;
   }
@@ -177,11 +182,11 @@ Renderer::Renderer(std::string name, uint32_t width, uint32_t height) {
 }
 
 Renderer::~Renderer() {
-  for (auto &[path, graphics_pipeline] : graphics_pipelines) {
+  for (auto &[path, graphics_pipeline] : _graphics_pipelines) {
     SDL_ReleaseGPUGraphicsPipeline(context.device, graphics_pipeline);
   }
 
-  for (auto &[path, texture] : gpu_textures) {
+  for (auto &[path, texture] : _gpu_textures) {
     SDL_ReleaseGPUTexture(context.device, texture);
   }
 
@@ -190,15 +195,15 @@ Renderer::~Renderer() {
   if (resolve_target)
     SDL_ReleaseGPUTexture(context.device, resolve_target);
 
-  for (auto &[name, buffer] : vertex_buffers) {
+  for (auto &[name, buffer] : _vertex_buffers) {
     SDL_ReleaseGPUBuffer(context.device, buffer);
   }
 
-  for (auto &[name, buffer] : index_buffers) {
+  for (auto &[name, buffer] : _index_buffers) {
     SDL_ReleaseGPUBuffer(context.device, buffer);
   }
 
-  SDL_ReleaseGPUSampler(context.device, clamp_sampler);
+  SDL_ReleaseGPUSampler(context.device, _clamp_sampler);
 
   SDL_ReleaseWindowFromGPUDevice(context.device, context.window);
   SDL_DestroyGPUDevice(context.device);
@@ -209,16 +214,16 @@ Renderer::~Renderer() {
   return;
 }
 
-// TODO: HAVE A FORMAT AND SAMPLE COUNT PARAM
 // I believe this is mainly used by the user, so this should be something to
 // draw onto since its a blank texture, and you can only really download or
 // sample a gpu texture
+
 TextureID Renderer::create_render_target(int w, int h) {
   SDL_GPUTextureCreateInfo info = {
       .type = SDL_GPU_TEXTURETYPE_2D,
-      .format =
-          SDL_GetGPUSwapchainTextureFormat(context.device, context.window),
-      .usage = SDL_GPU_TEXTUREUSAGE_COLOR_TARGET | SDL_GPU_TEXTUREUSAGE_SAMPLER,
+      .format = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM,
+      .usage = SDL_GPU_TEXTUREUSAGE_SAMPLER |
+               SDL_GPU_TEXTUREUSAGE_COMPUTE_STORAGE_WRITE, // Hack
       .width = static_cast<uint32_t>(w),
       .height = static_cast<uint32_t>(h),
       .layer_count_or_depth = 1,
@@ -227,8 +232,8 @@ TextureID Renderer::create_render_target(int w, int h) {
   };
 
   SDL_GPUTexture *render_target = SDL_CreateGPUTexture(context.device, &info);
-  gpu_textures[next_texture_id] = render_target;
-  return next_texture_id++;
+  _gpu_textures[_next_texture_id] = render_target;
+  return _next_texture_id++;
 }
 
 TextureID Renderer::upload_texture(const Image &image) {
@@ -301,9 +306,9 @@ TextureID Renderer::upload_texture(const Image &image) {
   SDL_SubmitGPUCommandBuffer(_command_buffer);
   SDL_ReleaseGPUTransferBuffer(this->context.device, texture_transfer_buffer);
 
-  gpu_textures[next_texture_id] = texture;
+  _gpu_textures[_next_texture_id] = texture;
 
-  return next_texture_id++;
+  return _next_texture_id++;
 }
 
 GeometryID Renderer::upload_geometry(const Vertex *vertices, size_t vertex_size,
@@ -391,15 +396,15 @@ GeometryID Renderer::upload_geometry(const Vertex *vertices, size_t vertex_size,
   SDL_SubmitGPUCommandBuffer(_command_buffer);
   SDL_ReleaseGPUTransferBuffer(context.device, transfer_buffer);
 
-  vertex_buffers[next_geometry_id] = vertex_buffer;
-  index_buffers[next_geometry_id] = index_buffer;
+  _vertex_buffers[_next_geometry_id] = vertex_buffer;
+  _index_buffers[_next_geometry_id] = index_buffer;
 
-  return next_geometry_id++;
+  return _next_geometry_id++;
 };
 
 // LGTM
 GraphicsPipelineID
-Renderer::create_graphics_pipeline(PipelineParams params,
+Renderer::create_graphics_pipeline(GraphicsPipelineParams params,
                                    std::vector<char> vertex_code,
                                    std::vector<char> fragment_code) {
   SDL_GPUShaderCreateInfo vertex_shader_info{};
@@ -423,7 +428,8 @@ Renderer::create_graphics_pipeline(PipelineParams params,
 
   SDL_GPUShaderCreateInfo fragment_shader_info{};
   fragment_shader_info.code_size = fragment_code.size();
-  fragment_shader_info.code = (Uint8 *)fragment_code.data();
+  fragment_shader_info.code =
+      reinterpret_cast<const Uint8 *>(fragment_code.data());
   fragment_shader_info.entrypoint = "main";
   fragment_shader_info.format = SDL_GPU_SHADERFORMAT_SPIRV;
   fragment_shader_info.stage = SDL_GPU_SHADERSTAGE_FRAGMENT;
@@ -528,9 +534,42 @@ Renderer::create_graphics_pipeline(PipelineParams params,
     return -1;
   }
 
-  graphics_pipelines[next_pipeline_id] = graphics_pipeline;
+  _graphics_pipelines[_next_graphics_pipeline_id] = graphics_pipeline;
 
-  return next_pipeline_id++;
+  return _next_graphics_pipeline_id++;
+}
+
+ComputePipelineID
+Renderer::create_compute_pipeline(ComputePipelineParams params,
+                                  std::vector<char> compute_code) {
+  SDL_GPUComputePipelineCreateInfo pipeline_info = {
+      .code_size = compute_code.size(),
+      .code = reinterpret_cast<const Uint8 *>(compute_code.data()),
+      .entrypoint = "main",
+      .format = SDL_GPU_SHADERFORMAT_SPIRV,
+      .num_samplers = params.num_samplers,
+      .num_readonly_storage_textures = params.num_readonly_storage_textures,
+      .num_readonly_storage_buffers = params.num_readonly_storage_buffers,
+      .num_readwrite_storage_textures = params.num_readwrite_storage_textures,
+      .num_readwrite_storage_buffers = params.num_readwrite_storage_buffers,
+      .num_uniform_buffers = params.num_uniform_buffers,
+      .threadcount_x = threadcount_x,
+      .threadcount_y = threadcount_y,
+      .threadcount_z = threadcount_z,
+      .props = 0,
+  };
+
+  SDL_GPUComputePipeline *compute_pipeline =
+      SDL_CreateGPUComputePipeline(context.device, &pipeline_info);
+
+  if (!compute_pipeline) {
+    SDL_Log("Failed to create compute pipeline");
+    return -1;
+  }
+
+  _compute_pipelines[_next_compute_pipeline_id] = compute_pipeline;
+
+  return _next_compute_pipeline_id++;
 }
 
 TextureID
@@ -645,28 +684,19 @@ void Renderer::create_render_targets() {
 }
 
 bool Renderer::begin_compute_pass() {
-  // Start command buffer
-  SDL_GPUCommandBuffer *film_cmd = SDL_AcquireGPUCommandBuffer(context.device);
+  _command_buffer = SDL_AcquireGPUCommandBuffer(context.device);
 
-  // Render target
-  SDL_GPUColorTargetInfo color_target = {};
-  color_target.texture = gpu_textures[film_render_target_id];
-  color_target.load_op = SDL_GPU_LOADOP_CLEAR;
-  color_target.store_op = SDL_GPU_STOREOP_STORE;
-
-  SDL_GPURenderPass *pass =
-      SDL_BeginGPURenderPass(film_cmd, &color_target, 1, nullptr);
-
-  _command_buffer = film_cmd;
-  _render_pass = pass;
+  SDL_GPUStorageTextureReadWriteBinding binding = {
+      .texture = _gpu_textures[film_render_target_id],
+  };
+  _compute_pass =
+      SDL_BeginGPUComputePass(_command_buffer, &binding, 1, NULL, 0);
   return true;
 }
 
 bool Renderer::end_compute_pass() {
-  // End pass
-  SDL_EndGPURenderPass(_render_pass);
-  SDL_SubmitGPUCommandBuffer(
-      _command_buffer); // ← submit and flush before main pass
+  SDL_EndGPUComputePass(_compute_pass);
+  SDL_SubmitGPUCommandBuffer(_command_buffer);
   return true;
 }
 
@@ -675,36 +705,23 @@ bool Renderer::compute_film(
   if (film_render_target_id == -1 || film_source_texture_id == -1)
     return false;
 
-  // Vertex buffer
-  SDL_GPUBufferBinding vertex_buffer_bindings[1];
-  vertex_buffer_bindings[0].buffer = vertex_buffers[quad_geometry_id];
-  vertex_buffer_bindings[0].offset = 0;
-  // Index buffer
-  SDL_GPUBufferBinding index_buffer_bindings = {
-      .buffer = index_buffers[quad_geometry_id],
-      .offset = 0,
+  SDL_GPUTextureSamplerBinding sampler_bindings[1];
+  sampler_bindings[0] = SDL_GPUTextureSamplerBinding{
+      .texture = _gpu_textures[film_source_texture_id],
+      .sampler = _clamp_sampler, // or linear if you want interpolation
   };
-  // Samplers
-  SDL_GPUTextureSamplerBinding fragment_sampler_bindings[1];
-  fragment_sampler_bindings[0].texture = gpu_textures[film_source_texture_id];
-  fragment_sampler_bindings[0].sampler = clamp_sampler;
-  BasicVertexUniformBuffer vertex_uniforms{};
-  vertex_uniforms.mvp_matrix = glm::mat4(1.0f);
-  vertex_uniforms.mvp_matrix =
-      glm::scale(vertex_uniforms.mvp_matrix, glm::vec3(2.0f));
 
-  // Draw calls; these are nearly identical between all the other draw functions
-  SDL_BindGPUGraphicsPipeline(_render_pass,
-                              graphics_pipelines[film_pipeline_id]);
-  SDL_BindGPUVertexBuffers(_render_pass, 0, vertex_buffer_bindings, 1);
-  SDL_BindGPUIndexBuffer(_render_pass, &index_buffer_bindings,
-                         SDL_GPU_INDEXELEMENTSIZE_16BIT);
-  SDL_BindGPUFragmentSamplers(_render_pass, 0, fragment_sampler_bindings, 1);
-  SDL_PushGPUVertexUniformData(_command_buffer, 0, &vertex_uniforms,
-                               sizeof(BasicVertexUniformBuffer));
-  SDL_PushGPUFragmentUniformData(_command_buffer, 1, &fragment_uniforms,
-                                 sizeof(RawProcessorFragmentUniformBuffer));
-  SDL_DrawGPUIndexedPrimitives(_render_pass, 6, 1, 0, 0, 0);
+  SDL_BindGPUComputePipeline(_compute_pass,
+                             _compute_pipelines[film_pipeline_id]);
+  SDL_BindGPUComputeSamplers(_compute_pass, 0, sampler_bindings, 1);
+  // Push params via uniform buffer
+  SDL_PushGPUComputeUniformData(_command_buffer, 0, &fragment_uniforms,
+                                sizeof(RawProcessorFragmentUniformBuffer));
+
+  // Ceil divide to cover every pixel
+  uint32_t gx = (film_width + 7) / 8;
+  uint32_t gy = (film_height + 7) / 8;
+  SDL_DispatchGPUCompute(_compute_pass, gx, gy, 1);
 
   return true;
 }
@@ -812,21 +829,21 @@ bool Renderer::draw_sprite(TextureID texture_id, glm::vec2 translation,
                            float rotation, glm::vec2 scale, glm::vec4 color) {
   // Vertex buffer
   SDL_GPUBufferBinding vertex_buffer_bindings[1];
-  vertex_buffer_bindings[0].buffer = vertex_buffers[quad_geometry_id];
+  vertex_buffer_bindings[0].buffer = _vertex_buffers[quad_geometry_id];
   vertex_buffer_bindings[0].offset = 0;
   // Index buffer
   SDL_GPUBufferBinding index_buffer_bindings{
-      .buffer = index_buffers[quad_geometry_id],
+      .buffer = _index_buffers[quad_geometry_id],
       .offset = 0,
   };
   // Samplers
-  if (gpu_textures.find(texture_id) == gpu_textures.end()) {
+  if (_gpu_textures.find(texture_id) == _gpu_textures.end()) {
     // TODO: Maybe bind a dummy texture instead
     SDL_Log("Texture not found in draw_sprite. Ignoring..");
   }
   SDL_GPUTextureSamplerBinding fragment_sampler_bindings[1];
-  fragment_sampler_bindings[0].texture = gpu_textures[texture_id];
-  fragment_sampler_bindings[0].sampler = clamp_sampler;
+  fragment_sampler_bindings[0].texture = _gpu_textures[texture_id];
+  fragment_sampler_bindings[0].sampler = _clamp_sampler;
   // Uniforms
   SpriteFragmentUniformBuffer fragment_uniforms = {
       .modulate = color,
@@ -841,7 +858,7 @@ bool Renderer::draw_sprite(TextureID texture_id, glm::vec2 translation,
       .mvp_matrix = this->projection_matrix * model_matrix};
 
   SDL_BindGPUGraphicsPipeline(_render_pass,
-                              graphics_pipelines[sprite_pipeline_id]);
+                              _graphics_pipelines[sprite_pipeline_id]);
   SDL_BindGPUVertexBuffers(_render_pass, 0, vertex_buffer_bindings, 1);
   SDL_BindGPUIndexBuffer(_render_pass, &index_buffer_bindings,
                          SDL_GPU_INDEXELEMENTSIZE_16BIT);
@@ -860,25 +877,25 @@ bool Renderer::draw_sprite(TextureID texture_id, glm::vec2 translation,
 bool Renderer::draw_rect(RectParams params) {
   // Bind vertex buffer
   SDL_GPUBufferBinding vertex_buffer_bindings[1];
-  vertex_buffer_bindings[0].buffer = vertex_buffers[quad_geometry_id];
+  vertex_buffer_bindings[0].buffer = _vertex_buffers[quad_geometry_id];
   vertex_buffer_bindings[0].offset = 0;
   // Bind index buffer
   SDL_GPUBufferBinding index_buffer_bindings{
-      .buffer = index_buffers[quad_geometry_id],
+      .buffer = _index_buffers[quad_geometry_id],
       .offset = 0,
   };
   // Samplers
   if (params.use_texture &&
-      gpu_textures.find(params.texture_id) == gpu_textures.end()) {
+      _gpu_textures.find(params.texture_id) == _gpu_textures.end()) {
     // TODO: Maybe bind a dummy texture instead
     SDL_Log("Texture not found in draw_rect. Ignoring..");
   }
   SDL_GPUTextureSamplerBinding fragment_sampler_bindings[1];
   fragment_sampler_bindings[0].texture = params.use_texture
-                                             ? gpu_textures[params.texture_id]
-                                             : gpu_textures[dummy_texture_id];
+                                             ? _gpu_textures[params.texture_id]
+                                             : _gpu_textures[dummy_texture_id];
   fragment_sampler_bindings[0].sampler =
-      params.tiling ? wrap_sampler : clamp_sampler;
+      params.tiling ? _wrap_sampler : _clamp_sampler;
   // Uniforms
   SDFRectStrokeFragmentUniformBuffer fragment_uniforms{
       .size = glm::vec4(params.size.x, params.size.y, 0.0f, 0.0f),
@@ -900,7 +917,7 @@ bool Renderer::draw_rect(RectParams params) {
   };
 
   SDL_BindGPUGraphicsPipeline(_render_pass,
-                              graphics_pipelines[sdf_rect_stroke_pipeline_id]);
+                              _graphics_pipelines[sdf_rect_stroke_pipeline_id]);
   SDL_BindGPUVertexBuffers(_render_pass, 0, vertex_buffer_bindings, 1);
   SDL_BindGPUIndexBuffer(_render_pass, &index_buffer_bindings,
                          SDL_GPU_INDEXELEMENTSIZE_16BIT);
@@ -919,24 +936,24 @@ bool Renderer::draw_text(const char *text, int length, float point_size,
                          glm::vec2 position, glm::vec4 color) {
   // Vertex buffer
   SDL_GPUBufferBinding vertex_buffer_bindings[1];
-  vertex_buffer_bindings[0].buffer = vertex_buffers[quad_geometry_id];
+  vertex_buffer_bindings[0].buffer = _vertex_buffers[quad_geometry_id];
   vertex_buffer_bindings[0].offset = 0;
   // Index buffer
   SDL_GPUBufferBinding index_buffer_bindings[1];
-  index_buffer_bindings[0].buffer = index_buffers[quad_geometry_id];
+  index_buffer_bindings[0].buffer = _index_buffers[quad_geometry_id];
   index_buffer_bindings[0].offset = 0;
   // Samplers
-  if (gpu_textures.find(regular_font_atlas_id) == gpu_textures.end()) {
+  if (_gpu_textures.find(regular_font_atlas_id) == _gpu_textures.end()) {
     SDL_Log("Sprite not loaded");
     SDL_Quit();
     return false;
   }
   SDL_GPUTextureSamplerBinding fragment_sampler_bindings{};
-  fragment_sampler_bindings.texture = gpu_textures[regular_font_atlas_id];
-  fragment_sampler_bindings.sampler = clamp_sampler;
+  fragment_sampler_bindings.texture = _gpu_textures[regular_font_atlas_id];
+  fragment_sampler_bindings.sampler = _clamp_sampler;
 
   SDL_BindGPUGraphicsPipeline(_render_pass,
-                              graphics_pipelines[text_pipeline_id]);
+                              _graphics_pipelines[text_pipeline_id]);
   SDL_BindGPUVertexBuffers(_render_pass, 0, vertex_buffer_bindings, 1);
   SDL_BindGPUIndexBuffer(_render_pass, index_buffer_bindings,
                          SDL_GPU_INDEXELEMENTSIZE_16BIT);

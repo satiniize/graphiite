@@ -10,6 +10,17 @@
 #include "image.hpp"
 #include "texture.hpp"
 
+enum class TextureUsage {
+  SAMPLER = SDL_GPU_TEXTUREUSAGE_SAMPLER, // For sampling
+  COLOR_TARGET = SDL_GPU_TEXTUREUSAGE_COLOR_TARGET,
+  DEPTH_STENCIL_TARGET = SDL_GPU_TEXTUREUSAGE_DEPTH_STENCIL_TARGET,
+  GRAPHICS_STORAGE_READ = SDL_GPU_TEXTUREUSAGE_GRAPHICS_STORAGE_READ,
+  COMPUTE_STORAGE_READ = SDL_GPU_TEXTUREUSAGE_COMPUTE_STORAGE_READ,
+  COMPUTE_STORAGE_WRITE = SDL_GPU_TEXTUREUSAGE_COMPUTE_STORAGE_WRITE,
+  COMPUTE_STORAGE_SIMULTANEOUS_READ_WRITE =
+      SDL_GPU_TEXTUREUSAGE_COMPUTE_STORAGE_SIMULTANEOUS_READ_WRITE,
+};
+
 struct Context {
   SDL_Window *window;
   SDL_GPUDevice *device;
@@ -83,6 +94,7 @@ static TextFragmentUniformBuffer text_fragment_uniform_buffer{};
 
 using GeometryID = std::size_t;
 using GraphicsPipelineID = std::size_t;
+using ComputePipelineID = std::size_t;
 
 struct RectParams {
   // Fundamentals
@@ -99,14 +111,7 @@ struct RectParams {
   glm::vec4 stroke_thickness = glm::vec4(0.0f);
 };
 
-struct RenderTargetParams {
-  int width;
-  int height;
-  SDL_GPUTextureFormat format = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM;
-  int sample_count = 1;
-};
-
-struct PipelineParams {
+struct GraphicsPipelineParams {
   int num_vertex_uniform_buffers = 0;
   int num_vertex_samplers = 0;
   int num_vertex_storage_buffers = 0;
@@ -121,6 +126,15 @@ struct PipelineParams {
   bool compute_pipeline = false;
 };
 
+struct ComputePipelineParams {
+  uint32_t num_samplers = 0;
+  uint32_t num_readonly_storage_textures = 0;
+  uint32_t num_readonly_storage_buffers = 0;
+  uint32_t num_readwrite_storage_textures = 0;
+  uint32_t num_readwrite_storage_buffers = 0;
+  uint32_t num_uniform_buffers = 0;
+};
+
 // TODO: When renderer changes, sprite renderer and clay renderer needs to
 // recompile
 class Renderer {
@@ -130,23 +144,30 @@ public:
 
   Renderer(std::string name, uint32_t width, uint32_t height);
   ~Renderer();
-  // Texture ID is a key in gpu_textures for the cpu to handle easily.
-  //
+
   TextureID create_render_target(int w, int h);
+
   TextureID upload_texture(const Image &image);
+  Image download_texture(TextureID texture_id);
+  void blit_texture(TextureID src, TextureID dst);
+
   GeometryID upload_geometry(const Vertex *vertices, size_t vertex_size,
                              const Uint16 *indices, size_t index_size);
-  GraphicsPipelineID create_graphics_pipeline(PipelineParams params,
+
+  GraphicsPipelineID create_graphics_pipeline(GraphicsPipelineParams params,
                                               std::vector<char> vertex_code,
                                               std::vector<char> fragment_code);
-  Image download_texture(TextureID texture_id);
-  // TODO: These aren't mature, redesign please
-  TextureID load_and_upload_ascii_font_atlas(
-      const std::string &font_path); // TODO: Seperation of concerns
-  void create_render_targets();      // TODO: Shotgun
-  // Loop functions
+
+  ComputePipelineID create_compute_pipeline(ComputePipelineParams params,
+                                            std::vector<char> compute_code);
+
+  TextureID load_and_upload_ascii_font_atlas(const std::string &font_path);
+
+  void create_render_targets(); // Shorthand for first init and window resize
+  // Passes
   bool begin_compute_pass();
   bool end_compute_pass();
+
   bool begin_render_pass();
   bool end_render_pass();
   // Compute functions
@@ -167,26 +188,35 @@ public:
 
   TextureID film_source_texture_id;
   TextureID film_render_target_id;
+  TextureID film_sampler_id;
+
+  size_t film_width;
+  size_t film_height;
 
 private:
   Context context;
 
   // GPU resource IDs
-  TextureID next_texture_id = 0;
-  GeometryID next_geometry_id = 0;
-  GraphicsPipelineID next_pipeline_id = 0;
-  std::unordered_map<TextureID, SDL_GPUTexture *> gpu_textures;
-  std::unordered_map<GeometryID, SDL_GPUBuffer *> vertex_buffers;
-  std::unordered_map<GeometryID, SDL_GPUBuffer *> index_buffers;
+  TextureID _next_texture_id = 0;
+  GeometryID _next_geometry_id = 0;
+  ComputePipelineID _next_compute_pipeline_id = 0;
+  GraphicsPipelineID _next_graphics_pipeline_id = 0;
+
+  std::unordered_map<TextureID, SDL_GPUTexture *> _gpu_textures;
+  std::unordered_map<GeometryID, SDL_GPUBuffer *> _vertex_buffers;
+  std::unordered_map<GeometryID, SDL_GPUBuffer *> _index_buffers;
+  std::unordered_map<ComputePipelineID, SDL_GPUComputePipeline *>
+      _compute_pipelines;
   std::unordered_map<GraphicsPipelineID, SDL_GPUGraphicsPipeline *>
-      graphics_pipelines;
+      _graphics_pipelines;
 
   // TODO: Have support for multiple samplers
-  SDL_GPUSampler *clamp_sampler;
-  SDL_GPUSampler *wrap_sampler;
+  SDL_GPUSampler *_clamp_sampler;
+  SDL_GPUSampler *_wrap_sampler;
 
   // TODO: Really iffy way to handle the main render pass
   SDL_GPURenderPass *_render_pass;
+  SDL_GPUComputePass *_compute_pass;
   SDL_GPUCommandBuffer *_command_buffer;
 
   SDL_GPUTexture *color_render_target;
@@ -207,6 +237,10 @@ private:
   GraphicsPipelineID film_pipeline_id;
 
   SDL_GPUSampleCount sample_count = SDL_GPU_SAMPLECOUNT_1;
+
+  const uint32_t threadcount_x = 16;
+  const uint32_t threadcount_y = 16;
+  const uint32_t threadcount_z = 1;
 
   // TODO: Input file path sanitizing
   const std::string regular_font_path =
