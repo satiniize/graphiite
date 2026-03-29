@@ -30,6 +30,7 @@ void render_commands(Renderer &renderer,
                              render_data_rectangle->cornerRadius.topRight,
                              render_data_rectangle->cornerRadius.bottomLeft,
                              render_data_rectangle->cornerRadius.bottomRight);
+      corner_radii *= 2.0f;
       RectParams rect_params = {
           .position = glm::vec2(rect.x, rect.y),
           .size = glm::vec2(rect.w, rect.h),
@@ -64,23 +65,22 @@ void render_commands(Renderer &renderer,
     case CLAY_RENDER_COMMAND_TYPE_BORDER: {
       Clay_BorderRenderData *render_data_border =
           &render_command->renderData.border;
-      const float minRadius = SDL_min(rect.w, rect.h) / 2.0f;
-
+      // left, right, top, bottom
+      glm::vec4 stroke_thickness((float)render_data_border->width.left,
+                                 (float)render_data_border->width.right,
+                                 (float)render_data_border->width.top,
+                                 (float)render_data_border->width.bottom);
       glm::vec4 corner_radii = {
           render_data_border->cornerRadius.topLeft,
           render_data_border->cornerRadius.topRight,
           render_data_border->cornerRadius.bottomLeft,
           render_data_border->cornerRadius.bottomRight,
       };
+      corner_radii *= 2.0f;
       glm::vec4 color((float)render_data_border->color.r / 255.0f,
                       (float)render_data_border->color.g / 255.0f,
                       (float)render_data_border->color.b / 255.0f,
                       (float)render_data_border->color.a / 255.0f);
-      // left, right, top, bottom
-      glm::vec4 stroke_thickness((float)render_data_border->width.left,
-                                 (float)render_data_border->width.right,
-                                 (float)render_data_border->width.top,
-                                 (float)render_data_border->width.bottom);
       RectParams rect_params = {
           .position = glm::vec2(rect.x, rect.y),
           .size = glm::vec2(rect.w, rect.h),
@@ -125,7 +125,7 @@ void render_commands(Renderer &renderer,
           render_data_image->cornerRadius.bottomLeft,
           render_data_image->cornerRadius.bottomRight,
       };
-
+      corner_radii *= 2.0f;
       RectParams rect_params = {
           .position = glm::vec2(rect.x, rect.y),
           .size = glm::vec2(rect.w, rect.h),

@@ -49,6 +49,9 @@ set_target_properties(libjpeg_turbo PROPERTIES
     INTERFACE_LINK_LIBRARIES "${LIBJPEG_TURBO_INSTALL_DIR}/lib/${LIB_JPEG_NAME}"
 )
 
+set(BUILD_SHARED_LIBS OFF)
+set(SDL_SHARED OFF CACHE BOOL "" FORCE)
+set(SDL_STATIC ON CACHE BOOL "" FORCE)
 add_subdirectory(external/SDL EXCLUDE_FROM_ALL)
 add_subdirectory(external/glm EXCLUDE_FROM_ALL)
 add_subdirectory(external/LibRaw EXCLUDE_FROM_ALL)

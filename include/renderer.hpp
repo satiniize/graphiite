@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <queue>
 #include <string>
 
 #include <SDL3/SDL_gpu.h>
@@ -21,11 +22,11 @@ enum class TextureUsage {
       SDL_GPU_TEXTUREUSAGE_COMPUTE_STORAGE_SIMULTANEOUS_READ_WRITE,
 };
 
-struct Context {
-  SDL_Window *window;
-  SDL_GPUDevice *device;
-  const char *title;
-};
+// struct Context {
+//   SDL_Window *window;
+//   SDL_GPUDevice *device;
+//   const char *title;
+// };
 
 struct Vertex {
   float x, y, z;    // vec3 position
@@ -68,6 +69,7 @@ struct SDFRectStrokeFragmentUniformBuffer {
   glm::vec4 size;
   glm::vec4 modulate;
   glm::vec4 corner_radii;
+  glm::vec4 inner_corner_radii;
   glm::vec4 stroke_thickness;
   uint32_t tiling;
   uint32_t use_texture;
@@ -96,6 +98,26 @@ using GeometryID = std::size_t;
 using GraphicsPipelineID = std::size_t;
 using ComputePipelineID = std::size_t;
 
+struct GraphicsPipelineParams {
+  int num_vertex_uniform_buffers = 0;
+  int num_vertex_samplers = 0;
+  int num_vertex_storage_buffers = 0;
+  int num_vertex_storage_textures = 0;
+  int num_fragment_uniform_buffers = 0;
+  int num_fragment_samplers = 0;
+  int num_fragment_storage_buffers = 0;
+  int num_fragment_storage_textures = 0;
+};
+
+struct ComputePipelineParams {
+  uint32_t num_samplers = 0;
+  uint32_t num_readonly_storage_textures = 0;
+  uint32_t num_readonly_storage_buffers = 0;
+  uint32_t num_readwrite_storage_textures = 0;
+  uint32_t num_readwrite_storage_buffers = 0;
+  uint32_t num_uniform_buffers = 0;
+};
+
 struct RectParams {
   // Fundamentals
   glm::vec2 position;
@@ -111,28 +133,25 @@ struct RectParams {
   glm::vec4 stroke_thickness = glm::vec4(0.0f);
 };
 
-struct GraphicsPipelineParams {
-  int num_vertex_uniform_buffers = 0;
-  int num_vertex_samplers = 0;
-  int num_vertex_storage_buffers = 0;
-  int num_vertex_storage_textures = 0;
-  int num_fragment_uniform_buffers = 0;
-  int num_fragment_samplers = 0;
-  int num_fragment_storage_buffers = 0;
-  int num_fragment_storage_textures = 0;
-  // TODO: Find an easy way to differentiate swapchain vs non-swapchain
-  // pipelines. in Vulkan IIRC theres render pipelines and compute pipelines.
-  SDL_GPUSampleCount sample_count = SDL_GPU_SAMPLECOUNT_1;
-  bool compute_pipeline = false;
+struct SpriteParams {
+  TextureID texture_id;
+  glm::vec2 translation;
+  float rotation;
+  glm::vec2 scale;
+  glm::vec4 color;
 };
 
-struct ComputePipelineParams {
-  uint32_t num_samplers = 0;
-  uint32_t num_readonly_storage_textures = 0;
-  uint32_t num_readonly_storage_buffers = 0;
-  uint32_t num_readwrite_storage_textures = 0;
-  uint32_t num_readwrite_storage_buffers = 0;
-  uint32_t num_uniform_buffers = 0;
+struct TextParams {
+  std::string text;
+  float point_size;
+  glm::vec2 position;
+  glm::vec4 color;
+};
+
+struct DrawCall {
+  SpriteParams sprite_data;
+  RectParams rect_data;
+  TextParams text_data;
 };
 
 // TODO: When renderer changes, sprite renderer and clay renderer needs to
@@ -165,6 +184,9 @@ public:
 
   void create_render_targets(); // Shorthand for first init and window resize
   // Passes
+  void start_frame();
+  void end_frame();
+
   bool begin_compute_pass();
   bool end_compute_pass();
 
@@ -190,11 +212,16 @@ public:
   TextureID film_render_target_id;
   TextureID film_sampler_id;
 
+  // TODO: Make this more integrated, this is used for thread groups
   size_t film_width;
   size_t film_height;
 
 private:
-  Context context;
+  // Context context;
+
+  SDL_Window *_window;
+  SDL_GPUDevice *_device;
+  const char *_title;
 
   // GPU resource IDs
   TextureID _next_texture_id = 0;
@@ -215,35 +242,34 @@ private:
   SDL_GPUSampler *_wrap_sampler;
 
   // TODO: Really iffy way to handle the main render pass
+  // Should do a queue instead and batch together
   SDL_GPURenderPass *_render_pass;
   SDL_GPUComputePass *_compute_pass;
   SDL_GPUCommandBuffer *_command_buffer;
 
-  SDL_GPUTexture *color_render_target;
-  SDL_GPUTexture *resolve_target;
-  SDL_GPUTexture *swapchain_texture;
+  SDL_GPUTexture *_color_render_target;
+  SDL_GPUTexture *_resolve_target;
+  SDL_GPUTexture *_swapchain_texture;
 
-  glm::mat4 projection_matrix;
+  glm::mat4 _projection_matrix;
 
-  TextureID dummy_texture_id;
-  TextureID italic_font_atlas_id;
-  TextureID regular_font_atlas_id;
+  TextureID _dummy_texture_id;
+  TextureID _font_atlas_id;
 
-  GeometryID quad_geometry_id;
+  GeometryID _quad_geometry_id;
 
-  GraphicsPipelineID sdf_rect_stroke_pipeline_id;
-  GraphicsPipelineID sprite_pipeline_id;
-  GraphicsPipelineID text_pipeline_id;
-  GraphicsPipelineID film_pipeline_id;
+  GraphicsPipelineID _sdf_rect_stroke_pipeline_id;
+  GraphicsPipelineID _sprite_pipeline_id;
+  GraphicsPipelineID _text_pipeline_id;
+  GraphicsPipelineID _film_pipeline_id;
 
-  SDL_GPUSampleCount sample_count = SDL_GPU_SAMPLECOUNT_1;
+  SDL_GPUSampleCount _sample_count = SDL_GPU_SAMPLECOUNT_1;
 
-  const uint32_t threadcount_x = 16;
-  const uint32_t threadcount_y = 16;
-  const uint32_t threadcount_z = 1;
+  const uint32_t _threadcount_x = 16;
+  const uint32_t _threadcount_y = 16;
+  const uint32_t _threadcount_z = 1;
 
   // TODO: Input file path sanitizing
   const std::string regular_font_path =
       "assets/fonts/AtkinsonHyperlegibleMono-Medium.ttf";
-  const std::string italic_font_path = "assets/fonts/XanhMono-Italic.ttf";
 };
