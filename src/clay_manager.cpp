@@ -13,6 +13,7 @@ ClayManager::ClayManager(Renderer *renderer, int width, int height) {
       Clay_Initialize(clay_memory, clay_dimensions,
                       Clay_ErrorHandler{ClayManager::handle_clay_errors});
   Clay_SetMeasureTextFunction(ClayManager::MeasureText, this->renderer);
+  Clay_SetDebugModeEnabled(true);
 }
 
 void ClayManager::begin_layout(Clay_Vector2 mouse_position, bool is_mouse_down,

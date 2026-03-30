@@ -264,7 +264,7 @@ TextureID Renderer::upload_texture(const Image &image) {
 
   // Start a copy pass
   SDL_GPUCommandBuffer *_command_buffer =
-      SDL_AcquireGPUCommandBuffer(this->_device);
+      SDL_AcquireGPUCommandBuffer(this->_device); // GPU command buffer
   SDL_GPUCopyPass *copyPass = SDL_BeginGPUCopyPass(_command_buffer);
 
   // Upload texture data to the GPU texture

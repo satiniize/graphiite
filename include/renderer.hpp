@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <memory>
 #include <queue>
 #include <string>
 
@@ -218,6 +219,7 @@ public:
 
 private:
   // Context context;
+  // std::unique_ptr<SDL_Window> _window;
 
   SDL_Window *_window;
   SDL_GPUDevice *_device;

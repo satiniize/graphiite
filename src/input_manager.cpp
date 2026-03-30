@@ -14,7 +14,7 @@ void InputManager::poll_events(bool *running) {
       mouse_position.x = event.wheel.mouse_x;
       mouse_position.y = event.wheel.mouse_y;
 
-      mouse_scroll.x = event.wheel.x * scroll_speed;
+      mouse_scroll.x = -event.wheel.x * scroll_speed;
       mouse_scroll.y = event.wheel.y * scroll_speed;
       break;
     case SDL_EVENT_MOUSE_MOTION:
