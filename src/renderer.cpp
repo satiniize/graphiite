@@ -5,6 +5,7 @@
 
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_gpu.h>
+#include <cstddef>
 #include <fstream>
 #include <glm/gtc/matrix_transform.hpp>
 
@@ -162,7 +163,7 @@ Renderer::Renderer(std::string name, uint32_t width, uint32_t height) {
   dummy_image.height = 1;
   dummy_image.channels = 4;
   dummy_image.pixel_format = PixelFormat::RGBA8;
-  _dummy_texture_id = upload_texture(dummy_image);
+  _dummy_texture_id = upload_texture(dummy_image).id;
 
   create_render_targets();
 
@@ -222,7 +223,7 @@ TextureID Renderer::create_render_target(int w, int h) {
   return _next_texture_id++;
 }
 
-TextureID Renderer::upload_texture(const Image &image) {
+Texture Renderer::upload_texture(const Image &image) {
   int bytes_per_pixel = image.bytes_per_pixel();
   size_t num_bytes =
       static_cast<size_t>(image.width * image.height * bytes_per_pixel);
@@ -244,7 +245,7 @@ TextureID Renderer::upload_texture(const Image &image) {
   if (!texture) {
     SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
                  "Failed to create GPU texture: %s", SDL_GetError());
-    return -1;
+    return Texture();
   }
 
   // Set up transfer buffer
@@ -293,7 +294,15 @@ TextureID Renderer::upload_texture(const Image &image) {
 
   _gpu_textures[_next_texture_id] = texture;
 
-  return _next_texture_id++;
+  Texture result;
+  result.id = _next_texture_id++;
+  result.width = image.width;
+  result.height = image.height;
+  result.channels = image.channels;
+  result.pixel_format = image.pixel_format;
+  result.tiling = false;
+
+  return result;
 }
 
 Image Renderer::download_texture(Texture &texture) {
@@ -348,7 +357,7 @@ Image Renderer::download_texture(Texture &texture) {
   SDL_memcpy(image.pixels.data(), downloaded_data, num_bytes);
   SDL_UnmapGPUTransferBuffer(this->_device, texture_transfer_buffer);
   SDL_ReleaseGPUTransferBuffer(this->_device, texture_transfer_buffer);
-
+  image.channels = 4;
   return image;
 };
 
@@ -680,7 +689,7 @@ Renderer::load_and_upload_ascii_font_atlas(const std::string &font_path) {
     stbtt_FreeBitmap(bitmap, nullptr);
   }
 
-  TextureID font_texture_id = this->upload_texture(font_atlas);
+  TextureID font_texture_id = this->upload_texture(font_atlas).id;
 
   return font_texture_id;
 }
@@ -763,11 +772,12 @@ void Renderer::start_frame() {
 
 void Renderer::end_frame() { SDL_SubmitGPUCommandBuffer(_command_buffer); };
 
-bool Renderer::begin_compute_pass() {
+bool Renderer::begin_compute_pass(Texture film_target_texture) {
   // _command_buffer = SDL_AcquireGPUCommandBuffer(this->_device);
 
   SDL_GPUStorageTextureReadWriteBinding binding = {
-      .texture = _gpu_textures[film_render_target_id],
+      .texture = _gpu_textures[film_target_texture.id], // TODO: store this like
+                                                        // _commanf_buffer
   };
   _compute_pass =
       SDL_BeginGPUComputePass(_command_buffer, &binding, 1, NULL, 0);
@@ -780,14 +790,15 @@ bool Renderer::end_compute_pass() {
   return true;
 }
 
-bool Renderer::compute_film(
-    RawProcessorFragmentUniformBuffer fragment_uniforms) {
-  if (film_render_target_id == -1 || film_source_texture_id == -1)
+bool Renderer::compute_film(RawProcessorFragmentUniformBuffer fragment_uniforms,
+                            Texture film_source_texture,
+                            Texture film_target_texture) {
+  if (film_source_texture.id == -1 || film_target_texture.id == -1)
     return false;
 
   SDL_GPUTextureSamplerBinding sampler_bindings[1];
   sampler_bindings[0] = SDL_GPUTextureSamplerBinding{
-      .texture = _gpu_textures[film_source_texture_id],
+      .texture = _gpu_textures[film_source_texture.id],
       .sampler = _clamp_sampler, // or linear if you want interpolation
   };
 
@@ -799,8 +810,8 @@ bool Renderer::compute_film(
                                 sizeof(RawProcessorFragmentUniformBuffer));
 
   // Ceil divide to cover every pixel
-  uint32_t gx = (film_width + 7) / 8;
-  uint32_t gy = (film_height + 7) / 8;
+  uint32_t gx = (film_target_texture.width + 7) / 8;
+  uint32_t gy = (film_target_texture.height + 7) / 8;
   SDL_DispatchGPUCompute(_compute_pass, gx, gy, 1);
 
   return true;

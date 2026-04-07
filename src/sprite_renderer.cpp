@@ -23,7 +23,7 @@ void upload_sprites(
     }
 
     Image image = ImageLoader::load(sprite_component.path);
-    TextureID texture_id = renderer.upload_texture(image);
+    TextureID texture_id = renderer.upload_texture(image).id;
 
     Texture texture_data;
     texture_data.path = sprite_component.path;

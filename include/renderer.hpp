@@ -167,7 +167,7 @@ public:
 
   TextureID create_render_target(int w, int h);
 
-  TextureID upload_texture(const Image &image);
+  Texture upload_texture(const Image &image);
   Image download_texture(Texture &texture);
   void blit_texture(TextureID src, TextureID dst);
 
@@ -188,13 +188,14 @@ public:
   void start_frame();
   void end_frame();
 
-  bool begin_compute_pass();
+  bool begin_compute_pass(Texture film_target_texture);
   bool end_compute_pass();
 
   bool begin_render_pass();
   bool end_render_pass();
   // Compute functions
-  bool compute_film(RawProcessorFragmentUniformBuffer fragment_uniforms);
+  bool compute_film(RawProcessorFragmentUniformBuffer fragment_uniforms,
+                    Texture film_source_texture, Texture film_target_texture);
   // Drawing functions
   bool draw_sprite(TextureID texture_id, glm::vec2 translation, float rotation,
                    glm::vec2 scale, glm::vec4 color);
@@ -209,16 +210,7 @@ public:
   float font_sample_point_size = 48.0f;
   float viewport_scale = 1.0f;
 
-  TextureID film_source_texture_id;
-  TextureID film_render_target_id;
-  TextureID film_sampler_id;
-
-  // TODO: Make this more integrated, this is used for thread groups
-  size_t film_width;
-  size_t film_height;
-
 private:
-  // Context context;
   // std::unique_ptr<SDL_Window> _window;
 
   SDL_Window *_window;

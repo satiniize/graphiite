@@ -10,7 +10,7 @@ using TextureID = std::size_t;
 class Texture {
 public:
   std::string path;
-  bool tiling;
+  bool tiling; // TODO: Change this to fill mode? idk
   TextureID id;
 
   // Derived from Image for downloading
