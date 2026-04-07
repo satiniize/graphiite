@@ -1,9 +1,9 @@
 #include "image.hpp"
 
-Image::Image(uint16_t width, uint16_t height, PixelFormat format) {
-  int bytes = format == PixelFormat::RGBA8 ? 4 : 8;
+Image::Image(uint16_t width, uint16_t height, PixelFormat pixel_format) {
+  int bytes = pixel_format == PixelFormat::RGBA8 ? 4 : 8;
   pixels.resize(width * height * bytes);
-  this->format = format;
+  this->pixel_format = pixel_format;
   this->width = width;
   this->height = height;
 }
@@ -40,7 +40,7 @@ ImageGenerator Image::angular_gradient(std::vector<GradientStop> stops) {
 }
 
 void Image::fill(ImageGenerator generator) {
-  int bytes = format == PixelFormat::RGBA8 ? 4 : 8;
+  int bytes = pixel_format == PixelFormat::RGBA8 ? 4 : 8;
   for (int y = 0; y < height; ++y) {
     for (int x = 0; x < width; ++x) {
       glm::vec4 color = generator(x, y, width, height);

@@ -161,7 +161,7 @@ Renderer::Renderer(std::string name, uint32_t width, uint32_t height) {
   dummy_image.width = 1;
   dummy_image.height = 1;
   dummy_image.channels = 4;
-  dummy_image.format = PixelFormat::RGBA8;
+  dummy_image.pixel_format = PixelFormat::RGBA8;
   _dummy_texture_id = upload_texture(dummy_image);
 
   create_render_targets();
@@ -229,7 +229,7 @@ TextureID Renderer::upload_texture(const Image &image) {
 
   SDL_GPUTextureCreateInfo texture_info{
       .type = SDL_GPU_TEXTURETYPE_2D,
-      .format = image.format == PixelFormat::RGBA8
+      .format = image.pixel_format == PixelFormat::RGBA8
                     ? SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM
                     : SDL_GPU_TEXTUREFORMAT_R16G16B16A16_UNORM,
       .usage = SDL_GPU_TEXTUREUSAGE_SAMPLER,
@@ -295,6 +295,82 @@ TextureID Renderer::upload_texture(const Image &image) {
 
   return _next_texture_id++;
 }
+
+// Image download_texture(TextureID texture_id) {
+//   int bytes_per_pixel = image.bytes_per_pixel();
+//   int num_bytes =
+//       static_cast<uint32_t>(image.width * image.height * bytes_per_pixel);
+
+//   SDL_GPUTextureCreateInfo texture_info{
+//       .type = SDL_GPU_TEXTURETYPE_2D,
+//       .format = image.pixel_format == PixelFormat::RGBA8
+//                     ? SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM
+//                     : SDL_GPU_TEXTUREFORMAT_R16G16B16A16_UNORM,
+//       .usage = SDL_GPU_TEXTUREUSAGE_SAMPLER,
+//       .width = image.width,
+//       .height = image.height,
+//       .layer_count_or_depth = 1,
+//       .num_levels = 1,
+//       .sample_count = SDL_GPU_SAMPLECOUNT_1,
+//   };
+
+//   SDL_GPUTexture *texture = SDL_CreateGPUTexture(this->_device,
+//   &texture_info); if (!texture) {
+//     SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
+//                  "Failed to create GPU texture: %s", SDL_GetError());
+//     return -1;
+//   }
+
+//   // Set up transfer buffer
+//   SDL_GPUTransferBufferCreateInfo texture_transfer_create_info{
+//       .usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD,
+//       .size = static_cast<Uint32>(num_bytes),
+//   };
+//   SDL_GPUTransferBuffer *texture_transfer_buffer =
+//       SDL_CreateGPUTransferBuffer(this->_device,
+//       &texture_transfer_create_info);
+
+//   // Transfer data
+//   void *texture_data_ptr =
+//       SDL_MapGPUTransferBuffer(this->_device, texture_transfer_buffer,
+//       false);
+//   SDL_memcpy(texture_data_ptr, image.pixels.data(), num_bytes);
+
+//   SDL_UnmapGPUTransferBuffer(this->_device, texture_transfer_buffer);
+
+//   // Start a copy pass
+//   SDL_GPUCommandBuffer *_command_buffer =
+//       SDL_AcquireGPUCommandBuffer(this->_device); // GPU command buffer
+//   SDL_GPUCopyPass *copyPass = SDL_BeginGPUCopyPass(_command_buffer);
+
+//   // Upload texture data to the GPU texture
+//   SDL_GPUTextureTransferInfo texture_transfer_info{
+//       .transfer_buffer = texture_transfer_buffer,
+//       .offset = 0,
+//       .pixels_per_row = image.width,
+//       .rows_per_layer = image.height,
+//   };
+//   SDL_GPUTextureRegion texture_region{
+//       .texture = texture,
+//       .mip_level = 0,
+//       .layer = 0,
+//       .x = 0,
+//       .y = 0,
+//       .z = 0,
+//       .w = image.width,
+//       .h = image.height,
+//       .d = 1,
+//   };
+//   SDL_UploadToGPUTexture(copyPass, &texture_transfer_info, &texture_region,
+//                          false);
+//   SDL_EndGPUCopyPass(copyPass);
+//   SDL_SubmitGPUCommandBuffer(_command_buffer);
+//   SDL_ReleaseGPUTransferBuffer(this->_device, texture_transfer_buffer);
+
+//   _gpu_textures[_next_texture_id] = texture;
+
+//   return _next_texture_id++;
+// };
 
 GeometryID Renderer::upload_geometry(const Vertex *vertices, size_t vertex_size,
                                      const Uint16 *indices, size_t index_size) {
@@ -591,7 +667,7 @@ Renderer::load_and_upload_ascii_font_atlas(const std::string &font_path) {
   font_atlas.width = atlas_w;
   font_atlas.height = atlas_h;
   font_atlas.channels = 4;
-  font_atlas.format = PixelFormat::RGBA8;
+  font_atlas.pixel_format = PixelFormat::RGBA8;
 
   // Printable ascii characters (33 - 126)
   for (int cp = 32; cp <= 126; cp++) {

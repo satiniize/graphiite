@@ -30,7 +30,7 @@ Image load(const std::filesystem::path &path) {
   image.channels = channels;
   image.pixels =
       std::vector<uint8_t>(pixels, pixels + w * h * desired_channels);
-  image.format = PixelFormat::RGBA8;
+  image.pixel_format = PixelFormat::RGBA8;
   stbi_image_free(pixels); // free stbi's buffer immediately after copy
 
   return image;

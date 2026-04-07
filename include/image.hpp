@@ -24,15 +24,17 @@ public:
   uint8_t channels;
   uint16_t width;
   uint16_t height;
-  PixelFormat format = PixelFormat::RGBA8;
+  PixelFormat pixel_format = PixelFormat::RGBA8;
 
   Image() = default;
   Image(uint16_t width, uint16_t height,
-        PixelFormat format = PixelFormat::RGBA8);
+        PixelFormat pixel_format = PixelFormat::RGBA8);
 
   static ImageGenerator angular_gradient(std::vector<GradientStop> stops);
+  static ImageGenerator linear_gradient(float angle,
+                                        std::vector<GradientStop> stops);
   static ImageGenerator noise();
 
-  uint8_t bytes_per_pixel() const { return static_cast<uint8_t>(format); }
+  uint8_t bytes_per_pixel() const { return static_cast<uint8_t>(pixel_format); }
   void fill(ImageGenerator generator);
 };
