@@ -1,6 +1,7 @@
 #include "clay_manager.hpp"
 #include "clay.h"
 #include "clay_renderer.hpp"
+#include "components.hpp"
 
 ClayManager::ClayManager(Renderer *renderer, int width, int height) {
   this->renderer = renderer;
@@ -18,10 +19,12 @@ ClayManager::ClayManager(Renderer *renderer, int width, int height) {
 
 void ClayManager::begin_layout(Clay_Vector2 mouse_position, bool is_mouse_down,
                                Clay_Vector2 mouse_scroll) {
+  Components::UpdateSliderDrag(is_mouse_down, mouse_position);
+
   Clay_Dimensions clay_dimensions = {
       .width = static_cast<float>(renderer->width) / renderer->viewport_scale,
-      .height =
-          static_cast<float>(renderer->height) / renderer->viewport_scale};
+      .height = static_cast<float>(renderer->height) / renderer->viewport_scale,
+  };
   bool enable_drag_scrolling = false;
   float bottom_bar_height =
       Clay_GetElementData(CLAY_ID("BottomBar")).boundingBox.height;
