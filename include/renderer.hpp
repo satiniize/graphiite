@@ -168,7 +168,7 @@ public:
   TextureID create_render_target(int w, int h);
 
   TextureID upload_texture(const Image &image);
-  Image download_texture(TextureID texture_id);
+  Image download_texture(Texture &texture);
   void blit_texture(TextureID src, TextureID dst);
 
   GeometryID upload_geometry(const Vertex *vertices, size_t vertex_size,

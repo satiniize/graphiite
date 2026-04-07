@@ -224,8 +224,8 @@ TextureID Renderer::create_render_target(int w, int h) {
 
 TextureID Renderer::upload_texture(const Image &image) {
   int bytes_per_pixel = image.bytes_per_pixel();
-  int num_bytes =
-      static_cast<uint32_t>(image.width * image.height * bytes_per_pixel);
+  size_t num_bytes =
+      static_cast<size_t>(image.width * image.height * bytes_per_pixel);
 
   SDL_GPUTextureCreateInfo texture_info{
       .type = SDL_GPU_TEXTURETYPE_2D,
@@ -296,81 +296,61 @@ TextureID Renderer::upload_texture(const Image &image) {
   return _next_texture_id++;
 }
 
-// Image download_texture(TextureID texture_id) {
-//   int bytes_per_pixel = image.bytes_per_pixel();
-//   int num_bytes =
-//       static_cast<uint32_t>(image.width * image.height * bytes_per_pixel);
+Image Renderer::download_texture(Texture &texture) {
+  SDL_GPUTexture *gpu_texture = _gpu_textures[texture.id];
+  int bytes_per_pixel = texture.bytes_per_pixel();
+  int num_bytes =
+      static_cast<uint32_t>(texture.width * texture.height * bytes_per_pixel);
 
-//   SDL_GPUTextureCreateInfo texture_info{
-//       .type = SDL_GPU_TEXTURETYPE_2D,
-//       .format = image.pixel_format == PixelFormat::RGBA8
-//                     ? SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM
-//                     : SDL_GPU_TEXTUREFORMAT_R16G16B16A16_UNORM,
-//       .usage = SDL_GPU_TEXTUREUSAGE_SAMPLER,
-//       .width = image.width,
-//       .height = image.height,
-//       .layer_count_or_depth = 1,
-//       .num_levels = 1,
-//       .sample_count = SDL_GPU_SAMPLECOUNT_1,
-//   };
+  // Set up transfer buffer
+  SDL_GPUTransferBufferCreateInfo texture_transfer_create_info{
+      .usage = SDL_GPU_TRANSFERBUFFERUSAGE_DOWNLOAD,
+      .size = static_cast<Uint32>(num_bytes),
+  };
+  SDL_GPUTransferBuffer *texture_transfer_buffer =
+      SDL_CreateGPUTransferBuffer(this->_device, &texture_transfer_create_info);
 
-//   SDL_GPUTexture *texture = SDL_CreateGPUTexture(this->_device,
-//   &texture_info); if (!texture) {
-//     SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
-//                  "Failed to create GPU texture: %s", SDL_GetError());
-//     return -1;
-//   }
+  // Start a copy pass
+  SDL_GPUCommandBuffer *_command_buffer =
+      SDL_AcquireGPUCommandBuffer(this->_device);
+  SDL_GPUCopyPass *copyPass = SDL_BeginGPUCopyPass(_command_buffer);
 
-//   // Set up transfer buffer
-//   SDL_GPUTransferBufferCreateInfo texture_transfer_create_info{
-//       .usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD,
-//       .size = static_cast<Uint32>(num_bytes),
-//   };
-//   SDL_GPUTransferBuffer *texture_transfer_buffer =
-//       SDL_CreateGPUTransferBuffer(this->_device,
-//       &texture_transfer_create_info);
+  // Upload texture data to the GPU texture
+  SDL_GPUTextureTransferInfo texture_transfer_info{
+      .transfer_buffer = texture_transfer_buffer,
+      .offset = 0,
+      .pixels_per_row = texture.width,
+      .rows_per_layer = texture.height,
+  };
+  SDL_GPUTextureRegion texture_region{
+      .texture = gpu_texture,
+      .mip_level = 0,
+      .layer = 0,
+      .x = 0,
+      .y = 0,
+      .z = 0,
+      .w = texture.width,
+      .h = texture.height,
+      .d = 1,
+  };
 
-//   // Transfer data
-//   void *texture_data_ptr =
-//       SDL_MapGPUTransferBuffer(this->_device, texture_transfer_buffer,
-//       false);
-//   SDL_memcpy(texture_data_ptr, image.pixels.data(), num_bytes);
+  SDL_DownloadFromGPUTexture(copyPass, &texture_region, &texture_transfer_info);
 
-//   SDL_UnmapGPUTransferBuffer(this->_device, texture_transfer_buffer);
+  SDL_EndGPUCopyPass(copyPass);
+  SDL_GPUFence *fence =
+      SDL_SubmitGPUCommandBufferAndAcquireFence(_command_buffer);
+  SDL_WaitForGPUFences(this->_device, true, &fence, 1);
+  SDL_ReleaseGPUFence(this->_device, fence);
 
-//   // Start a copy pass
-//   SDL_GPUCommandBuffer *_command_buffer =
-//       SDL_AcquireGPUCommandBuffer(this->_device); // GPU command buffer
-//   SDL_GPUCopyPass *copyPass = SDL_BeginGPUCopyPass(_command_buffer);
+  void *downloaded_data =
+      SDL_MapGPUTransferBuffer(this->_device, texture_transfer_buffer, false);
+  Image image(texture.width, texture.height, texture.pixel_format);
+  SDL_memcpy(image.pixels.data(), downloaded_data, num_bytes);
+  SDL_UnmapGPUTransferBuffer(this->_device, texture_transfer_buffer);
+  SDL_ReleaseGPUTransferBuffer(this->_device, texture_transfer_buffer);
 
-//   // Upload texture data to the GPU texture
-//   SDL_GPUTextureTransferInfo texture_transfer_info{
-//       .transfer_buffer = texture_transfer_buffer,
-//       .offset = 0,
-//       .pixels_per_row = image.width,
-//       .rows_per_layer = image.height,
-//   };
-//   SDL_GPUTextureRegion texture_region{
-//       .texture = texture,
-//       .mip_level = 0,
-//       .layer = 0,
-//       .x = 0,
-//       .y = 0,
-//       .z = 0,
-//       .w = image.width,
-//       .h = image.height,
-//       .d = 1,
-//   };
-//   SDL_UploadToGPUTexture(copyPass, &texture_transfer_info, &texture_region,
-//                          false);
-//   SDL_EndGPUCopyPass(copyPass);
-//   SDL_SubmitGPUCommandBuffer(_command_buffer);
-//   SDL_ReleaseGPUTransferBuffer(this->_device, texture_transfer_buffer);
-
-//   _gpu_textures[_next_texture_id] = texture;
-
-//   return _next_texture_id++;
-// };
+  return image;
+};
 
 GeometryID Renderer::upload_geometry(const Vertex *vertices, size_t vertex_size,
                                      const Uint16 *indices, size_t index_size) {
