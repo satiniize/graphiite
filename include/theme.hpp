@@ -16,10 +16,19 @@ inline constexpr Clay_Color WHITE = {255, 255, 255, 255};
 
 inline constexpr Clay_Color TRANSPARENT = {255, 255, 255, 0};
 inline constexpr Clay_Color SELECTED_GREEN = {127, 255, 0, 255};
+
+inline constexpr Clay_Color WHITE100 = {255, 255, 255, 255};
+inline constexpr Clay_Color WHITE80 = {230, 230, 230, 255};
+inline constexpr Clay_Color WHITE60 = {204, 204, 204, 255};
+
+inline constexpr Clay_Color LIGHT_FILL_HIGH = {255, 255, 255, 255};
+inline constexpr Clay_Color LIGHT_FILL_LOW = {245, 245, 235, 255};
+inline constexpr Clay_Color LIGHT_STROKE_HIGH = {245, 245, 235, 255};
+inline constexpr Clay_Color LIGHT_STROKE_LOW = {245, 245, 235, 255};
 } // namespace Color
 
 namespace FontSize {
-inline constexpr uint16_t SMALL = 16;
-inline constexpr uint16_t MEDIUM = 20;
-inline constexpr uint16_t LARGE = 28;
+inline constexpr uint16_t SMALL = 12;
+inline constexpr uint16_t MEDIUM = 16;
+inline constexpr uint16_t LARGE = 32;
 } // namespace FontSize

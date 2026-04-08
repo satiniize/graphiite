@@ -1,7 +1,7 @@
 #include "clay_manager.hpp"
+#include "base_components.hpp"
 #include "clay.h"
 #include "clay_renderer.hpp"
-#include "components.hpp"
 
 ClayManager::ClayManager(Renderer *renderer, int width, int height) {
   this->renderer = renderer;

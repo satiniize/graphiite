@@ -66,7 +66,7 @@ set(SR_SOURCES
   src/image_loader.cpp
   src/clay_manager.cpp
   src/input_manager.cpp
-  src/components.cpp
+  src/base_components.cpp
   src/image.cpp
 )
 

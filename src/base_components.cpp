@@ -1,4 +1,4 @@
-#include "components.hpp"
+#include "base_components.hpp"
 #include "clay_renderer.hpp"
 #include "texture.hpp"
 #include "theme.hpp"
@@ -46,7 +46,10 @@ void Components::UpdateSliderDrag(bool is_mouse_down,
   *g_slider_drag.target = raw;
 }
 
-void Components::Slider(float *value, uint32_t id, Texture &bevel_texture) {
+void Components::Slider(float *value, uint32_t id, Texture &stroke_texture,
+                        Texture &fill_texture) {
+  const float handle_radius = 12;
+
   CLAY({
       .id = CLAY_IDI("SliderTrack", id),
       .layout =
@@ -55,6 +58,11 @@ void Components::Slider(float *value, uint32_t id, Texture &bevel_texture) {
                   {
                       .width = CLAY_SIZING_FIXED(TRACK_WIDTH),
                       .height = CLAY_SIZING_FIXED(40),
+                  },
+              .padding =
+                  {
+                      .left = static_cast<uint16_t>(handle_radius - 2.0f),
+                      .right = static_cast<uint16_t>(handle_radius - 2.0f),
                   },
               .childAlignment =
                   {
@@ -71,11 +79,11 @@ void Components::Slider(float *value, uint32_t id, Texture &bevel_texture) {
                 .sizing =
                     {
                         .width = CLAY_SIZING_GROW(0),
-                        .height = CLAY_SIZING_FIXED(6),
+                        .height = CLAY_SIZING_FIXED(4),
                     },
             },
         .backgroundColor = Color::BLACK,
-        .cornerRadius = CLAY_CORNER_RADIUS(3),
+        .cornerRadius = CLAY_CORNER_RADIUS(2),
     }) {}
 
     // Pixel offset of the handle's left edge
@@ -86,16 +94,16 @@ void Components::Slider(float *value, uint32_t id, Texture &bevel_texture) {
             {
                 .sizing =
                     {
-                        .width = CLAY_SIZING_FIXED(24),
-                        .height = CLAY_SIZING_FIXED(40),
+                        .width = CLAY_SIZING_FIXED(handle_radius * 2.0f),
+                        .height = CLAY_SIZING_FIXED(handle_radius * 2.0f),
                     },
                 .padding = CLAY_PADDING_ALL(4),
             },
         .backgroundColor = Color::WHITE,
-        .cornerRadius = CLAY_CORNER_RADIUS(6),
+        .cornerRadius = CLAY_CORNER_RADIUS(handle_radius),
         .image =
             {
-                .imageData = static_cast<void *>(&bevel_texture),
+                .imageData = static_cast<void *>(&stroke_texture),
             },
         .floating =
             {
@@ -129,24 +137,13 @@ void Components::Slider(float *value, uint32_t id, Texture &bevel_texture) {
                           .y = CLAY_ALIGN_Y_CENTER,
                       },
               },
-          .backgroundColor = g_slider_drag.id.id == id
-                                 ? Color::MIDDLE_GREY
-                                 : Color::DARK_GREY, // Hoevered
-          .cornerRadius = CLAY_CORNER_RADIUS(6 - 2),
-      }) {
-        CLAY({
-            .layout =
-                {
-                    .sizing =
-                        {
-                            .width = CLAY_SIZING_FIXED(4),
-                            .height = CLAY_SIZING_FIXED(24),
-                        },
-                },
-            .backgroundColor = Color::WHITE,
-            .cornerRadius = CLAY_CORNER_RADIUS(2),
-        }) {}
-      }
+          .backgroundColor = Color::WHITE,
+          .cornerRadius = CLAY_CORNER_RADIUS(handle_radius - 4.0f),
+          .image =
+              {
+                  .imageData = static_cast<void *>(&fill_texture),
+              },
+      }) {}
     }
   }
 }
@@ -199,13 +196,14 @@ void Components::Knob() {
   }
 }
 
-void Components::Button(Clay_String label,
+void Components::Button(Clay_String label, Texture &stroke_texture,
+                        Texture &fill_texture,
                         void button_interaction(Clay_ElementId elementId,
                                                 Clay_PointerData pointerInfo,
                                                 intptr_t userData),
-                        Texture &orange_bevel_texture, intptr_t userData) {
-  uint16_t button_height = 48;
-  float corner_radius = 24.0f;
+                        intptr_t userData) {
+  uint16_t button_height = 32;
+  float corner_radius = 10.0f;
   CLAY({
       .layout =
           {
@@ -217,11 +215,11 @@ void Components::Button(Clay_String label,
                   },
               .padding = CLAY_PADDING_ALL(4),
           },
-      .backgroundColor = Color::WHITE,
+      .backgroundColor = Clay_Hovered() ? Color::WHITE80 : Color::WHITE100,
       .cornerRadius = CLAY_CORNER_RADIUS(corner_radius),
       .image =
           {
-              .imageData = static_cast<void *>(&orange_bevel_texture),
+              .imageData = static_cast<void *>(&stroke_texture),
           },
       .border =
           {
@@ -246,8 +244,8 @@ void Components::Button(Clay_String label,
                     },
                 .padding =
                     {
-                        .left = 16,
-                        .right = 16,
+                        .left = 8,
+                        .right = 8,
                         .top = 0,
                         .bottom = 0,
                     },
@@ -257,8 +255,12 @@ void Components::Button(Clay_String label,
                         .y = CLAY_ALIGN_Y_CENTER,
                     },
             },
-        .backgroundColor = Clay_Hovered() ? Color::ORANGE_HOVER : Color::ORANGE,
+        .backgroundColor = Clay_Hovered() ? Color::WHITE80 : Color::WHITE100,
         .cornerRadius = CLAY_CORNER_RADIUS(corner_radius - 4.0f),
+        .image =
+            {
+                .imageData = static_cast<void *>(&fill_texture),
+            },
     }) {
       CLAY_TEXT(label, CLAY_TEXT_CONFIG({
                            .textColor = Color::BLACK,

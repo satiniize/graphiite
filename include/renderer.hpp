@@ -207,7 +207,7 @@ public:
   bool end_scissor_mode();
 
   glm::vec2 glyph_size;
-  float font_sample_point_size = 48.0f;
+  float font_sample_point_size = 32.0f;
   float viewport_scale = 1.0f;
 
 private:
@@ -264,6 +264,5 @@ private:
   const uint32_t _threadcount_z = 1;
 
   // TODO: Input file path sanitizing
-  const std::string regular_font_path =
-      "assets/fonts/AtkinsonHyperlegibleMono-Medium.ttf";
+  const std::string regular_font_path = "assets/fonts/MartianMono-Regular.ttf";
 };

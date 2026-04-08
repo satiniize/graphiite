@@ -39,6 +39,28 @@ ImageGenerator Image::angular_gradient(std::vector<GradientStop> stops) {
   };
 }
 
+ImageGenerator Image::linear_gradient(float angle,
+                                      std::vector<GradientStop> stops) {
+  return [angle, stops](float x, float y, float w, float h) -> glm::vec4 {
+    // -0.5 to 0.5 range, centered at (0, 0)
+    // flip y
+    float t = (x - w / 2.0f) / w * cos(angle) - (y - h / 2.0f) / h * sin(angle);
+    // TODO: Stretch t here, which is currently a unit circle
+    t += 0.5f;
+    GradientStop a = stops.front();
+    GradientStop b = a;
+    for (auto stop : stops) {
+      a = b;
+      b = stop;
+      if (t < b.position) {
+        return lerp(a.color, b.color,
+                    (t - a.position) / (b.position - a.position));
+      }
+    }
+    return glm::vec4(t, t, t, 1.0f);
+  };
+}
+
 void Image::fill(ImageGenerator generator) {
   int bytes = pixel_format == PixelFormat::RGBA8 ? 4 : 8;
   for (int y = 0; y < height; ++y) {
