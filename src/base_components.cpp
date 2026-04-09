@@ -12,24 +12,23 @@ void Components::slider_interaction(Clay_ElementId elementId,
                                     Clay_PointerData pointerInfo,
                                     intptr_t userData) {
   if (pointerInfo.state == CLAY_POINTER_DATA_PRESSED_THIS_FRAME) {
-    // Begin drag
     g_slider_drag.active = true;
-    g_slider_drag.target = reinterpret_cast<float *>(userData);
+    g_slider_drag.slider_context = reinterpret_cast<SliderContext *>(userData);
     g_slider_drag.id = elementId;
   }
 }
 
 void Components::UpdateSliderDrag(bool is_mouse_down,
                                   Clay_Vector2 pointerPosition) {
-  // Release on mouse up
   if (!is_mouse_down) {
     g_slider_drag.active = false;
-    g_slider_drag.target = nullptr;
-    g_slider_drag.id = CLAY_IDI("SliderTrack", -1);
+    g_slider_drag.slider_context = nullptr;
     return;
   }
 
-  if (!g_slider_drag.active || g_slider_drag.target == nullptr)
+  // Both checks needed: active flag and a valid context with a value ptr
+  if (!g_slider_drag.active || g_slider_drag.slider_context == nullptr ||
+      g_slider_drag.slider_context->value == nullptr)
     return;
 
   Clay_ElementData trackData = Clay_GetElementData(g_slider_drag.id);
@@ -43,12 +42,30 @@ void Components::UpdateSliderDrag(bool is_mouse_down,
   if (raw > 1.0f)
     raw = 1.0f;
 
-  *g_slider_drag.target = raw;
+  SliderContext *ctx = g_slider_drag.slider_context;
+  float min_v = std::min(ctx->min_value, ctx->max_value);
+  float max_v = std::max(ctx->min_value, ctx->max_value);
+
+  *ctx->value = min_v + raw * (max_v - min_v);
 }
 
-void Components::Slider(float *value, uint32_t id, Texture &stroke_texture,
-                        Texture &fill_texture) {
+void Components::Slider(SliderContext *slider_context, uint32_t id,
+                        Texture &stroke_texture, Texture &fill_texture) {
   const float handle_radius = 12;
+
+  // Derive normalised position from the context
+  float min_v = std::min(slider_context->min_value, slider_context->max_value);
+  float max_v = std::max(slider_context->min_value, slider_context->max_value);
+  float range = max_v - min_v;
+
+  float normalised =
+      (range > 0.0f) ? (*slider_context->value - min_v) / range : 0.0f;
+  if (normalised < 0.0f)
+    normalised = 0.0f;
+  if (normalised > 1.0f)
+    normalised = 1.0f;
+
+  float offset = normalised * TRAVEL;
 
   CLAY({
       .id = CLAY_IDI("SliderTrack", id),
@@ -71,7 +88,8 @@ void Components::Slider(float *value, uint32_t id, Texture &stroke_texture,
                   },
           },
   }) {
-    Clay_OnHover(slider_interaction, reinterpret_cast<intptr_t>(value));
+    Clay_OnHover(slider_interaction,
+                 reinterpret_cast<intptr_t>(slider_context));
 
     CLAY({
         .layout =
@@ -85,9 +103,6 @@ void Components::Slider(float *value, uint32_t id, Texture &stroke_texture,
         .backgroundColor = Color::BLACK,
         .cornerRadius = CLAY_CORNER_RADIUS(2),
     }) {}
-
-    // Pixel offset of the handle's left edge
-    float offset = (*value) * TRAVEL;
 
     CLAY({
         .layout =

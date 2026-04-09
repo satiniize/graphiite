@@ -80,7 +80,7 @@ struct SDFRectStrokeFragmentUniformBuffer {
 struct RawProcessorFragmentUniformBuffer {
   glm::mat4 correction_matrix;
   glm::mat4 crosstalk_matrix;
-  glm::mat4 dye_absorption_matrix;
+  glm::mat4 dye_matrix;
   glm::vec4 d_min;
   glm::vec4 d_max;
   glm::vec4 k;
@@ -132,6 +132,7 @@ struct RectParams {
   // Stroke
   bool draw_stroke = false;
   glm::vec4 stroke_thickness = glm::vec4(0.0f);
+  // TODO: Add smoothing param and uniform
 };
 
 struct SpriteParams {

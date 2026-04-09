@@ -21,10 +21,10 @@ inline constexpr Clay_Color WHITE100 = {255, 255, 255, 255};
 inline constexpr Clay_Color WHITE80 = {230, 230, 230, 255};
 inline constexpr Clay_Color WHITE60 = {204, 204, 204, 255};
 
-inline constexpr Clay_Color LIGHT_FILL_HIGH = {255, 255, 255, 255};
-inline constexpr Clay_Color LIGHT_FILL_LOW = {245, 245, 235, 255};
-inline constexpr Clay_Color LIGHT_STROKE_HIGH = {245, 245, 235, 255};
-inline constexpr Clay_Color LIGHT_STROKE_LOW = {245, 245, 235, 255};
+inline constexpr Clay_Color LIGHT_FILL_HIGH = {207, 207, 207, 255};
+inline constexpr Clay_Color LIGHT_FILL_LOW = {143, 143, 143, 255};
+inline constexpr Clay_Color LIGHT_STROKE_HIGH = {255, 255, 255, 255};
+inline constexpr Clay_Color LIGHT_STROKE_LOW = {191, 191, 191, 255};
 } // namespace Color
 
 namespace FontSize {

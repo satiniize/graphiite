@@ -1,4 +1,5 @@
 #include "clay_renderer.hpp"
+#include "clay_extension.hpp"
 #include "renderer.hpp"
 
 #include <sys/types.h>
@@ -17,6 +18,11 @@ void render_commands(Renderer &renderer,
     const SDL_FRect rect(bounding_box.x, bounding_box.y, bounding_box.width,
                          bounding_box.height);
     const uint16_t z_index = static_cast<uint16_t>(render_command->zIndex);
+    const Clay_ExtensionConfig *extension_config = nullptr;
+    if (render_command->userData != nullptr) {
+      extension_config = reinterpret_cast<const Clay_ExtensionConfig *>(
+          render_command->userData);
+    }
 
     // TODO: Properly clamp corner radii by ratio
     switch (render_command->commandType) {

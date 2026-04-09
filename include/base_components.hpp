@@ -1,3 +1,5 @@
+#pragma once
+
 #include "photo.hpp"
 #include "texture.hpp"
 
@@ -6,18 +8,25 @@
 #include <vector>
 
 namespace Components {
+// TODO: Actually can consider passing in the straight string(?) for hashing
+struct SliderContext {
+  float *value;
+  float min_value;
+  float max_value;
+};
 struct SliderDragState {
   bool active = false;
-  float *target = nullptr;
+  SliderContext *slider_context = nullptr;
   Clay_ElementId id;
 };
+
 static SliderDragState g_slider_drag;
 
 void slider_interaction(Clay_ElementId elementId, Clay_PointerData pointerInfo,
                         intptr_t userData);
 void UpdateSliderDrag(bool is_mouse_down, Clay_Vector2 pointerPosition);
 // TODO: Automate id
-void Slider(float *value, uint32_t id, Texture &stroke_texture,
+void Slider(SliderContext *slider_context, uint32_t id, Texture &stroke_texture,
             Texture &fill_texture);
 void Knob();
 void Button(Clay_String label, Texture &stroke_texture, Texture &fill_texture,
