@@ -1,10 +1,11 @@
 #include "base_components.hpp"
+#include "clay_extension.hpp"
 #include "clay_renderer.hpp"
 #include "texture.hpp"
 #include "theme.hpp"
 
 static const float HANDLE_SIZE = 24.0f;
-static const float TRACK_WIDTH = 300.0f;
+static const float TRACK_WIDTH = 256.0f;
 // The usable range the handle center can travel
 static const float TRAVEL = TRACK_WIDTH - 24;
 
@@ -67,6 +68,16 @@ void Components::Slider(SliderContext *slider_context, uint32_t id,
 
   float offset = normalised * TRAVEL;
 
+  static Clay_ExtensionConfig shadow_config = {
+      .dropShadow =
+          {
+              .blur_radius = 8.0f,
+              .offset_x = 0.0f,
+              .offset_y = 0.0f,
+              .opacity = 0.5f, // TODO: This should be multiply?
+          },
+  };
+
   CLAY({
       .id = CLAY_IDI("SliderTrack", id),
       .layout =
@@ -104,6 +115,7 @@ void Components::Slider(SliderContext *slider_context, uint32_t id,
         .cornerRadius = CLAY_CORNER_RADIUS(2),
     }) {}
 
+    // Handle
     CLAY({
         .layout =
             {
@@ -114,7 +126,7 @@ void Components::Slider(SliderContext *slider_context, uint32_t id,
                     },
                 .padding = CLAY_PADDING_ALL(4),
             },
-        .backgroundColor = Color::WHITE,
+        .backgroundColor = Clay_Hovered() ? Color::WHITE80 : Color::WHITE100,
         .cornerRadius = CLAY_CORNER_RADIUS(handle_radius),
         .image =
             {
@@ -137,6 +149,7 @@ void Components::Slider(SliderContext *slider_context, uint32_t id,
                 .color = Color::BLACK,
                 .width = CLAY_BORDER_ALL(2),
             },
+        .userData = reinterpret_cast<void *>(&shadow_config),
     }) {
       CLAY({
           .layout =
@@ -152,7 +165,7 @@ void Components::Slider(SliderContext *slider_context, uint32_t id,
                           .y = CLAY_ALIGN_Y_CENTER,
                       },
               },
-          .backgroundColor = Color::WHITE,
+          .backgroundColor = Clay_Hovered() ? Color::WHITE80 : Color::WHITE100,
           .cornerRadius = CLAY_CORNER_RADIUS(handle_radius - 4.0f),
           .image =
               {

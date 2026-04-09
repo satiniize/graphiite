@@ -960,8 +960,10 @@ bool Renderer::draw_rect(RectParams params) {
                 std::min(params.stroke_thickness.z, params.stroke_thickness.y),
                 std::min(params.stroke_thickness.w, params.stroke_thickness.x),
                 std::min(params.stroke_thickness.w, params.stroke_thickness.y));
+  glm::vec2 padded_size = params.size + glm::vec2(params.smoothing * 2.0f);
   SDFRectStrokeFragmentUniformBuffer fragment_uniforms{
-      .size = glm::vec4(params.size.x, params.size.y, 0.0f, 0.0f),
+      .size =
+          glm::vec4(params.size.x, params.size.y, padded_size.x, padded_size.y),
       .modulate = params.color,
       .corner_radii = glm::vec4(params.corner_radii),
       .inner_corner_radii = inner_corner_radii,
@@ -969,13 +971,16 @@ bool Renderer::draw_rect(RectParams params) {
       .tiling = static_cast<uint32_t>(params.tiling ? 1 : 0),
       .use_texture = static_cast<uint32_t>(params.use_texture ? 1 : 0),
       .draw_stroke = static_cast<uint32_t>(params.draw_stroke ? 1 : 0),
+      .smoothing = params.smoothing,
   };
   glm::mat4 model_matrix = glm::mat4(1.0f);
   model_matrix = glm::translate(
       model_matrix,
       glm::vec3(params.position.x + params.size.x / 2.0f,
                 -(params.position.y + params.size.y / 2.0f), 0.0f));
-  model_matrix = glm::scale(model_matrix, glm::vec3(params.size, 1.0f));
+  model_matrix = glm::scale(
+      model_matrix,
+      glm::vec3(params.size + glm::vec2(params.smoothing * 2.0f), 1.0f));
   BasicVertexUniformBuffer vertex_uniforms{
       .mvp_matrix = this->_projection_matrix * model_matrix,
   };

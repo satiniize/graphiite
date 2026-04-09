@@ -9,7 +9,8 @@
 
 namespace Components {
 // TODO: Actually can consider passing in the straight string(?) for hashing
-struct SliderContext {
+struct SliderContext { // TODO: Possibly rename this, as min and max will be
+                       // reused for serializing
   float *value;
   float min_value;
   float max_value;

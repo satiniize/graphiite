@@ -1,5 +1,6 @@
 #pragma once
 
+#include "base_components.hpp"
 enum class BorderType {
   INSIDE,
   OUTSIDE,
@@ -10,8 +11,10 @@ struct Clay_DropShadowConfig {
   // Draw if blur_radius > 0 or shadow_offset_x or shadow_offset_y are non-zero,
   // no need for flag? but that doesn't work for transparent panels
   float blur_radius = 0.0f;
-  float shadow_offset_x = 0.0f;
-  float shadow_offset_y = 0.0f;
+  float offset_x = 0.0f;
+  float offset_y = 0.0f;
+  float opacity = 1.0f;
+  Clay_Color color = {0.0f, 0.0f, 0.0f, 1.0f};
 };
 
 struct Clay_PivotConfig {

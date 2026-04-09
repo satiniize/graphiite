@@ -8,6 +8,28 @@
 
 // TODO: Unsure if this and clay manager should be combined or not, probably not
 namespace ClayRenderer {
+void draw_drop_shadow(Renderer &renderer, glm::vec4 rect,
+                      glm::vec4 corner_radii,
+                      Clay_DropShadowConfig drop_shadow) {
+  if (drop_shadow.blur_radius > 0.0f || drop_shadow.offset_x != 0.0f ||
+      drop_shadow.offset_y != 0.0f) {
+    renderer.draw_rect(RectParams{
+        .position = glm::vec2(rect.x + drop_shadow.offset_x,
+                              rect.y + drop_shadow.offset_y),
+        .size = glm::vec2(rect.z, rect.w),
+        .color = glm::vec4(drop_shadow.color.r, drop_shadow.color.g,
+                           drop_shadow.color.b, drop_shadow.opacity),
+        .corner_radii = corner_radii,
+        .use_texture = false,
+        .texture_id = 0,
+        .tiling = false,
+        .draw_stroke = false,
+        .stroke_thickness = glm::vec4(0.0f),
+        .smoothing = drop_shadow.blur_radius,
+    });
+  }
+}
+
 void render_commands(Renderer &renderer,
                      Clay_RenderCommandArray render_commands) {
   for (int i = 0; i < render_commands.length; i++) {
@@ -15,8 +37,12 @@ void render_commands(Renderer &renderer,
         Clay_RenderCommandArray_Get(&render_commands, i);
 
     const Clay_BoundingBox bounding_box = render_command->boundingBox;
-    const SDL_FRect rect(bounding_box.x, bounding_box.y, bounding_box.width,
-                         bounding_box.height);
+    const glm::vec4 rect{
+        bounding_box.x,
+        bounding_box.y,
+        bounding_box.width,
+        bounding_box.height,
+    };
     const uint16_t z_index = static_cast<uint16_t>(render_command->zIndex);
     const Clay_ExtensionConfig *extension_config = nullptr;
     if (render_command->userData != nullptr) {
@@ -37,9 +63,13 @@ void render_commands(Renderer &renderer,
                              render_data_rectangle->cornerRadius.topRight,
                              render_data_rectangle->cornerRadius.bottomLeft,
                              render_data_rectangle->cornerRadius.bottomRight);
+      if (extension_config != nullptr) {
+        Clay_DropShadowConfig drop_shadow = extension_config->dropShadow;
+        draw_drop_shadow(renderer, rect, corner_radii, drop_shadow);
+      }
       renderer.draw_rect(RectParams{
           .position = glm::vec2(rect.x, rect.y),
-          .size = glm::vec2(rect.w, rect.h),
+          .size = glm::vec2(rect.z, rect.w),
           .color = color,
           .corner_radii = corner_radii,
           .use_texture = false,
@@ -68,7 +98,7 @@ void render_commands(Renderer &renderer,
                              render_data_border->cornerRadius.bottomRight);
       renderer.draw_rect(RectParams{
           .position = glm::vec2(rect.x, rect.y),
-          .size = glm::vec2(rect.w, rect.h),
+          .size = glm::vec2(rect.z, rect.w),
           .color = color,
           .corner_radii = corner_radii,
           .use_texture = false,
@@ -95,9 +125,13 @@ void render_commands(Renderer &renderer,
                              render_data_image->cornerRadius.topRight,
                              render_data_image->cornerRadius.bottomLeft,
                              render_data_image->cornerRadius.bottomRight);
+      if (extension_config != nullptr) {
+        Clay_DropShadowConfig drop_shadow = extension_config->dropShadow;
+        draw_drop_shadow(renderer, rect, corner_radii, drop_shadow);
+      }
       RectParams rect_params = {
           .position = glm::vec2(rect.x, rect.y),
-          .size = glm::vec2(rect.w, rect.h),
+          .size = glm::vec2(rect.z, rect.w),
           .color = color,
           .corner_radii = corner_radii,
           .use_texture = true,

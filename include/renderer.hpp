@@ -75,6 +75,7 @@ struct SDFRectStrokeFragmentUniformBuffer {
   uint32_t tiling;
   uint32_t use_texture;
   uint32_t draw_stroke;
+  float smoothing = 1.0f;
 };
 
 struct RawProcessorFragmentUniformBuffer {
@@ -132,7 +133,8 @@ struct RectParams {
   // Stroke
   bool draw_stroke = false;
   glm::vec4 stroke_thickness = glm::vec4(0.0f);
-  // TODO: Add smoothing param and uniform
+  // Smoothing
+  float smoothing = 1.0f;
 };
 
 struct SpriteParams {
