@@ -231,7 +231,7 @@ void Components::Button(Clay_String label, Texture &stroke_texture,
                                                 intptr_t userData),
                         intptr_t userData, bool disabled) {
   uint16_t button_height = 32;
-  float corner_radius = 10.0f;
+  float corner_radius = 8.0f;
   CLAY({
       .layout =
           {
@@ -261,7 +261,9 @@ void Components::Button(Clay_String label, Texture &stroke_texture,
                   },
           },
   }) {
-    Clay_OnHover(button_interaction, userData);
+    if (!disabled) {
+      Clay_OnHover(button_interaction, userData);
+    }
     CLAY({
         .layout =
             {
@@ -283,7 +285,9 @@ void Components::Button(Clay_String label, Texture &stroke_texture,
                         .y = CLAY_ALIGN_Y_CENTER,
                     },
             },
-        .backgroundColor = Clay_Hovered() ? Color::WHITE80 : Color::WHITE100,
+        .backgroundColor =
+            disabled ? Color::WHITE60
+                     : (Clay_Hovered() ? Color::WHITE80 : Color::WHITE100),
         .cornerRadius = CLAY_CORNER_RADIUS(corner_radius - 4.0f),
         .image =
             {

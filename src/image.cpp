@@ -32,7 +32,7 @@ ImageGenerator Image::angular_gradient(std::vector<GradientStop> stops) {
     for (auto stop : stops) {
       a = b;
       b = stop;
-      if (t < b.position) {
+      if (t <= b.position) {
         return lerp(a.color, b.color,
                     (t - a.position) / (b.position - a.position));
       }
@@ -56,7 +56,7 @@ ImageGenerator Image::linear_gradient(float angle,
     for (auto stop : stops) {
       a = b;
       b = stop;
-      if (t < b.position) {
+      if (t <= b.position) {
         return lerp(a.color, b.color,
                     (t - a.position) / (b.position - a.position));
       }
