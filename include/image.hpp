@@ -2,7 +2,8 @@
 
 #include <cstdint>
 #include <functional>
-#include <glm/glm.hpp>
+// #include <glm/glm.hpp>
+#include <clay.h>
 #include <vector>
 
 enum class PixelFormat : uint8_t {
@@ -12,11 +13,11 @@ enum class PixelFormat : uint8_t {
 
 struct GradientStop {
   float position; // 0.0 to 1.0
-  glm::vec4 color;
+  Clay_Color color;
 };
 
 using ImageGenerator =
-    std::function<glm::vec4(float x, float y, float w, float h)>;
+    std::function<Clay_Color(float x, float y, float w, float h)>;
 
 class Image {
 public:

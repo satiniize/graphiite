@@ -229,7 +229,7 @@ void Components::Button(Clay_String label, Texture &stroke_texture,
                         void button_interaction(Clay_ElementId elementId,
                                                 Clay_PointerData pointerInfo,
                                                 intptr_t userData),
-                        intptr_t userData) {
+                        intptr_t userData, bool disabled) {
   uint16_t button_height = 32;
   float corner_radius = 10.0f;
   CLAY({

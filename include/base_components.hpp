@@ -34,7 +34,7 @@ void Button(Clay_String label, Texture &stroke_texture, Texture &fill_texture,
             void button_interaction(Clay_ElementId elementId,
                                     Clay_PointerData pointerInfo,
                                     intptr_t userData),
-            intptr_t userData = NULL);
+            intptr_t userData = NULL, bool disabled = false);
 void handle_photo_item_interaction(Clay_ElementId elementId,
                                    Clay_PointerData pointerInfo,
                                    intptr_t userData);
