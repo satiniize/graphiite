@@ -19,7 +19,7 @@ echo "Building with configuration: $BUILD_TYPE"
 
 # Configure the project with CMake
 # The -D flag sets a CMake variable, overriding the default
-cmake -S . -B build -DCMAKE_BUILD_TYPE="$BUILD_TYPE"
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE="$BUILD_TYPE"
 
 # Build the project
 # --config flag ensures we build the specific configuration
