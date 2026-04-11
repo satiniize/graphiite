@@ -38,7 +38,8 @@ Image load(const std::filesystem::path &path) {
 
 // This only loads a thumbnail size image currently
 // TODO: Add user configurable size
-Image load_with_turbojpeg(const std::filesystem::path &path) {
+Image load_with_turbojpeg(const std::filesystem::path &path,
+                          bool is_thumbnail) {
   if (!std::filesystem::exists(path) || std::filesystem::is_directory(path)) {
     SDL_Log("Invalid photo path");
     return {};
@@ -93,8 +94,11 @@ Image load_with_turbojpeg(const std::filesystem::path &path) {
   tjscalingfactor *factors = tj3GetScalingFactors(&num_scaling_factors);
 
   // Pick the smallest scaling factor for speed
-  tjscalingfactor scaling_factor = {factors[num_scaling_factors - 1].num,
-                                    factors[num_scaling_factors - 1].denom};
+  tjscalingfactor scaling_factor = {1, 1};
+  if (is_thumbnail) {
+    scaling_factor = {factors[num_scaling_factors - 1].num,
+                      factors[num_scaling_factors - 1].denom};
+  }
   tj3SetScalingFactor(turbojpeg_instance, scaling_factor);
 
   int scaled_width = TJSCALED(width, scaling_factor);
