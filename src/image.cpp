@@ -24,7 +24,7 @@ static Clay_Color lerp(Clay_Color a, Clay_Color b, float t) {
 ImageGenerator Image::angular_gradient(std::vector<GradientStop> stops) {
   return [stops](float x, float y, float w, float h) -> Clay_Color {
     float angle = atan2(y - h / 2.0f, -x + w / 2.0f);
-    float t = (angle + M_PI) / (2.0f * M_PI);
+    float t = (angle + 3.141592654f) / (2.0f * 3.141592654f);
     GradientStop a = stops.back();
     GradientStop b = stops.back();
     b.position -= 1.0f;

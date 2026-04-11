@@ -17,7 +17,7 @@ Image ImageIO::load(const std::filesystem::path &path) {
   int w, h, channels;
   // Maybe change this to ifstream
   unsigned char *pixels =
-      stbi_load(path.c_str(), &w, &h, &channels, desired_channels);
+      stbi_load(path.string().c_str(), &w, &h, &channels, desired_channels);
 
   if (!pixels) {
     return {};
@@ -129,7 +129,7 @@ Image ImageIO::load_with_turbojpeg(const std::filesystem::path &path,
 }
 
 void ImageIO::save(const std::filesystem::path &path, Image image) {
-  stbi_write_jpg(path.c_str(), image.width, image.height, image.channels,
+  stbi_write_jpg(path.string().c_str(), image.width, image.height, image.channels,
                  image.pixels.data(), 100);
   SDL_Log("Saved image to %s", path.c_str());
 }

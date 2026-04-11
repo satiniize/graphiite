@@ -75,6 +75,7 @@ set(SR_SOURCES
 
 add_library(software-renderer STATIC ${SR_SOURCES})
 add_dependencies(software-renderer libjpeg_turbo)
+add_dependencies(software-renderer libjpeg_turbo_project)
 
 target_include_directories(software-renderer PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}/include

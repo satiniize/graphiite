@@ -549,7 +549,7 @@ Renderer::create_graphics_pipeline(GraphicsPipelineParams params,
       .vertex_shader = vertex_shader,
       .fragment_shader = fragment_shader,
       .vertex_input_state =
-          (SDL_GPUVertexInputState){
+          SDL_GPUVertexInputState{
               .vertex_buffer_descriptions = vertex_buffer_descriptions,
               .num_vertex_buffers = num_vertex_buffers,
               .vertex_attributes = vertex_attributes,
