@@ -17,11 +17,11 @@ set(LIBJPEG_TURBO_INSTALL_DIR "${LIBJPEG_TURBO_PREFIX}/install")
 include(ExternalProject)
 
 if(MSVC)
-    set(LIB_JPEG_NAME "jpeg-static.lib")
-    set(LIB_TURBO_NAME "turbojpeg-static.lib")
+  set(LIB_JPEG_NAME "jpeg-static.lib")
+  set(LIB_TURBO_NAME "turbojpeg-static.lib")
 else()
-    set(LIB_JPEG_NAME "libjpeg.a")
-    set(LIB_TURBO_NAME "libturbojpeg.a")
+  set(LIB_JPEG_NAME "libjpeg.a")
+  set(LIB_TURBO_NAME "libturbojpeg.a")
 endif()
 
 ExternalProject_Add(libjpeg_turbo_project
@@ -73,7 +73,7 @@ set(SR_SOURCES
 add_library(software-renderer STATIC ${SR_SOURCES})
 add_dependencies(software-renderer libjpeg_turbo)
 
-target_include_directories(software-renderer PRIVATE
+target_include_directories(software-renderer PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 
@@ -88,4 +88,6 @@ target_link_libraries(software-renderer PRIVATE
 )
 
 add_subdirectory(examples/oxiide)
+add_subdirectory(tests)
+
 # add_subdirectory(examples/photo-sorter)
