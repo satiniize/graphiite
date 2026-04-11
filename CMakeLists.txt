@@ -83,12 +83,13 @@ target_include_directories(software-renderer PUBLIC
 target_link_libraries(software-renderer
 PUBLIC
   SDL3::SDL3
-  libjpeg_turbo
   clay
   glm::glm
 PRIVATE
-  tinyfiledialogs
   stb
+  tinyfiledialogs
+  # This one is technically not vital for software renderer, as well as libraw
+  libjpeg_turbo
 )
 
 add_subdirectory(examples/oxiide)

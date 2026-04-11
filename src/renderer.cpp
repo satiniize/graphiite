@@ -223,6 +223,7 @@ TextureID Renderer::create_render_target(int w, int h) {
   return _next_texture_id++;
 }
 
+// TODO: return dummy texture on invalid image
 Texture Renderer::upload_texture(const Image &image) {
   int bytes_per_pixel = image.bytes_per_pixel();
   size_t num_bytes =
