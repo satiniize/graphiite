@@ -1,14 +1,14 @@
-#include "sprite_renderer.hpp"
+#include "ecs/sprite_renderer.hpp"
 
 #include <SDL3/SDL_log.h>
 #include <cmath>
 
 // #include "component_storage.hpp"
-#include "entity_manager.hpp"
+#include "ecs/entity_manager.hpp"
+#include "ecs/sprite_component.hpp"
+#include "ecs/transform_component.hpp"
 #include "image.hpp"
 #include "image_io.hpp"
-#include "sprite_component.hpp"
-#include "transform_component.hpp"
 
 namespace SpriteRenderer {
 void upload_sprites(

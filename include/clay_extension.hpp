@@ -28,6 +28,7 @@ struct Clay_TransformConfig {
   float rotation = 0.0f;
 };
 
+// All user data should be of this type
 struct Clay_ExtensionConfig {
   Clay_DropShadowConfig dropShadow;
   BorderType borderType = BorderType::INSIDE;

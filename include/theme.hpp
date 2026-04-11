@@ -28,7 +28,7 @@ inline constexpr Clay_Color LIGHT_STROKE_LOW = {191, 191, 191, 255};
 } // namespace Color
 
 namespace FontSize {
-inline constexpr uint16_t SMALL = 12;
-inline constexpr uint16_t MEDIUM = 16;
-inline constexpr uint16_t LARGE = 32;
+inline constexpr uint16_t SMALL = 8;
+inline constexpr uint16_t MEDIUM = 14;
+inline constexpr uint16_t LARGE = 28;
 } // namespace FontSize

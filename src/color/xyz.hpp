@@ -26,5 +26,5 @@ public:
     return cube_root_lms_to_oklab * cube_root_lms;
   }
 
-  xyz(float x, float y, float z) : x(x), y(y), z(z) {}
+  xyz(float x, float y, float z) : x(x), y(y), z(z) {};
 }

@@ -210,11 +210,12 @@ public:
   bool end_scissor_mode();
 
   glm::vec2 glyph_size;
-  float font_sample_point_size = 32.0f;
+  float font_sample_point_size = 28.0f;
   float viewport_scale = 1.0f;
 
 private:
-  // std::unique_ptr<SDL_Window> _window;
+  // TODO: Having these sdl gpu types are bad since it exposes it to the end
+  // user
 
   SDL_Window *_window;
   SDL_GPUDevice *_device;

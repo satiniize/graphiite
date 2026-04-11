@@ -52,7 +52,7 @@ void Components::UpdateSliderDrag(bool is_mouse_down,
 
 void Components::Slider(SliderContext *slider_context, uint32_t id,
                         Texture &stroke_texture, Texture &fill_texture) {
-  const float handle_radius = 12;
+  const float handle_radius = 10;
 
   // Derive normalised position from the context
   float min_v = std::min(slider_context->min_value, slider_context->max_value);
@@ -89,8 +89,8 @@ void Components::Slider(SliderContext *slider_context, uint32_t id,
                   },
               .padding =
                   {
-                      .left = static_cast<uint16_t>(handle_radius - 2.0f),
-                      .right = static_cast<uint16_t>(handle_radius - 2.0f),
+                      .left = static_cast<uint16_t>(handle_radius - 3.0f),
+                      .right = static_cast<uint16_t>(handle_radius - 3.0f),
                   },
               .childAlignment =
                   {
@@ -102,17 +102,23 @@ void Components::Slider(SliderContext *slider_context, uint32_t id,
     Clay_OnHover(slider_interaction,
                  reinterpret_cast<intptr_t>(slider_context));
 
+    // Track
     CLAY({
         .layout =
             {
                 .sizing =
                     {
                         .width = CLAY_SIZING_GROW(0),
-                        .height = CLAY_SIZING_FIXED(4),
+                        .height = CLAY_SIZING_FIXED(6),
                     },
             },
-        .backgroundColor = Color::BLACK,
-        .cornerRadius = CLAY_CORNER_RADIUS(2),
+        .backgroundColor = Color::LIGHT_FILL_HIGH,
+        .cornerRadius = CLAY_CORNER_RADIUS(3),
+        .border =
+            {
+                .color = Color::BLACK,
+                .width = CLAY_BORDER_OUTSIDE(2),
+            },
     }) {}
 
     // Handle
@@ -230,8 +236,17 @@ void Components::Button(Clay_String label, Texture &stroke_texture,
                                                 Clay_PointerData pointerInfo,
                                                 intptr_t userData),
                         intptr_t userData, bool disabled) {
-  uint16_t button_height = 32;
+  uint16_t button_height = 28;
   float corner_radius = 8.0f;
+  static Clay_ExtensionConfig shadow_config = {
+      .dropShadow =
+          {
+              .blur_radius = 8.0f,
+              .offset_x = 0.0f,
+              .offset_y = 0.0f,
+              .opacity = 0.25f,
+          },
+  };
   CLAY({
       .layout =
           {
@@ -260,6 +275,7 @@ void Components::Button(Clay_String label, Texture &stroke_texture,
                       .bottom = 2,
                   },
           },
+      .userData = reinterpret_cast<void *>(&shadow_config),
   }) {
     if (!disabled) {
       Clay_OnHover(button_interaction, userData);
@@ -274,8 +290,8 @@ void Components::Button(Clay_String label, Texture &stroke_texture,
                     },
                 .padding =
                     {
-                        .left = 8,
-                        .right = 8,
+                        .left = 4,
+                        .right = 4,
                         .top = 0,
                         .bottom = 0,
                     },
