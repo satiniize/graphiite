@@ -1,18 +1,17 @@
-#include "image_loader.hpp"
+#include "image_io.hpp"
 
-#include "stb_image.h"
+#include <stb_image.h>
+#include <stb_image_write.h>
 
 #include "image.hpp"
 #include <SDL3/SDL_log.h>
-#include <algorithm>
 #include <filesystem>
 #include <fstream>
 #include <turbojpeg.h>
 #include <vector>
 
-namespace ImageLoader {
 // TODO: Double check path and file sanitization
-Image load(const std::filesystem::path &path) {
+Image ImageIO::load(const std::filesystem::path &path) {
   static const int desired_channels = 4;
 
   int w, h, channels;
@@ -36,10 +35,8 @@ Image load(const std::filesystem::path &path) {
   return image;
 }
 
-// This only loads a thumbnail size image currently
-// TODO: Add user configurable size
-Image load_with_turbojpeg(const std::filesystem::path &path,
-                          bool is_thumbnail) {
+Image ImageIO::load_with_turbojpeg(const std::filesystem::path &path,
+                                   bool is_thumbnail) {
   if (!std::filesystem::exists(path) || std::filesystem::is_directory(path)) {
     SDL_Log("Invalid photo path");
     return {};
@@ -131,4 +128,8 @@ Image load_with_turbojpeg(const std::filesystem::path &path,
   return image;
 }
 
-} // namespace ImageLoader
+void ImageIO::save(const std::filesystem::path &path, Image image) {
+  stbi_write_jpg(path.c_str(), image.width, image.height, image.channels,
+                 image.pixels.data(), 100);
+  SDL_Log("Saved image to %s", path.c_str());
+}

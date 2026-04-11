@@ -63,11 +63,14 @@ set(SR_SOURCES
   src/sprite_renderer.cpp
   src/renderer.cpp
   src/clay_renderer.cpp
-  src/image_loader.cpp
   src/clay_manager.cpp
   src/input_manager.cpp
   src/base_components.cpp
+
+  src/image_io.cpp
   src/image.cpp
+
+  src/file_dialog.cpp
 )
 
 add_library(software-renderer STATIC ${SR_SOURCES})
@@ -77,14 +80,15 @@ target_include_directories(software-renderer PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 
-target_link_libraries(software-renderer PRIVATE
+target_link_libraries(software-renderer
+PUBLIC
   SDL3::SDL3
   libjpeg_turbo
-  libraw::libraw
-  glm::glm
-  stb
-  tinyfiledialogs
   clay
+  glm::glm
+PRIVATE
+  tinyfiledialogs
+  stb
 )
 
 add_subdirectory(examples/oxiide)

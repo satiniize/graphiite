@@ -6,7 +6,7 @@
 // #include "component_storage.hpp"
 #include "entity_manager.hpp"
 #include "image.hpp"
-#include "image_loader.hpp"
+#include "image_io.hpp"
 #include "sprite_component.hpp"
 #include "transform_component.hpp"
 
@@ -22,7 +22,7 @@ void upload_sprites(
       continue;
     }
 
-    Image image = ImageLoader::load(sprite_component.path);
+    Image image = ImageIO::load(sprite_component.path);
     TextureID texture_id = renderer.upload_texture(image).id;
 
     Texture texture_data;

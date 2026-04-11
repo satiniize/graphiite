@@ -2,7 +2,7 @@
 #include <gtest/gtest.h>
 #include <stdexcept>
 
-#include "image_loader.hpp"
+#include "image_io.hpp"
 
 namespace fs = std::filesystem;
 
@@ -17,23 +17,23 @@ static const fs::path kMissing = "does_not_exist.jpg";
 // ---------------------------------------------------------------------------
 
 TEST(ImageLoaderLoad, LoadsValidJpeg) {
-  auto img = ImageLoader::load(kValidJpeg);
+  auto img = ImageIO::load(kValidJpeg);
   EXPECT_GT(img.width, 0);
   EXPECT_GT(img.height, 0);
 }
 
 TEST(ImageLoaderLoad, LoadsValidPng) {
-  auto img = ImageLoader::load(kValidPng);
+  auto img = ImageIO::load(kValidPng);
   EXPECT_GT(img.width, 0);
   EXPECT_GT(img.height, 0);
 }
 
 TEST(ImageLoaderLoad, ThrowsOnMissingFile) {
-  EXPECT_THROW(ImageLoader::load(kMissing), std::runtime_error);
+  EXPECT_THROW(ImageIO::load(kMissing), std::runtime_error);
 }
 
 TEST(ImageLoaderLoad, ThrowsOnInvalidFile) {
-  EXPECT_THROW(ImageLoader::load(kInvalidFile), std::runtime_error);
+  EXPECT_THROW(ImageIO::load(kInvalidFile), std::runtime_error);
 }
 
 // ---------------------------------------------------------------------------
@@ -41,14 +41,14 @@ TEST(ImageLoaderLoad, ThrowsOnInvalidFile) {
 // ---------------------------------------------------------------------------
 
 TEST(ImageLoaderTurboJpeg, LoadsValidJpeg) {
-  auto img = ImageLoader::load_with_turbojpeg(kValidJpeg);
+  auto img = ImageIO::load_with_turbojpeg(kValidJpeg);
   EXPECT_GT(img.width, 0);
   EXPECT_GT(img.height, 0);
 }
 
 TEST(ImageLoaderTurboJpeg, LoadsThumbnail) {
-  auto full = ImageLoader::load_with_turbojpeg(kValidJpeg, false);
-  auto thumb = ImageLoader::load_with_turbojpeg(kValidJpeg, true);
+  auto full = ImageIO::load_with_turbojpeg(kValidJpeg, false);
+  auto thumb = ImageIO::load_with_turbojpeg(kValidJpeg, true);
 
   // Thumbnail should be smaller or equal in both dimensions
   EXPECT_LE(thumb.width, full.width);
@@ -56,12 +56,12 @@ TEST(ImageLoaderTurboJpeg, LoadsThumbnail) {
 }
 
 TEST(ImageLoaderTurboJpeg, ThrowsOnMissingFile) {
-  EXPECT_THROW(ImageLoader::load_with_turbojpeg(kMissing), std::runtime_error);
+  EXPECT_THROW(ImageIO::load_with_turbojpeg(kMissing), std::runtime_error);
 }
 
 TEST(ImageLoaderTurboJpeg, ThrowsOnNonJpegFile) {
   // TurboJPEG only handles JPEG; passing a PNG should throw
-  EXPECT_THROW(ImageLoader::load_with_turbojpeg(kValidPng), std::runtime_error);
+  EXPECT_THROW(ImageIO::load_with_turbojpeg(kValidPng), std::runtime_error);
 }
 
 // ---------------------------------------------------------------------------
@@ -69,8 +69,8 @@ TEST(ImageLoaderTurboJpeg, ThrowsOnNonJpegFile) {
 // ---------------------------------------------------------------------------
 
 TEST(ImageLoaderConsistency, SameDimensionsForJpeg) {
-  auto img1 = ImageLoader::load(kValidJpeg);
-  auto img2 = ImageLoader::load_with_turbojpeg(kValidJpeg);
+  auto img1 = ImageIO::load(kValidJpeg);
+  auto img2 = ImageIO::load_with_turbojpeg(kValidJpeg);
 
   EXPECT_EQ(img1.width, img2.width);
   EXPECT_EQ(img1.height, img2.height);

@@ -3,8 +3,9 @@
 #include "image.hpp"
 #include <filesystem>
 
-namespace ImageLoader {
+namespace ImageIO {
 Image load(const std::filesystem::path &path);
 Image load_with_turbojpeg(const std::filesystem::path &path,
                           bool is_thumbnail = false);
-} // namespace ImageLoader
+void save(const std::filesystem::path &path, Image image);
+} // namespace ImageIO

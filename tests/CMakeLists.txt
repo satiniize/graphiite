@@ -7,7 +7,7 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(googletest)
 
 add_executable(tests
-  image_loader_tests.cpp
+  image_io_tests.cpp
 )
 
 target_link_libraries(tests
