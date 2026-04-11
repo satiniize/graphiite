@@ -1,12 +1,12 @@
-[submodule "lib/SDL"]
+[submodule "external/SDL"]
 	path = external/SDL
 	url = https://github.com/libsdl-org/SDL.git
-[submodule "lib/glm"]
+[submodule "external/glm"]
 	path = external/glm
 	url = https://github.com/g-truc/glm.git
-[submodule "lib/libjpeg-turbo"]
+[submodule "external/libjpeg-turbo"]
 	path = external/libjpeg-turbo
 	url = https://github.com/libjpeg-turbo/libjpeg-turbo.git
 [submodule "external/LibRaw"]
 	path = external/LibRaw
-	url = https://github.com/LibRaw/LibRaw
+	url = https://github.com/LibRaw/LibRaw.git
