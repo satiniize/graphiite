@@ -1,7 +1,6 @@
 # Ignore build directory and build artifacts
 build/
 build
-test_image.bmp
 
 # CMake files
 CMakeFiles/
