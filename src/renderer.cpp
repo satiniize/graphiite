@@ -9,8 +9,6 @@
 #include <fstream>
 #include <glm/gtc/matrix_transform.hpp>
 
-#include "stb_truetype.h"
-
 // TOOD: Use unique_ptr for SDL_GPUDevice and SDL_GPUTexture
 
 std::vector<char> load_shader(const std::string &path) {
@@ -624,74 +622,142 @@ Renderer::create_compute_pipeline(ComputePipelineParams params,
 
 TextureID
 Renderer::load_and_upload_ascii_font_atlas(const std::string &font_path) {
-  std::ifstream fontFile(font_path, std::ios::binary | std::ios::ate);
-  std::streampos size = fontFile.tellg();
-  fontFile.seekg(0, std::ios::beg);
+  // Load font file
+  std::ifstream font_file(font_path, std::ios::binary | std::ios::ate);
+  std::streampos file_size = font_file.tellg();
+  font_file.seekg(0, std::ios::beg);
+  _font_buffer.resize(static_cast<size_t>(file_size));
+  font_file.read(reinterpret_cast<char *>(_font_buffer.data()), file_size);
 
-  std::vector<uint8_t> font_buffer(static_cast<size_t>(size));
-  fontFile.read(reinterpret_cast<char *>(font_buffer.data()), size);
+  stbtt_InitFont(&_font_info, _font_buffer.data(), 0);
+  _font_scale = stbtt_ScaleForPixelHeight(&_font_info, font_sample_point_size);
 
-  stbtt_fontinfo font_info;
-  stbtt_InitFont(&font_info, font_buffer.data(), 0);
+  // Collect rects for stb_rect_pack
+  // We expand each glyph by _glyph_padding on all sides, so two adjacent
+  // glyphs have _glyph_padding + _glyph_padding pixels between their ink
+  constexpr int FIRST_CODEPOINT = 32;
+  constexpr int LAST_CODEPOINT = 126;
+  constexpr int NUM_GLYPHS = LAST_CODEPOINT - FIRST_CODEPOINT + 1;
+  constexpr int ATLAS_SIZE = 1024;
 
-  float scale = stbtt_ScaleForPixelHeight(&font_info, font_sample_point_size);
+  struct GlyphBitmap {
+    int codepoint;
+    int bw, bh;      // bitmap dimensions (without padding)
+    int xoff, yoff;  // bearing from stbtt
+    uint8_t *pixels; // owned, freed after upload
+  };
 
-  int ascent, descent, line_gap;
-  stbtt_GetFontVMetrics(&font_info, &ascent, &descent, &line_gap);
-  int ascent_px = (int)roundf(ascent * scale);
-  int descent_px = (int)roundf(descent * scale); // negative value
-  int glyph_height = ascent_px - descent_px;
+  std::vector<GlyphBitmap> bitmaps;
+  bitmaps.reserve(NUM_GLYPHS);
 
-  // Use 'W' (same as your original) as the reference advance
-  int adv_raw, lsb;
-  stbtt_GetCodepointHMetrics(&font_info, 'W', &adv_raw, &lsb);
-  int advance = (int)roundf(adv_raw * scale);
+  std::vector<stbrp_rect> pack_rects;
+  pack_rects.reserve(NUM_GLYPHS);
 
-  this->glyph_size = glm::vec2(advance, glyph_height);
+  for (int cp = FIRST_CODEPOINT; cp <= LAST_CODEPOINT; cp++) {
+    GlyphBitmap gb{};
+    gb.codepoint = cp;
 
-  int atlas_w = advance * 10;
-  int atlas_h = glyph_height * 10;
-  // RGBA atlas, zeroed (transparent black)
-  Image font_atlas;
-  font_atlas.pixels = std::vector<uint8_t>(atlas_w * atlas_h * 4, 0);
-  font_atlas.width = atlas_w;
-  font_atlas.height = atlas_h;
-  font_atlas.channels = 4;
-  font_atlas.pixel_format = PixelFormat::RGBA8;
-
-  // Printable ascii characters (33 - 126)
-  for (int cp = 32; cp <= 126; cp++) {
-    int col = (cp - 32) % 10;
-    int row = (cp - 32) / 10;
-
-    int gw, gh, xoff, yoff;
-    uint8_t *bitmap = stbtt_GetCodepointBitmap(&font_info, 0, scale, cp, &gw,
-                                               &gh, &xoff, &yoff);
-    // yoff is offset from baseline (typically negative = above baseline)
-
-    int base_x = col * advance + xoff;
-    int base_y = row * glyph_height + ascent_px + yoff;
-
-    for (int gy = 0; gy < gh; gy++) {
-      for (int gx = 0; gx < gw; gx++) {
-        int ax = base_x + gx;
-        int ay = base_y + gy;
-        if (ax < 0 || ax >= atlas_w || ay < 0 || ay >= atlas_h)
-          continue;
-
-        int idx = (ay * atlas_w + ax) * 4;
-        font_atlas.pixels[idx + 0] = 255;                  // R
-        font_atlas.pixels[idx + 1] = 255;                  // G
-        font_atlas.pixels[idx + 2] = 255;                  // B
-        font_atlas.pixels[idx + 3] = bitmap[gy * gw + gx]; // A
-      }
+    if (cp == 32) {
+      // Space: no bitmap, but we still need metrics
+      gb.pixels = nullptr;
+      gb.bw = 0;
+      gb.bh = 0;
+      gb.xoff = 0;
+      gb.yoff = 0;
+    } else {
+      // SDF swap point: replace stbtt_GetCodepointBitmap with
+      // stbtt_GetCodepointSDF for signed distance field rendering
+      gb.pixels = stbtt_GetCodepointBitmap(&_font_info, 0, _font_scale, cp,
+                                           &gb.bw, &gb.bh, &gb.xoff, &gb.yoff);
     }
 
-    stbtt_FreeBitmap(bitmap, nullptr);
+    bitmaps.push_back(gb);
+
+    stbrp_rect r{};
+    r.id = cp;
+    r.w = gb.bw + _glyph_padding * 2;
+    r.h = gb.bh + _glyph_padding * 2;
+    pack_rects.push_back(r);
   }
 
-  TextureID font_texture_id = this->upload_texture(font_atlas).id;
+  // Pack rects
+  stbrp_context pack_ctx{};
+  std::vector<stbrp_node> pack_nodes(ATLAS_SIZE);
+  stbrp_init_target(&pack_ctx, ATLAS_SIZE, ATLAS_SIZE, pack_nodes.data(),
+                    ATLAS_SIZE);
+  stbrp_pack_rects(&pack_ctx, pack_rects.data(),
+                   static_cast<int>(pack_rects.size()));
 
+  // Build RGBA atlas
+  Image atlas{};
+  atlas.width = ATLAS_SIZE;
+  atlas.height = ATLAS_SIZE;
+  atlas.channels = 4;
+  atlas.pixel_format = PixelFormat::RGBA8;
+  atlas.pixels.resize(ATLAS_SIZE * ATLAS_SIZE * 4, 0);
+
+  for (int i = 0; i < NUM_GLYPHS; i++) {
+    const GlyphBitmap &gb = bitmaps[i];
+    const stbrp_rect &r = pack_rects[i];
+
+    // Resolve advance and bearing for all glyphs including space
+    int adv_raw, lsb_raw;
+    stbtt_GetCodepointHMetrics(&_font_info, gb.codepoint, &adv_raw, &lsb_raw);
+
+    int ascent, descent, line_gap;
+    stbtt_GetFontVMetrics(&_font_info, &ascent, &descent, &line_gap);
+    int ascent_px = static_cast<int>(roundf(ascent * _font_scale));
+    int descent_px = static_cast<int>(roundf(descent * _font_scale));
+    int glyph_height = ascent_px - descent_px;
+
+    GlyphMetrics gm{};
+    gm.size = glm::vec2(gb.bw, gb.bh);
+    gm.bearing = glm::vec2(gb.xoff, gb.yoff);
+    gm.advance = roundf(adv_raw * _font_scale);
+
+    if (r.was_packed && gb.bw > 0 && gb.bh > 0) {
+      // Ink starts at (r.x + padding, r.y + padding)
+      int ink_x = r.x + _glyph_padding;
+      int ink_y = r.y + _glyph_padding;
+
+      // Blit grayscale bitmap into RGBA atlas as white + alpha
+      for (int gy = 0; gy < gb.bh; gy++) {
+        for (int gx = 0; gx < gb.bw; gx++) {
+          int ax = ink_x + gx;
+          int ay = ink_y + gy;
+          if (ax < 0 || ax >= ATLAS_SIZE || ay < 0 || ay >= ATLAS_SIZE)
+            continue;
+          int idx = (ay * ATLAS_SIZE + ax) * 4;
+          atlas.pixels[idx + 0] = 255;
+          atlas.pixels[idx + 1] = 255;
+          atlas.pixels[idx + 2] = 255;
+          atlas.pixels[idx + 3] = gb.pixels[gy * gb.bw + gx];
+        }
+      }
+
+      // UV rect covers only the ink region (excluding padding)
+      gm.uv_rect = glm::vec4(static_cast<float>(ink_x) / ATLAS_SIZE,
+                             static_cast<float>(ink_y) / ATLAS_SIZE,
+                             static_cast<float>(ink_x + gb.bw) / ATLAS_SIZE,
+                             static_cast<float>(ink_y + gb.bh) / ATLAS_SIZE);
+    } else {
+      gm.uv_rect = glm::vec4(0.0f);
+    }
+
+    _glyph_metrics[gb.codepoint] = gm;
+
+    // Store line height on the renderer using ascent/descent
+    // We use the font's line height at sample point size as reference
+    // draw_text scales this by (point_size / font_sample_point_size)
+    // glyph_size.y is repurposed here to store line height only
+    line_height = static_cast<float>(glyph_height);
+
+    if (gb.pixels) {
+      stbtt_FreeBitmap(gb.pixels, nullptr);
+    }
+  }
+
+  TextureID font_texture_id = this->upload_texture(atlas).id;
   return font_texture_id;
 }
 
@@ -1004,20 +1070,20 @@ bool Renderer::draw_rect(RectParams params) {
 // TODO: Implement batch rendering/instancing using storage buffers?
 bool Renderer::draw_text(const char *text, int length, float point_size,
                          glm::vec2 position, glm::vec4 color) {
-  // Vertex buffer
   SDL_GPUBufferBinding vertex_buffer_bindings[1];
   vertex_buffer_bindings[0].buffer = _vertex_buffers[_quad_geometry_id];
   vertex_buffer_bindings[0].offset = 0;
-  // Index buffer
+
   SDL_GPUBufferBinding index_buffer_bindings[1];
   index_buffer_bindings[0].buffer = _index_buffers[_quad_geometry_id];
   index_buffer_bindings[0].offset = 0;
-  // Samplers
+
   if (_gpu_textures.find(_font_atlas_id) == _gpu_textures.end()) {
-    SDL_Log("Sprite not loaded");
+    SDL_Log("Font atlas not loaded");
     SDL_Quit();
     return false;
   }
+
   SDL_GPUTextureSamplerBinding fragment_sampler_bindings{};
   fragment_sampler_bindings.texture = _gpu_textures[_font_atlas_id];
   fragment_sampler_bindings.sampler = _clamp_sampler;
@@ -1027,34 +1093,52 @@ bool Renderer::draw_text(const char *text, int length, float point_size,
   SDL_BindGPUVertexBuffers(_render_pass, 0, vertex_buffer_bindings, 1);
   SDL_BindGPUIndexBuffer(_render_pass, index_buffer_bindings,
                          SDL_GPU_INDEXELEMENTSIZE_16BIT);
-  SDL_BindGPUFragmentSamplers(_render_pass,
-                              0, // The binding point for the sampler
-                              &fragment_sampler_bindings,
-                              1 // Number of textures/samplers to bind
-  );
+  SDL_BindGPUFragmentSamplers(_render_pass, 0, &fragment_sampler_bindings, 1);
 
   float scalar = point_size / font_sample_point_size;
 
-  for (size_t i = 0; i < length; i++) {
-    // Fragment uniforms
-    text_fragment_uniform_buffer.modulate = color;
-    float x = static_cast<float>((text[i] - 32) % 10) / 10.0f;
-    float y = static_cast<float>(static_cast<int>((text[i] - 32) / 10)) / 10.0f;
-    text_fragment_uniform_buffer.uv_rect = glm::vec4(x, y, x + 0.1f, y + 0.1f);
+  int ascent, descent, line_gap;
+  stbtt_GetFontVMetrics(&_font_info, &ascent, &descent, &line_gap);
+  int ascent_px = static_cast<int>(roundf(ascent * _font_scale));
 
-    // Vertex uniforms
+  float cursor_x = position.x;
+
+  for (int i = 0; i < length; i++) {
+    int cp = static_cast<unsigned char>(text[i]);
+
+    auto it = _glyph_metrics.find(cp);
+    if (it == _glyph_metrics.end())
+      continue;
+
+    const GlyphMetrics &gm = it->second;
+
+    // Space and zero-size glyphs: advance cursor, skip draw
+    if (gm.size.x <= 0 || gm.size.y <= 0) {
+      cursor_x += gm.advance * scalar;
+      continue;
+    }
+
+    // bearing.y is negative-upward from stbtt (e.g. -12 means 12px above
+    // baseline) We want to offset the glyph down from the baseline origin
+    float glyph_x = cursor_x + gm.bearing.x * scalar;
+    float glyph_y = position.y + (ascent_px + gm.bearing.y) * scalar;
+
+    float glyph_w = gm.size.x * scalar;
+    float glyph_h = gm.size.y * scalar;
+
+    text_fragment_uniform_buffer.modulate = color;
+    text_fragment_uniform_buffer.uv_rect = gm.uv_rect;
+
     glm::mat4 model_matrix = glm::mat4(1.0f);
-    model_matrix = glm::translate(
-        model_matrix,
-        glm::vec3(position.x + (i * glyph_size.x * scalar), -position.y, 0.0f));
     model_matrix =
-        glm::scale(model_matrix, glm::vec3(glyph_size * scalar, 1.0f));
+        glm::translate(model_matrix, glm::vec3(glyph_x, -glyph_y, 0.0f));
+    model_matrix = glm::scale(model_matrix, glm::vec3(glyph_w, glyph_h, 1.0f));
+    // Pivot: quad is assumed to be centered at origin, shift to top-left
     model_matrix = glm::translate(model_matrix, glm::vec3(0.5f, -0.5f, 0.0f));
 
     glm::mat4 view_matrix = glm::mat4(1.0f);
-
     text_vertex_uniform_buffer.mvp_matrix =
-        this->_projection_matrix * view_matrix * model_matrix;
+        _projection_matrix * view_matrix * model_matrix;
     text_vertex_uniform_buffer.time = SDL_GetTicksNS() / 1e9f;
     text_vertex_uniform_buffer.offset = static_cast<float>(i);
 
@@ -1064,8 +1148,9 @@ bool Renderer::draw_text(const char *text, int length, float point_size,
     SDL_PushGPUVertexUniformData(_command_buffer, 0,
                                  &text_vertex_uniform_buffer,
                                  sizeof(TextVertexUniformBuffer));
-    SDL_DrawGPUIndexedPrimitives(_render_pass, 6, 1, 0, 0,
-                                 0); // TODO: Determine index count
+    SDL_DrawGPUIndexedPrimitives(_render_pass, 6, 1, 0, 0, 0);
+
+    cursor_x += gm.advance * scalar;
   }
 
   return true;

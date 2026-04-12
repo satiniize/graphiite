@@ -43,8 +43,21 @@ public:
                                      void *userData) {
     Renderer &renderer = *(Renderer *)userData;
     float scalar = config->fontSize / renderer.font_sample_point_size;
-    return Clay_Dimensions{.width = (float)text.length * renderer.glyph_size.x *
-                                    scalar,
-                           .height = (float)renderer.glyph_size.y * scalar};
-  };
+
+    int ascent, descent, line_gap;
+    stbtt_GetFontVMetrics(&renderer._font_info, &ascent, &descent, &line_gap);
+    float line_height =
+        roundf((ascent - descent) * renderer._font_scale) * scalar;
+
+    float width = 0.0f;
+    for (int i = 0; i < text.length; i++) {
+      int cp = static_cast<unsigned char>(text.chars[i]);
+      auto it = renderer._glyph_metrics.find(cp);
+      if (it == renderer._glyph_metrics.end())
+        continue;
+      width += it->second.advance * scalar;
+    }
+
+    return Clay_Dimensions{.width = width, .height = line_height};
+  }
 };

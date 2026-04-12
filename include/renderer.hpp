@@ -8,6 +8,8 @@
 #include <SDL3/SDL_gpu.h>
 #include <SDL3/SDL_video.h>
 #include <glm/mat4x4.hpp>
+#include <stb_rect_pack.h>
+#include <stb_truetype.h>
 
 #include "image.hpp"
 #include "texture.hpp"
@@ -158,6 +160,13 @@ struct DrawCall {
   TextParams text_data;
 };
 
+struct GlyphMetrics {
+  glm::vec4 uv_rect; // normalized 0..1 atlas UVs (x0, y0, x1, y1)
+  glm::vec2 size;    // bitmap size in pixels
+  glm::vec2 bearing; // offset from cursor origin to top-left of bitmap
+  float advance;     // cursor advance in pixels
+};
+
 // TODO: When renderer changes, sprite renderer and clay renderer needs to
 // recompile
 class Renderer {
@@ -209,9 +218,17 @@ public:
   bool begin_scissor_mode(glm::ivec2 pos, glm::ivec2 size);
   bool end_scissor_mode();
 
-  glm::vec2 glyph_size;
+  // glm::vec2 glyph_size;
   float font_sample_point_size = 28.0f;
   float viewport_scale = 1.0f;
+
+  float line_height;
+
+  std::vector<uint8_t> _font_buffer; // must outlive _font_info
+  stbtt_fontinfo _font_info;
+  float _font_scale;
+  std::unordered_map<int, GlyphMetrics> _glyph_metrics;
+  const int _glyph_padding = 1;
 
 private:
   // TODO: Having these sdl gpu types are bad since it exposes it to the end

@@ -93,8 +93,8 @@ PUBLIC
   SDL3::SDL3
   clay
   glm::glm
-PRIVATE
   stb
+PRIVATE
   tinyfiledialogs
   libjpeg_turbo
 )
