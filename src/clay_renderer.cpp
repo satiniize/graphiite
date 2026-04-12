@@ -158,8 +158,8 @@ void render_commands(Renderer &renderer,
       renderer.begin_scissor_mode(
           glm::ivec2(bounding_box.x * renderer.viewport_scale,
                      bounding_box.y * renderer.viewport_scale),
-          glm::ivec2(bounding_box.width * renderer.viewport_scale + 1,
-                     bounding_box.height * renderer.viewport_scale + 1));
+          glm::ivec2(bounding_box.width * renderer.viewport_scale,
+                     bounding_box.height * renderer.viewport_scale));
     } break;
     case CLAY_RENDER_COMMAND_TYPE_SCISSOR_END: {
       renderer.end_scissor_mode();

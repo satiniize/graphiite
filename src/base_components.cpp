@@ -1,6 +1,7 @@
 #include "base_components.hpp"
 #include "clay_extension.hpp"
 #include "clay_renderer.hpp"
+#include "image.hpp"
 #include "texture.hpp"
 #include "theme.hpp"
 
@@ -78,8 +79,9 @@ void Components::Slider(SliderContext *slider_context, uint32_t id,
           },
   };
 
+  Clay_ElementId this_id = CLAY_IDI("SliderTrack", id);
   CLAY({
-      .id = CLAY_IDI("SliderTrack", id),
+      .id = this_id,
       .layout =
           {
               .sizing =
@@ -112,7 +114,7 @@ void Components::Slider(SliderContext *slider_context, uint32_t id,
                         .height = CLAY_SIZING_FIXED(6),
                     },
             },
-        .backgroundColor = Color::LIGHT_FILL_HIGH,
+        .backgroundColor = Color::GREY,
         .cornerRadius = CLAY_CORNER_RADIUS(3),
         .border =
             {
@@ -171,7 +173,10 @@ void Components::Slider(SliderContext *slider_context, uint32_t id,
                           .y = CLAY_ALIGN_Y_CENTER,
                       },
               },
-          .backgroundColor = Clay_Hovered() ? Color::WHITE80 : Color::WHITE100,
+          .backgroundColor =
+              (g_slider_drag.active && g_slider_drag.id.id == this_id.id)
+                  ? Color::WHITE60
+                  : (Clay_Hovered() ? Color::WHITE80 : Color::WHITE100),
           .cornerRadius = CLAY_CORNER_RADIUS(handle_radius - 4.0f),
           .image =
               {

@@ -3,7 +3,12 @@
 #include <cstdint>
 
 namespace Color {
-inline constexpr Clay_Color GREY = {96, 96, 96, 255};
+inline constexpr Clay_Color LIGHT_FILL_HIGH = {207, 207, 207, 255};
+inline constexpr Clay_Color LIGHT_FILL_LOW = {143, 143, 143, 255};
+inline constexpr Clay_Color LIGHT_STROKE_HIGH = {255, 255, 255, 255};
+inline constexpr Clay_Color LIGHT_STROKE_LOW = {191, 191, 191, 255};
+
+inline constexpr Clay_Color GREY = {72, 72, 72, 255};
 inline constexpr Clay_Color OFF_WHITE = {245, 245, 235, 255};
 inline constexpr Clay_Color ORANGE = {255, 127, 0, 255};
 inline constexpr Clay_Color ORANGE_HOVER = {255, 192, 95, 255};
@@ -21,10 +26,6 @@ inline constexpr Clay_Color WHITE100 = {255, 255, 255, 255};
 inline constexpr Clay_Color WHITE80 = {230, 230, 230, 255};
 inline constexpr Clay_Color WHITE60 = {204, 204, 204, 255};
 
-inline constexpr Clay_Color LIGHT_FILL_HIGH = {207, 207, 207, 255};
-inline constexpr Clay_Color LIGHT_FILL_LOW = {143, 143, 143, 255};
-inline constexpr Clay_Color LIGHT_STROKE_HIGH = {255, 255, 255, 255};
-inline constexpr Clay_Color LIGHT_STROKE_LOW = {191, 191, 191, 255};
 } // namespace Color
 
 namespace FontSize {
