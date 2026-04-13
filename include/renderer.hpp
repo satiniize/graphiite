@@ -128,6 +128,7 @@ struct RectParams {
   glm::vec2 size;
   glm::vec4 color;
   glm::vec4 corner_radii = glm::vec4(0.0f);
+  float corner_exponent = 2.0f;
   // Texture
   bool use_texture = false;
   TextureID texture_id = -1;
@@ -228,7 +229,7 @@ public:
   stbtt_fontinfo _font_info;
   float _font_scale;
   std::unordered_map<int, GlyphMetrics> _glyph_metrics;
-  const int _glyph_padding = 1;
+  const int _glyph_padding = 8;
 
 private:
   // TODO: Having these sdl gpu types are bad since it exposes it to the end

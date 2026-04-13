@@ -1123,8 +1123,8 @@ bool Renderer::draw_text(const char *text, int length, float point_size,
     float glyph_x = cursor_x + gm.bearing.x * scalar;
     float glyph_y = position.y + (ascent_px + gm.bearing.y) * scalar;
 
-    float glyph_w = gm.size.x * scalar;
-    float glyph_h = gm.size.y * scalar;
+    float glyph_w = ceilf(gm.size.x * scalar);
+    float glyph_h = ceilf(gm.size.y * scalar);
 
     text_fragment_uniform_buffer.modulate = color;
     text_fragment_uniform_buffer.uv_rect = gm.uv_rect;
