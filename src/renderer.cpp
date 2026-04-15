@@ -8,8 +8,22 @@
 #include <cstddef>
 #include <fstream>
 #include <glm/gtc/matrix_transform.hpp>
+#include <stb_rect_pack.h>
+#include <stb_truetype.h>
 
-// TOOD: Use unique_ptr for SDL_GPUDevice and SDL_GPUTexture
+// Vertex uniform blocks
+struct BasicVertexUniformBuffer {
+  glm::mat4 mvp_matrix;
+};
+
+// Fragment uniform blocks
+struct CommonFragmentUniformBuffer {
+  float time;
+};
+
+struct SpriteFragmentUniformBuffer {
+  glm::vec4 modulate;
+};
 
 std::vector<char> load_shader(const std::string &path) {
   std::ifstream file(path, std::ios::binary | std::ios::ate);
@@ -27,8 +41,6 @@ std::vector<char> load_shader(const std::string &path) {
 Renderer::Renderer(std::string name, uint32_t width, uint32_t height) {
   this->width = width;
   this->height = height;
-
-  // this->context = Context{};
   this->_title = name.c_str();
 
   // SDL setup
@@ -46,7 +58,6 @@ Renderer::Renderer(std::string name, uint32_t width, uint32_t height) {
   }
 
   // Create window
-  // TODO: abstract this away to a display class
   SDL_WindowFlags flags =
       SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY;
   this->_window = SDL_CreateWindow(this->_title, width, height, flags);
@@ -70,7 +81,6 @@ Renderer::Renderer(std::string name, uint32_t width, uint32_t height) {
     this->_sample_count = SDL_GPU_SAMPLECOUNT_1;
   }
 
-  // Disable V Sync for FPS testing
   // Doesn't seem to work in wayland
   // SDL_SetGPUSwapchainParameters(this->_device, this->_window,
   //                               SDL_GPU_SWAPCHAINCOMPOSITION_SDR,
@@ -140,20 +150,20 @@ Renderer::Renderer(std::string name, uint32_t width, uint32_t height) {
     return;
   }
 
-  static Vertex quad_vertices[]{
+  Vertex quad_vertices[]{
       {-0.5f, 0.5f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f},  // top left
       {0.5f, 0.5f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f},   // top right
       {-0.5f, -0.5f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f, 1.0f}, // bottom left
       {0.5f, -0.5f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f}   // bottom right
   };
 
-  static Uint16 quad_indices[]{0, 1, 2, 2, 1, 3};
+  Uint16 quad_indices[]{0, 1, 2, 2, 1, 3};
 
   _quad_geometry_id =
       upload_geometry(quad_vertices, std::size(quad_vertices) * sizeof(Vertex),
                       quad_indices, std::size(quad_indices) * sizeof(Uint16));
 
-  _font_atlas_id = load_and_upload_ascii_font_atlas(regular_font_path);
+  _font_atlas = load_and_upload_ascii_font_atlas(regular_font_path);
 
   Image dummy_image;
   dummy_image.pixels = {0, 0, 0, 0};
@@ -203,12 +213,12 @@ Renderer::~Renderer() {
 }
 
 // TODO: redo this. this is only for film
-TextureID Renderer::create_render_target(int w, int h) {
+Texture Renderer::create_compute_target_texture(int w, int h, bool is_sampler) {
   SDL_GPUTextureCreateInfo info = {
       .type = SDL_GPU_TEXTURETYPE_2D,
       .format = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM,
-      .usage = SDL_GPU_TEXTUREUSAGE_SAMPLER |
-               SDL_GPU_TEXTUREUSAGE_COMPUTE_STORAGE_WRITE, // Hack
+      .usage = SDL_GPU_TEXTUREUSAGE_COMPUTE_STORAGE_WRITE |
+               (is_sampler ? SDL_GPU_TEXTUREUSAGE_SAMPLER : 0),
       .width = static_cast<uint32_t>(w),
       .height = static_cast<uint32_t>(h),
       .layer_count_or_depth = 1,
@@ -218,7 +228,19 @@ TextureID Renderer::create_render_target(int w, int h) {
 
   SDL_GPUTexture *render_target = SDL_CreateGPUTexture(this->_device, &info);
   _gpu_textures[_next_texture_id] = render_target;
-  return _next_texture_id++;
+  // return _next_texture_id++;
+
+  // _gpu_textures[_next_texture_id] = texture;
+
+  Texture render_target_texture;
+  render_target_texture.id = _next_texture_id++;
+  render_target_texture.width = w;
+  render_target_texture.height = h;
+  render_target_texture.channels = 4;
+  render_target_texture.pixel_format = PixelFormat::RGBA8;
+  render_target_texture.tiling = false;
+
+  return render_target_texture;
 }
 
 // TODO: return dummy texture on invalid image
@@ -247,7 +269,6 @@ Texture Renderer::upload_texture(const Image &image) {
     return Texture();
   }
 
-  // Set up transfer buffer
   SDL_GPUTransferBufferCreateInfo texture_transfer_create_info{
       .usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD,
       .size = static_cast<Uint32>(num_bytes),
@@ -255,19 +276,16 @@ Texture Renderer::upload_texture(const Image &image) {
   SDL_GPUTransferBuffer *texture_transfer_buffer =
       SDL_CreateGPUTransferBuffer(this->_device, &texture_transfer_create_info);
 
-  // Transfer data
   void *texture_data_ptr =
       SDL_MapGPUTransferBuffer(this->_device, texture_transfer_buffer, false);
   SDL_memcpy(texture_data_ptr, image.pixels.data(), num_bytes);
 
   SDL_UnmapGPUTransferBuffer(this->_device, texture_transfer_buffer);
 
-  // Start a copy pass
   SDL_GPUCommandBuffer *_command_buffer =
       SDL_AcquireGPUCommandBuffer(this->_device); // GPU command buffer
   SDL_GPUCopyPass *copyPass = SDL_BeginGPUCopyPass(_command_buffer);
 
-  // Upload texture data to the GPU texture
   SDL_GPUTextureTransferInfo texture_transfer_info{
       .transfer_buffer = texture_transfer_buffer,
       .offset = 0,
@@ -620,16 +638,22 @@ Renderer::create_compute_pipeline(ComputePipelineParams params,
   return _next_compute_pipeline_id++;
 }
 
-TextureID
+Texture
 Renderer::load_and_upload_ascii_font_atlas(const std::string &font_path) {
   // Load font file
   std::ifstream font_file(font_path, std::ios::binary | std::ios::ate);
   std::streampos file_size = font_file.tellg();
   font_file.seekg(0, std::ios::beg);
+
+  std::vector<uint8_t> _font_buffer; // must outlive _font_info
   _font_buffer.resize(static_cast<size_t>(file_size));
   font_file.read(reinterpret_cast<char *>(_font_buffer.data()), file_size);
 
+  stbtt_fontinfo _font_info;
+
   stbtt_InitFont(&_font_info, _font_buffer.data(), 0);
+  stbtt_GetFontVMetrics(&_font_info, &font_ascent, &font_descent,
+                        &font_line_gap);
   _font_scale = stbtt_ScaleForPixelHeight(&_font_info, font_sample_point_size);
 
   // Collect rects for stb_rect_pack
@@ -757,8 +781,7 @@ Renderer::load_and_upload_ascii_font_atlas(const std::string &font_path) {
     }
   }
 
-  TextureID font_texture_id = this->upload_texture(atlas).id;
-  return font_texture_id;
+  return this->upload_texture(atlas);
 }
 
 void Renderer::create_render_targets() {
@@ -857,7 +880,8 @@ bool Renderer::end_compute_pass() {
   return true;
 }
 
-bool Renderer::compute_film(RawProcessorFragmentUniformBuffer fragment_uniforms,
+bool Renderer::compute_film(void *fragment_uniforms_ptr,
+                            size_t fragment_uniforms_size,
                             Texture film_source_texture,
                             Texture film_target_texture) {
   if (film_source_texture.id == -1 || film_target_texture.id == -1)
@@ -873,8 +897,8 @@ bool Renderer::compute_film(RawProcessorFragmentUniformBuffer fragment_uniforms,
                              _compute_pipelines[_film_pipeline_id]);
   SDL_BindGPUComputeSamplers(_compute_pass, 0, sampler_bindings, 1);
   // Push params via uniform buffer
-  SDL_PushGPUComputeUniformData(_command_buffer, 0, &fragment_uniforms,
-                                sizeof(RawProcessorFragmentUniformBuffer));
+  SDL_PushGPUComputeUniformData(_command_buffer, 0, fragment_uniforms_ptr,
+                                fragment_uniforms_size);
 
   // Ceil divide to cover every pixel
   uint32_t gx = (film_target_texture.width + 7) / 8;
@@ -913,6 +937,7 @@ bool Renderer::begin_render_pass() {
       glm::ortho(0.0f, (float)this->width / viewport_scale,
                  -(float)this->height / viewport_scale, 0.0f);
 
+  CommonFragmentUniformBuffer common_fragment_uniform_buffer{};
   common_fragment_uniform_buffer.time = SDL_GetTicksNS() / 1e9f;
 
   SDL_PushGPUFragmentUniformData(_command_buffer, 0,
@@ -989,8 +1014,7 @@ bool Renderer::draw_sprite(TextureID texture_id, glm::vec2 translation,
   SDL_BindGPUFragmentSamplers(_render_pass, 0, fragment_sampler_bindings, 1);
   SDL_PushGPUVertexUniformData(_command_buffer, 0, &vertex_uniforms,
                                sizeof(BasicVertexUniformBuffer));
-  SDL_PushGPUFragmentUniformData(_command_buffer, 1,
-                                 &sprite_fragment_uniform_buffer,
+  SDL_PushGPUFragmentUniformData(_command_buffer, 1, &fragment_uniforms,
                                  sizeof(SpriteFragmentUniformBuffer));
   SDL_DrawGPUIndexedPrimitives(_render_pass, 6, 1, 0, 0, 0);
 
@@ -999,6 +1023,17 @@ bool Renderer::draw_sprite(TextureID texture_id, glm::vec2 translation,
 
 // LGTM
 bool Renderer::draw_rect(RectParams params) {
+  struct SDFRectStrokeFragmentUniformBuffer {
+    glm::vec4 size;
+    glm::vec4 modulate;
+    glm::vec4 corner_radii;
+    glm::vec4 inner_corner_radii;
+    glm::vec4 stroke_thickness;
+    uint32_t tiling;
+    uint32_t use_texture;
+    uint32_t draw_stroke;
+    float smoothing = 1.0f;
+  };
   // Bind vertex buffer
   SDL_GPUBufferBinding vertex_buffer_bindings[1];
   vertex_buffer_bindings[0].buffer = _vertex_buffers[_quad_geometry_id];
@@ -1070,6 +1105,19 @@ bool Renderer::draw_rect(RectParams params) {
 // TODO: Implement batch rendering/instancing using storage buffers?
 bool Renderer::draw_text(const char *text, int length, float point_size,
                          glm::vec2 position, glm::vec4 color) {
+  struct TextVertexUniformBuffer {
+    glm::mat4 mvp_matrix;
+    float time;
+    float offset;
+    float padding1;
+    float padding2;
+  };
+
+  struct TextFragmentUniformBuffer {
+    glm::vec4 modulate;
+    glm::vec4 uv_rect;
+  };
+
   SDL_GPUBufferBinding vertex_buffer_bindings[1];
   vertex_buffer_bindings[0].buffer = _vertex_buffers[_quad_geometry_id];
   vertex_buffer_bindings[0].offset = 0;
@@ -1078,14 +1126,14 @@ bool Renderer::draw_text(const char *text, int length, float point_size,
   index_buffer_bindings[0].buffer = _index_buffers[_quad_geometry_id];
   index_buffer_bindings[0].offset = 0;
 
-  if (_gpu_textures.find(_font_atlas_id) == _gpu_textures.end()) {
+  if (_gpu_textures.find(_font_atlas.id) == _gpu_textures.end()) {
     SDL_Log("Font atlas not loaded");
     SDL_Quit();
     return false;
   }
 
   SDL_GPUTextureSamplerBinding fragment_sampler_bindings{};
-  fragment_sampler_bindings.texture = _gpu_textures[_font_atlas_id];
+  fragment_sampler_bindings.texture = _gpu_textures[_font_atlas.id];
   fragment_sampler_bindings.sampler = _clamp_sampler;
 
   SDL_BindGPUGraphicsPipeline(_render_pass,
@@ -1098,7 +1146,10 @@ bool Renderer::draw_text(const char *text, int length, float point_size,
   float scalar = point_size / font_sample_point_size;
 
   int ascent, descent, line_gap;
-  stbtt_GetFontVMetrics(&_font_info, &ascent, &descent, &line_gap);
+  ascent = font_ascent;
+  descent = font_descent;
+  line_gap = font_line_gap;
+  // stbtt_GetFontVMetrics(&_font_info, &ascent, &descent, &line_gap);
   int ascent_px = static_cast<int>(roundf(ascent * _font_scale));
 
   float cursor_x = position.x;
@@ -1126,6 +1177,7 @@ bool Renderer::draw_text(const char *text, int length, float point_size,
     float glyph_w = ceilf(gm.size.x * scalar);
     float glyph_h = ceilf(gm.size.y * scalar);
 
+    TextFragmentUniformBuffer text_fragment_uniform_buffer{};
     text_fragment_uniform_buffer.modulate = color;
     text_fragment_uniform_buffer.uv_rect = gm.uv_rect;
 
@@ -1137,6 +1189,7 @@ bool Renderer::draw_text(const char *text, int length, float point_size,
     model_matrix = glm::translate(model_matrix, glm::vec3(0.5f, -0.5f, 0.0f));
 
     glm::mat4 view_matrix = glm::mat4(1.0f);
+    TextVertexUniformBuffer text_vertex_uniform_buffer{};
     text_vertex_uniform_buffer.mvp_matrix =
         _projection_matrix * view_matrix * model_matrix;
     text_vertex_uniform_buffer.time = SDL_GetTicksNS() / 1e9f;
@@ -1179,3 +1232,9 @@ bool Renderer::end_scissor_mode() {
   SDL_SetGPUScissor(_render_pass, &rect);
   return true;
 }
+
+void Renderer::get_font_metrics(int *ascent, int *descent, int *line_gap) {
+  *ascent = font_ascent;
+  *descent = font_descent;
+  *line_gap = font_line_gap;
+};

@@ -30,6 +30,11 @@ inline constexpr Clay_Color WHITE60 = {204, 204, 204, 255};
 
 namespace FontSize {
 inline constexpr uint16_t SMALL = 8;
-inline constexpr uint16_t MEDIUM = 14;
-inline constexpr uint16_t LARGE = 28;
+inline constexpr uint16_t MEDIUM = 18;
+inline constexpr uint16_t LARGE = 36;
 } // namespace FontSize
+
+struct ButtonDefaults {
+  Clay_Color fill_color = Color::LIGHT_FILL_HIGH;
+  Clay_Color stroke_color = Color::LIGHT_STROKE_HIGH;
+};

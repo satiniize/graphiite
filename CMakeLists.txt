@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(software-renderer)
+project(graphiite)
 
 # Global settings
 set(CMAKE_CXX_STANDARD 23)
@@ -67,7 +67,7 @@ add_subdirectory(external/clay EXCLUDE_FROM_ALL)
 add_subdirectory(external/tinyfiledialogs EXCLUDE_FROM_ALL)
 add_subdirectory(external/LibRaw EXCLUDE_FROM_ALL)
 
-add_library(software-renderer STATIC
+add_library(graphiite STATIC
   src/base_components.cpp
   src/clay_manager.cpp
   src/clay_renderer.cpp
@@ -80,20 +80,20 @@ add_library(software-renderer STATIC
 )
 
 # TODO: Probably delete this after testing on windows
-add_dependencies(software-renderer libjpeg_turbo)
-add_dependencies(software-renderer libjpeg_turbo_project)
+add_dependencies(graphiite libjpeg_turbo)
+add_dependencies(graphiite libjpeg_turbo_project)
 
-target_include_directories(software-renderer PUBLIC
+target_include_directories(graphiite PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 
-target_link_libraries(software-renderer
+target_link_libraries(graphiite
 PUBLIC
   SDL3::SDL3
-  clay
   glm::glm
-  stb
+  clay
 PRIVATE
+  stb
   tinyfiledialogs
   libjpeg_turbo
 )

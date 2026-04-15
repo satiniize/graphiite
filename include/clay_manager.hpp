@@ -45,7 +45,8 @@ public:
     float scalar = config->fontSize / renderer.font_sample_point_size;
 
     int ascent, descent, line_gap;
-    stbtt_GetFontVMetrics(&renderer._font_info, &ascent, &descent, &line_gap);
+    renderer.get_font_metrics(&ascent, &descent, &line_gap);
+
     float line_height =
         roundf((ascent - descent) * renderer._font_scale) * scalar;
 

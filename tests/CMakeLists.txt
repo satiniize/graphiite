@@ -14,7 +14,7 @@ add_executable(tests
 target_link_libraries(tests
   PRIVATE
     GTest::gtest_main
-    software-renderer  # your library target
+    graphiite  # your library target
     SDL3::SDL3
     libjpeg_turbo
     clay
