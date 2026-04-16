@@ -72,6 +72,7 @@ add_library(graphiite STATIC
   src/clay_manager.cpp
   src/clay_renderer.cpp
   src/file_dialog.cpp
+  src/font.cpp
   src/image.cpp
   src/image_io.cpp
   src/input_manager.cpp

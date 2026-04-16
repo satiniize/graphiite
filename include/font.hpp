@@ -35,5 +35,5 @@ public:
   int get_line_gap() const { return line_gap; }
   int get_line_height() const { return ascent + descent + line_gap; }
 
-  Image generate_atlas();
+  Image generate_atlas(const std::string &font_path);
 };

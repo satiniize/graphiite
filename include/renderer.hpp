@@ -5,7 +5,7 @@
 
 #include <SDL3/SDL_gpu.h>
 #include <SDL3/SDL_video.h>
-#include <glm/mat4x4.hpp>
+#include <glm/glm.hpp>
 
 #include "font.hpp"
 #include "image.hpp"
@@ -17,16 +17,7 @@ struct Vertex {
   float u, v;       // vec2 Texture Coordinates
 };
 
-enum class MSAA {
-  NONE,
-  SAMPLE_2,
-  SAMPLE_4,
-  SAMPLE_8,
-  SAMPLE_16,
-};
-
 using GeometryID = std::size_t;
-
 using GraphicsPipelineID = std::size_t;
 using ComputePipelineID = std::size_t;
 
@@ -93,10 +84,10 @@ public:
   void create_render_targets(); // Shorthand for first init and window resize
 
   // Textures
-  Texture create_compute_target_texture(int w, int h, bool is_sampler = false);
-  Texture load_and_upload_ascii_font_atlas(const std::string &font_path);
   Texture upload_texture(const Image &image);
   Image download_texture(const Texture &texture);
+
+  Texture create_compute_target_texture(int w, int h, bool is_sampler = false);
 
   // Geometry
   GeometryID upload_geometry(const Vertex *vertices, size_t vertex_size,
@@ -139,6 +130,13 @@ private:
   SDL_Window *_window;
   SDL_GPUDevice *_device;
 
+  // TODO: Input file path sanitizing
+  const std::string regular_font_path =
+      "assets/fonts/AtkinsonHyperlegibleNext-Medium.ttf";
+
+  // TODO: Pipelines need to be recreated when the sample count changes
+  SDL_GPUSampleCount _sample_count = SDL_GPU_SAMPLECOUNT_1;
+
   BoundPipeline _bound_pipeline = BoundPipeline::NONE;
 
   TextureID _next_texture_id = 0;
@@ -171,7 +169,6 @@ private:
   glm::mat4 _projection_matrix;
 
   Texture _dummy_texture;
-  Texture _font_atlas;
 
   GeometryID _quad_geometry_id;
 
@@ -180,14 +177,7 @@ private:
   GraphicsPipelineID _text_pipeline_id;
   GraphicsPipelineID _film_pipeline_id;
 
-  // TODO: Pipelines need to be recreated when the sample count changes
-  SDL_GPUSampleCount _sample_count = SDL_GPU_SAMPLECOUNT_1;
-
   const uint32_t _threadcount_x = 16;
   const uint32_t _threadcount_y = 16;
   const uint32_t _threadcount_z = 1;
-
-  // TODO: Input file path sanitizing
-  const std::string regular_font_path =
-      "assets/fonts/AtkinsonHyperlegibleNext-Medium.ttf";
 };

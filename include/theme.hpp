@@ -26,6 +26,8 @@ inline constexpr Clay_Color WHITE100 = {255, 255, 255, 255};
 inline constexpr Clay_Color WHITE80 = {230, 230, 230, 255};
 inline constexpr Clay_Color WHITE60 = {204, 204, 204, 255};
 
+inline constexpr Clay_Color PANEL_FILL = LIGHT_FILL_HIGH;
+inline constexpr Clay_Color PANEL_STROKE = MIDDLE_GREY;
 } // namespace Color
 
 namespace FontSize {

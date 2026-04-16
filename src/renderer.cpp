@@ -8,8 +8,6 @@
 #include <cstddef>
 #include <fstream>
 #include <glm/gtc/matrix_transform.hpp>
-#include <stb_rect_pack.h>
-#include <stb_truetype.h>
 
 // Vertex uniform blocks
 struct BasicVertexUniformBuffer {
@@ -25,7 +23,7 @@ struct SpriteFragmentUniformBuffer {
   glm::vec4 modulate;
 };
 
-std::vector<char> load_shader(const std::string &path) {
+static std::vector<char> load_shader(const std::string &path) {
   std::ifstream file(path, std::ios::binary | std::ios::ate);
   if (!file.is_open()) {
     SDL_Log("Failed to load shader from disk! %s", path.c_str());
@@ -36,19 +34,6 @@ std::vector<char> load_shader(const std::string &path) {
   file.seekg(0);
   file.read(code.data(), code_size);
   return code;
-}
-
-std::vector<uint8_t> load_font(const std::string &path) {
-  std::ifstream file(path, std::ios::binary | std::ios::ate);
-  if (!file.is_open()) {
-    SDL_Log("Failed to load font from disk! %s", path.c_str());
-    return {};
-  }
-  size_t file_size = file.tellg();
-  std::vector<uint8_t> font_buffer(file_size);
-  file.seekg(0, std::ios::beg);
-  file.read(reinterpret_cast<char *>(font_buffer.data()), file_size);
-  return font_buffer;
 }
 
 Renderer::Renderer(std::string name, uint32_t width, uint32_t height) {
@@ -176,14 +161,8 @@ Renderer::Renderer(std::string name, uint32_t width, uint32_t height) {
       upload_geometry(quad_vertices, std::size(quad_vertices) * sizeof(Vertex),
                       quad_indices, std::size(quad_indices) * sizeof(Uint16));
 
-  _font_atlas = load_and_upload_ascii_font_atlas(regular_font_path);
-
-  // Image dummy_image;
-  // dummy_image.pixels = {0, 0, 0, 0};
-  // dummy_image.width = 1;
-  // dummy_image.height = 1;
-  // dummy_image.channels = 4;
-  // dummy_image.pixel_format = PixelFormat::RGBA8;
+  Image atlas = default_font.generate_atlas(regular_font_path);
+  default_font.font_atlas = this->upload_texture(atlas);
 
   Image dummy_image(128, 128);
   dummy_image.fill(
@@ -656,130 +635,6 @@ Renderer::create_compute_pipeline(ComputePipelineParams params,
   return _next_compute_pipeline_id++;
 }
 
-Texture
-Renderer::load_and_upload_ascii_font_atlas(const std::string &font_path) {
-  constexpr int FIRST_CODEPOINT = 32;
-  constexpr int LAST_CODEPOINT = 126;
-  constexpr int NUM_GLYPHS = LAST_CODEPOINT - FIRST_CODEPOINT + 1;
-  constexpr int ATLAS_SIZE = 1024;
-
-  struct GlyphBitmap {
-    int codepoint;
-    int width, height; // bitmap dimensions (without padding)
-    int xoff, yoff;    // bearing from stbtt
-    uint8_t *pixels;   // owned, freed after upload
-  };
-
-  std::vector<uint8_t> font_buffer = load_font(font_path);
-  stbtt_fontinfo font_info;
-  stbtt_InitFont(&font_info, font_buffer.data(), 0);
-  stbtt_GetFontVMetrics(&font_info, &default_font.ascent, &default_font.descent,
-                        &default_font.line_gap);
-  default_font.font_scale =
-      stbtt_ScaleForPixelHeight(&font_info, default_font.sample_point_size);
-
-  std::vector<GlyphBitmap> bitmaps;
-  bitmaps.reserve(NUM_GLYPHS);
-  std::vector<stbrp_rect> pack_rects;
-  pack_rects.reserve(NUM_GLYPHS);
-
-  for (int codepoint = FIRST_CODEPOINT; codepoint <= LAST_CODEPOINT;
-       codepoint++) {
-    GlyphBitmap glyph_bitmap{};
-    glyph_bitmap.codepoint = codepoint;
-
-    glyph_bitmap.pixels = stbtt_GetCodepointBitmap(
-        &font_info, 0, default_font.font_scale, codepoint, &glyph_bitmap.width,
-        &glyph_bitmap.height, &glyph_bitmap.xoff, &glyph_bitmap.yoff);
-
-    bitmaps.push_back(glyph_bitmap);
-
-    stbrp_rect rect{};
-    rect.id = codepoint;
-    rect.w = glyph_bitmap.width + default_font.glyph_padding * 2;
-    rect.h = glyph_bitmap.height + default_font.glyph_padding * 2;
-    pack_rects.push_back(rect);
-  }
-
-  // Pack rects
-  stbrp_context pack_ctx{};
-  std::vector<stbrp_node> pack_nodes(ATLAS_SIZE);
-  stbrp_init_target(&pack_ctx, ATLAS_SIZE, ATLAS_SIZE, pack_nodes.data(),
-                    ATLAS_SIZE);
-  stbrp_pack_rects(&pack_ctx, pack_rects.data(),
-                   static_cast<int>(pack_rects.size()));
-
-  // Build RGBA atlas
-  Image atlas{};
-  atlas.width = ATLAS_SIZE;
-  atlas.height = ATLAS_SIZE;
-  atlas.channels = 4;
-  atlas.pixel_format = PixelFormat::RGBA8;
-  atlas.pixels.resize(ATLAS_SIZE * ATLAS_SIZE * atlas.channels, 0);
-
-  for (int i = 0; i < NUM_GLYPHS; i++) {
-    const GlyphBitmap &glyph_bitmap = bitmaps[i];
-    const stbrp_rect &rect = pack_rects[i];
-
-    int adv_raw, lsb_raw;
-    stbtt_GetCodepointHMetrics(&font_info, glyph_bitmap.codepoint, &adv_raw,
-                               &lsb_raw);
-
-    int ascent, descent, line_gap;
-    stbtt_GetFontVMetrics(&font_info, &ascent, &descent, &line_gap);
-    int ascent_px = static_cast<int>(roundf(ascent * default_font.font_scale));
-    int descent_px =
-        static_cast<int>(roundf(descent * default_font.font_scale));
-    int glyph_height = ascent_px - descent_px;
-
-    GlyphMetrics glyph_metric{};
-    glyph_metric.size = glm::vec2(glyph_bitmap.width, glyph_bitmap.height);
-    glyph_metric.bearing = glm::vec2(glyph_bitmap.xoff, glyph_bitmap.yoff);
-    glyph_metric.advance = roundf(adv_raw * default_font.font_scale);
-
-    if (rect.was_packed && glyph_bitmap.width > 0 && glyph_bitmap.height > 0) {
-      // Ink starts at (r.x + padding, r.y + padding)
-      int ink_x = rect.x + default_font.glyph_padding;
-      int ink_y = rect.y + default_font.glyph_padding;
-
-      // Blit grayscale bitmap into RGBA atlas as white + alpha
-      for (int gy = 0; gy < glyph_bitmap.height; gy++) {
-        for (int gx = 0; gx < glyph_bitmap.width; gx++) {
-          int ax = ink_x + gx;
-          int ay = ink_y + gy;
-          if (ax < 0 || ax >= ATLAS_SIZE || ay < 0 || ay >= ATLAS_SIZE)
-            continue;
-          int idx = (ay * ATLAS_SIZE + ax) * 4;
-          atlas.pixels[idx + 0] = 255;
-          atlas.pixels[idx + 1] = 255;
-          atlas.pixels[idx + 2] = 255;
-          atlas.pixels[idx + 3] =
-              glyph_bitmap.pixels[gy * glyph_bitmap.width + gx];
-        }
-      }
-
-      // UV rect covers only the ink region (excluding padding)
-      // TODO: Reverse this, UV rect should cover padding
-      glyph_metric.uv_rect = glm::vec4(
-          static_cast<float>(ink_x) / ATLAS_SIZE,
-          static_cast<float>(ink_y) / ATLAS_SIZE,
-          static_cast<float>(ink_x + glyph_bitmap.width) / ATLAS_SIZE,
-          static_cast<float>(ink_y + glyph_bitmap.height) / ATLAS_SIZE);
-    } else {
-      glyph_metric.uv_rect = glm::vec4(0.0f);
-    }
-
-    default_font.glyph_metrics[glyph_bitmap.codepoint] = glyph_metric;
-    default_font.line_height = static_cast<float>(glyph_height);
-
-    if (glyph_bitmap.pixels) {
-      stbtt_FreeBitmap(glyph_bitmap.pixels, nullptr);
-    }
-  }
-
-  return this->upload_texture(atlas);
-}
-
 void Renderer::create_render_targets() {
   SDL_GPUTextureFormat swapchain_format =
       SDL_GetGPUSwapchainTextureFormat(this->_device, this->_window);
@@ -858,8 +713,6 @@ void Renderer::start_frame() {
 void Renderer::end_frame() { SDL_SubmitGPUCommandBuffer(_command_buffer); };
 
 bool Renderer::begin_compute_pass(Texture film_target_texture) {
-  // _command_buffer = SDL_AcquireGPUCommandBuffer(this->_device);
-
   SDL_GPUStorageTextureReadWriteBinding binding = {
       .texture = _gpu_textures[film_target_texture.id], // TODO: store this like
                                                         // _commanf_buffer
@@ -871,7 +724,6 @@ bool Renderer::begin_compute_pass(Texture film_target_texture) {
 
 bool Renderer::end_compute_pass() {
   SDL_EndGPUComputePass(_compute_pass);
-  // SDL_SubmitGPUCommandBuffer(_command_buffer);
   return true;
 }
 
@@ -887,13 +739,12 @@ bool Renderer::compute_film(void *fragment_uniforms_ptr,
   SDL_GPUTextureSamplerBinding sampler_bindings[1];
   sampler_bindings[0] = SDL_GPUTextureSamplerBinding{
       .texture = _gpu_textures[film_source_texture.id],
-      .sampler = _clamp_sampler, // or linear if you want interpolation
+      .sampler = _clamp_sampler,
   };
 
   SDL_BindGPUComputePipeline(_compute_pass,
                              _compute_pipelines[_film_pipeline_id]);
   SDL_BindGPUComputeSamplers(_compute_pass, 0, sampler_bindings, 1);
-  // Push params via uniform buffer
   SDL_PushGPUComputeUniformData(_command_buffer, 0, fragment_uniforms_ptr,
                                 fragment_uniforms_size);
 
@@ -992,14 +843,13 @@ void Renderer::draw_rect(RectParams params) {
       .offset = 0,
   };
   // Samplers
-  if (params.use_texture &&
+  TextureID texture_id = params.texture_id;
+  if (!params.use_texture ||
       _gpu_textures.find(params.texture_id) == _gpu_textures.end()) {
-    SDL_Log("Texture not found in draw_rect. Ignoring..");
+    texture_id = _dummy_texture.id;
   }
   SDL_GPUTextureSamplerBinding fragment_sampler_bindings[1];
-  fragment_sampler_bindings[0].texture = params.use_texture
-                                             ? _gpu_textures[params.texture_id]
-                                             : _gpu_textures[_dummy_texture.id];
+  fragment_sampler_bindings[0].texture = _gpu_textures[texture_id];
   fragment_sampler_bindings[0].sampler =
       params.tiling ? _wrap_sampler : _clamp_sampler;
   // Uniforms
@@ -1073,14 +923,13 @@ bool Renderer::draw_text(TextParams params) {
   index_buffer_bindings[0].buffer = _index_buffers[_quad_geometry_id];
   index_buffer_bindings[0].offset = 0;
 
-  if (_gpu_textures.find(_font_atlas.id) == _gpu_textures.end()) {
-    SDL_Log("Font atlas not loaded");
-    SDL_Quit();
-    return false;
+  TextureID texture_id = default_font.font_atlas.id;
+  if (_gpu_textures.find(texture_id) == _gpu_textures.end()) {
+    texture_id = _dummy_texture.id;
   }
 
   SDL_GPUTextureSamplerBinding fragment_sampler_bindings{};
-  fragment_sampler_bindings.texture = _gpu_textures[_font_atlas.id];
+  fragment_sampler_bindings.texture = _gpu_textures[texture_id];
   fragment_sampler_bindings.sampler = _clamp_sampler;
 
   if (_bound_pipeline != BoundPipeline::TEXT) {
@@ -1096,18 +945,15 @@ bool Renderer::draw_text(TextParams params) {
   float scalar =
       static_cast<float>(params.point_size) / default_font.sample_point_size;
 
-  int ascent, descent, line_gap;
-  ascent = default_font.ascent;
-  descent = default_font.descent;
-  line_gap = default_font.line_gap;
-  int ascent_px = static_cast<int>(roundf(ascent * default_font.font_scale));
+  int ascent_px =
+      static_cast<int>(roundf(default_font.ascent * default_font.font_scale));
 
   float cursor_x = params.position.x;
 
   for (int i = 0; i < params.text.length(); i++) {
-    int codedpoint = static_cast<unsigned char>(params.text[i]);
+    int codepoint = static_cast<unsigned char>(params.text[i]);
 
-    auto it = default_font.glyph_metrics.find(codedpoint);
+    auto it = default_font.glyph_metrics.find(codepoint);
     if (it == default_font.glyph_metrics.end())
       continue;
 
@@ -1125,30 +971,29 @@ bool Renderer::draw_text(TextParams params) {
     float glyph_y =
         params.position.y + (ascent_px + glyph_metrics.bearing.y) * scalar;
 
-    float glyph_w = ceilf(glyph_metrics.size.x * scalar);
-    float glyph_h = ceilf(glyph_metrics.size.y * scalar);
+    float glyph_w = glyph_metrics.size.x * scalar;
+    float glyph_h = glyph_metrics.size.y * scalar;
+
+    glm::mat4 model = glm::mat4(1.0f);
+    model = glm::translate(model, glm::vec3(glyph_x, -glyph_y, 0.0f));
+    model = glm::scale(model, glm::vec3(glyph_w, glyph_h, 1.0f));
+    model = glm::translate(model, glm::vec3(0.5f, -0.5f, 0.0f));
+
+    TextVertexUniformBuffer text_vertex_uniform_buffer{};
+    text_vertex_uniform_buffer.mvp_matrix = _projection_matrix * model;
+    text_vertex_uniform_buffer.time = SDL_GetTicksNS() / 1e9f;
+    text_vertex_uniform_buffer.offset = static_cast<float>(i);
 
     TextFragmentUniformBuffer text_fragment_uniform_buffer{};
     text_fragment_uniform_buffer.modulate = params.color;
     text_fragment_uniform_buffer.uv_rect = glyph_metrics.uv_rect;
 
-    glm::mat4 model_matrix = glm::mat4(1.0f);
-    model_matrix =
-        glm::translate(model_matrix, glm::vec3(glyph_x, -glyph_y, 0.0f));
-    model_matrix = glm::scale(model_matrix, glm::vec3(glyph_w, glyph_h, 1.0f));
-    model_matrix = glm::translate(model_matrix, glm::vec3(0.5f, -0.5f, 0.0f));
-
-    TextVertexUniformBuffer text_vertex_uniform_buffer{};
-    text_vertex_uniform_buffer.mvp_matrix = _projection_matrix * model_matrix;
-    text_vertex_uniform_buffer.time = SDL_GetTicksNS() / 1e9f;
-    text_vertex_uniform_buffer.offset = static_cast<float>(i);
-
-    SDL_PushGPUFragmentUniformData(_command_buffer, 1,
-                                   &text_fragment_uniform_buffer,
-                                   sizeof(TextFragmentUniformBuffer));
     SDL_PushGPUVertexUniformData(_command_buffer, 0,
                                  &text_vertex_uniform_buffer,
                                  sizeof(TextVertexUniformBuffer));
+    SDL_PushGPUFragmentUniformData(_command_buffer, 1,
+                                   &text_fragment_uniform_buffer,
+                                   sizeof(TextFragmentUniformBuffer));
     SDL_DrawGPUIndexedPrimitives(_render_pass, 6, 1, 0, 0, 0);
 
     cursor_x += glyph_metrics.advance * scalar;
