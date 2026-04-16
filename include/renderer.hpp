@@ -17,6 +17,14 @@ struct Vertex {
   float u, v;       // vec2 Texture Coordinates
 };
 
+enum class MSAA {
+  NONE,
+  SAMPLE_2,
+  SAMPLE_4,
+  SAMPLE_8,
+  SAMPLE_16,
+};
+
 using GeometryID = std::size_t;
 
 using GraphicsPipelineID = std::size_t;
@@ -61,6 +69,19 @@ struct RectParams {
   float smoothing = 1.0f;
 };
 
+struct TextParams {
+  std::string text;
+  int point_size = 1;
+  glm::vec2 position;
+  glm::vec4 color = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
+};
+
+enum class BoundPipeline {
+  NONE,
+  RECT,
+  TEXT,
+};
+
 class Renderer {
 public:
   uint32_t width;
@@ -69,12 +90,13 @@ public:
   Renderer(std::string name, uint32_t width, uint32_t height);
   ~Renderer();
 
+  void create_render_targets(); // Shorthand for first init and window resize
+
   // Textures
   Texture create_compute_target_texture(int w, int h, bool is_sampler = false);
   Texture load_and_upload_ascii_font_atlas(const std::string &font_path);
   Texture upload_texture(const Image &image);
-  Image download_texture(Texture &texture);
-  void create_render_targets(); // Shorthand for first init and window resize
+  Image download_texture(const Texture &texture);
 
   // Geometry
   GeometryID upload_geometry(const Vertex *vertices, size_t vertex_size,
@@ -90,10 +112,10 @@ public:
   // Passes
   void start_frame();
   void end_frame();
-
+  // Compute
   bool begin_compute_pass(Texture film_target_texture);
   bool end_compute_pass();
-
+  // Render
   bool begin_render_pass();
   bool end_render_pass();
 
@@ -102,35 +124,23 @@ public:
                     Texture film_source_texture, Texture film_target_texture);
 
   // Drawing functions
-  bool draw_sprite(TextureID texture_id, glm::vec2 translation, float rotation,
-                   glm::vec2 scale, glm::vec4 color);
-  bool draw_rect(RectParams params);
-  bool draw_text(const char *text, int length, float point_size,
-                 glm::vec2 position, glm::vec4 color);
+  void draw_rect(RectParams params);
+  bool draw_text(TextParams params);
   // Scissor mode
-  bool begin_scissor_mode(glm::ivec2 pos, glm::ivec2 size);
-  bool end_scissor_mode();
-  // Fonts
-  void get_font_metrics(int *ascent, int *descent, int *line_gap);
+  void begin_scissor(glm::ivec2 pos, glm::ivec2 size);
+  void end_scissor();
 
   float viewport_scale = 1.0f;
 
   Font default_font;
 
-  float line_height;
-  float font_sample_point_size = 18.0f;
-  int font_ascent, font_descent, font_line_gap;
-
-  float _font_scale;
-  std::unordered_map<int, GlyphMetrics> _glyph_metrics;
-  const int _glyph_padding = 8;
-
 private:
+  std::string _title;
   SDL_Window *_window;
   SDL_GPUDevice *_device;
-  const char *_title;
 
-  // GPU resource IDs
+  BoundPipeline _bound_pipeline = BoundPipeline::NONE;
+
   TextureID _next_texture_id = 0;
   GeometryID _next_geometry_id = 0;
   ComputePipelineID _next_compute_pipeline_id = 0;
@@ -160,9 +170,7 @@ private:
 
   glm::mat4 _projection_matrix;
 
-  // TODO: Turn to Texture
-  TextureID _dummy_texture_id;
-  // TextureID _font_atlas_id;
+  Texture _dummy_texture;
   Texture _font_atlas;
 
   GeometryID _quad_geometry_id;
@@ -172,6 +180,7 @@ private:
   GraphicsPipelineID _text_pipeline_id;
   GraphicsPipelineID _film_pipeline_id;
 
+  // TODO: Pipelines need to be recreated when the sample count changes
   SDL_GPUSampleCount _sample_count = SDL_GPU_SAMPLECOUNT_1;
 
   const uint32_t _threadcount_x = 16;

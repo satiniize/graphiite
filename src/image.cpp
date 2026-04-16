@@ -28,7 +28,6 @@ ImageGenerator Image::angular_gradient(std::vector<GradientStop> stops) {
     GradientStop a = stops.back();
     GradientStop b = stops.back();
     b.position -= 1.0f;
-
     for (auto stop : stops) {
       a = b;
       b = stop;
@@ -37,7 +36,6 @@ ImageGenerator Image::angular_gradient(std::vector<GradientStop> stops) {
                     (t - a.position) / (b.position - a.position));
       }
     }
-
     a = b;
     b = stops.front();
     b.position += 1.0f;
@@ -65,6 +63,14 @@ ImageGenerator Image::linear_gradient(float angle,
   };
 }
 
+ImageGenerator Image::checkerboard(Clay_Color color1, Clay_Color color2) {
+  return [color1, color2](float x, float y, float w, float h) -> Clay_Color {
+    int ix = static_cast<int>(x / w * 2.0f);
+    int iy = static_cast<int>(y / h * 2.0f);
+    return (ix + iy) % 2 == 0 ? color1 : color2;
+  };
+}
+
 void Image::fill(ImageGenerator generator) {
   int bytes = pixel_format == PixelFormat::RGBA8 ? 4 : 8;
   for (int y = 0; y < height; ++y) {
@@ -77,4 +83,9 @@ void Image::fill(ImageGenerator generator) {
       pixels[base_index + 3] = static_cast<uint8_t>(color.a);
     }
   }
+}
+
+void Image::clear() {
+  this->pixels.clear();
+  std::vector<uint8_t>().swap(pixels);
 }

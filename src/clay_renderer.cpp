@@ -151,18 +151,23 @@ void render_commands(Renderer &renderer,
                       render_data_text->textColor.g / 255.0f,
                       render_data_text->textColor.b / 255.0f,
                       render_data_text->textColor.a / 255.0f);
-      renderer.draw_text(chars, length, font_size, glm::vec2(rect.x, rect.y),
-                         color);
+      TextParams text_params = {
+          std::string(chars, length),
+          font_size,
+          glm::vec2(rect.x, rect.y),
+          color,
+      };
+      renderer.draw_text(text_params);
     } break;
     case CLAY_RENDER_COMMAND_TYPE_SCISSOR_START: {
-      renderer.begin_scissor_mode(
+      renderer.begin_scissor(
           glm::ivec2(bounding_box.x * renderer.viewport_scale,
                      bounding_box.y * renderer.viewport_scale),
           glm::ivec2(bounding_box.width * renderer.viewport_scale,
                      bounding_box.height * renderer.viewport_scale));
     } break;
     case CLAY_RENDER_COMMAND_TYPE_SCISSOR_END: {
-      renderer.end_scissor_mode();
+      renderer.end_scissor();
     } break;
     default:
       SDL_Log("Unknown render command type: %d", render_command->commandType);

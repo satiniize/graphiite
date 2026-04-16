@@ -4,6 +4,7 @@
 
 void InputManager::poll_events(bool *running) {
   this->mouse_scroll = {0.0f, 0.0f};
+  was_mouse_down = is_mouse_down;
   SDL_Event event;
   while (SDL_PollEvent(&event)) {
     switch (event.type) {
@@ -29,4 +30,5 @@ void InputManager::poll_events(bool *running) {
       break;
     }
   }
+  is_mouse_released = !is_mouse_down && was_mouse_down;
 }

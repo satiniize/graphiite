@@ -16,7 +16,7 @@ inline constexpr Clay_Color ORANGE_HOVER = {255, 192, 95, 255};
 inline constexpr Clay_Color BLACK = {12, 12, 12, 255};
 inline constexpr Clay_Color LIGHT_GREY = {192, 192, 192, 255};
 inline constexpr Clay_Color MIDDLE_GREY = {127, 127, 127, 255};
-inline constexpr Clay_Color DARK_GREY = {63, 63, 63, 255};
+inline constexpr Clay_Color DARK_GREY = {47, 47, 47, 255};
 inline constexpr Clay_Color WHITE = {255, 255, 255, 255};
 
 inline constexpr Clay_Color TRANSPARENT = {255, 255, 255, 0};

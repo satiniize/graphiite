@@ -34,8 +34,11 @@ public:
   static ImageGenerator angular_gradient(std::vector<GradientStop> stops);
   static ImageGenerator linear_gradient(float angle,
                                         std::vector<GradientStop> stops);
+  static ImageGenerator checkerboard(Clay_Color color1, Clay_Color color2);
   static ImageGenerator noise();
 
   uint8_t bytes_per_pixel() const { return static_cast<uint8_t>(pixel_format); }
   void fill(ImageGenerator generator);
+
+  void clear();
 };

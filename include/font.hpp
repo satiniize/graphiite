@@ -2,6 +2,7 @@
 
 #include <glm/glm.hpp>
 
+#include "image.hpp"
 #include "texture.hpp"
 
 struct GlyphMetrics {
@@ -18,12 +19,21 @@ public:
   int line_height;
   int line_gap;
 
-  int glyph_padding;
+  int glyph_padding = 8;
 
-  float sample_point_size;
+  float sample_point_size = 18.0f;
+  float font_scale;
 
   Texture font_atlas;
-  std::unordered_map<int, GlyphMetrics> _glyph_metrics;
+  std::unordered_map<int, GlyphMetrics> glyph_metrics;
 
+  // Font() = default;
+  // ~Font();
+
+  int get_ascent() const { return ascent; }
+  int get_descent() const { return descent; }
+  int get_line_gap() const { return line_gap; }
   int get_line_height() const { return ascent + descent + line_gap; }
+
+  Image generate_atlas();
 };

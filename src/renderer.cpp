@@ -38,6 +38,19 @@ std::vector<char> load_shader(const std::string &path) {
   return code;
 }
 
+std::vector<uint8_t> load_font(const std::string &path) {
+  std::ifstream file(path, std::ios::binary | std::ios::ate);
+  if (!file.is_open()) {
+    SDL_Log("Failed to load font from disk! %s", path.c_str());
+    return {};
+  }
+  size_t file_size = file.tellg();
+  std::vector<uint8_t> font_buffer(file_size);
+  file.seekg(0, std::ios::beg);
+  file.read(reinterpret_cast<char *>(font_buffer.data()), file_size);
+  return font_buffer;
+}
+
 Renderer::Renderer(std::string name, uint32_t width, uint32_t height) {
   this->width = width;
   this->height = height;
@@ -60,7 +73,7 @@ Renderer::Renderer(std::string name, uint32_t width, uint32_t height) {
   // Create window
   SDL_WindowFlags flags =
       SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY;
-  this->_window = SDL_CreateWindow(this->_title, width, height, flags);
+  this->_window = SDL_CreateWindow(this->_title.c_str(), width, height, flags);
   if (!this->_window) {
     SDL_Log("Couldn't create window: %s", SDL_GetError());
     return;
@@ -165,13 +178,18 @@ Renderer::Renderer(std::string name, uint32_t width, uint32_t height) {
 
   _font_atlas = load_and_upload_ascii_font_atlas(regular_font_path);
 
-  Image dummy_image;
-  dummy_image.pixels = {0, 0, 0, 0};
-  dummy_image.width = 1;
-  dummy_image.height = 1;
-  dummy_image.channels = 4;
-  dummy_image.pixel_format = PixelFormat::RGBA8;
-  _dummy_texture_id = upload_texture(dummy_image).id;
+  // Image dummy_image;
+  // dummy_image.pixels = {0, 0, 0, 0};
+  // dummy_image.width = 1;
+  // dummy_image.height = 1;
+  // dummy_image.channels = 4;
+  // dummy_image.pixel_format = PixelFormat::RGBA8;
+
+  Image dummy_image(128, 128);
+  dummy_image.fill(
+      Image::checkerboard(Clay_Color{0.0f, 0.0f, 0.0f, 255.0f},
+                          Clay_Color{255.0f, 0.0f, 255.0f, 255.0f}));
+  _dummy_texture = upload_texture(dummy_image);
 
   create_render_targets();
 
@@ -322,7 +340,7 @@ Texture Renderer::upload_texture(const Image &image) {
   return result;
 }
 
-Image Renderer::download_texture(Texture &texture) {
+Image Renderer::download_texture(const Texture &texture) {
   SDL_GPUTexture *gpu_texture = _gpu_textures[texture.id];
   int bytes_per_pixel = texture.bytes_per_pixel();
   int num_bytes =
@@ -640,25 +658,6 @@ Renderer::create_compute_pipeline(ComputePipelineParams params,
 
 Texture
 Renderer::load_and_upload_ascii_font_atlas(const std::string &font_path) {
-  // Load font file
-  std::ifstream font_file(font_path, std::ios::binary | std::ios::ate);
-  std::streampos file_size = font_file.tellg();
-  font_file.seekg(0, std::ios::beg);
-
-  std::vector<uint8_t> _font_buffer; // must outlive _font_info
-  _font_buffer.resize(static_cast<size_t>(file_size));
-  font_file.read(reinterpret_cast<char *>(_font_buffer.data()), file_size);
-
-  stbtt_fontinfo _font_info;
-
-  stbtt_InitFont(&_font_info, _font_buffer.data(), 0);
-  stbtt_GetFontVMetrics(&_font_info, &font_ascent, &font_descent,
-                        &font_line_gap);
-  _font_scale = stbtt_ScaleForPixelHeight(&_font_info, font_sample_point_size);
-
-  // Collect rects for stb_rect_pack
-  // We expand each glyph by _glyph_padding on all sides, so two adjacent
-  // glyphs have _glyph_padding + _glyph_padding pixels between their ink
   constexpr int FIRST_CODEPOINT = 32;
   constexpr int LAST_CODEPOINT = 126;
   constexpr int NUM_GLYPHS = LAST_CODEPOINT - FIRST_CODEPOINT + 1;
@@ -666,42 +665,40 @@ Renderer::load_and_upload_ascii_font_atlas(const std::string &font_path) {
 
   struct GlyphBitmap {
     int codepoint;
-    int bw, bh;      // bitmap dimensions (without padding)
-    int xoff, yoff;  // bearing from stbtt
-    uint8_t *pixels; // owned, freed after upload
+    int width, height; // bitmap dimensions (without padding)
+    int xoff, yoff;    // bearing from stbtt
+    uint8_t *pixels;   // owned, freed after upload
   };
+
+  std::vector<uint8_t> font_buffer = load_font(font_path);
+  stbtt_fontinfo font_info;
+  stbtt_InitFont(&font_info, font_buffer.data(), 0);
+  stbtt_GetFontVMetrics(&font_info, &default_font.ascent, &default_font.descent,
+                        &default_font.line_gap);
+  default_font.font_scale =
+      stbtt_ScaleForPixelHeight(&font_info, default_font.sample_point_size);
 
   std::vector<GlyphBitmap> bitmaps;
   bitmaps.reserve(NUM_GLYPHS);
-
   std::vector<stbrp_rect> pack_rects;
   pack_rects.reserve(NUM_GLYPHS);
 
-  for (int cp = FIRST_CODEPOINT; cp <= LAST_CODEPOINT; cp++) {
-    GlyphBitmap gb{};
-    gb.codepoint = cp;
+  for (int codepoint = FIRST_CODEPOINT; codepoint <= LAST_CODEPOINT;
+       codepoint++) {
+    GlyphBitmap glyph_bitmap{};
+    glyph_bitmap.codepoint = codepoint;
 
-    if (cp == 32) {
-      // Space: no bitmap, but we still need metrics
-      gb.pixels = nullptr;
-      gb.bw = 0;
-      gb.bh = 0;
-      gb.xoff = 0;
-      gb.yoff = 0;
-    } else {
-      // SDF swap point: replace stbtt_GetCodepointBitmap with
-      // stbtt_GetCodepointSDF for signed distance field rendering
-      gb.pixels = stbtt_GetCodepointBitmap(&_font_info, 0, _font_scale, cp,
-                                           &gb.bw, &gb.bh, &gb.xoff, &gb.yoff);
-    }
+    glyph_bitmap.pixels = stbtt_GetCodepointBitmap(
+        &font_info, 0, default_font.font_scale, codepoint, &glyph_bitmap.width,
+        &glyph_bitmap.height, &glyph_bitmap.xoff, &glyph_bitmap.yoff);
 
-    bitmaps.push_back(gb);
+    bitmaps.push_back(glyph_bitmap);
 
-    stbrp_rect r{};
-    r.id = cp;
-    r.w = gb.bw + _glyph_padding * 2;
-    r.h = gb.bh + _glyph_padding * 2;
-    pack_rects.push_back(r);
+    stbrp_rect rect{};
+    rect.id = codepoint;
+    rect.w = glyph_bitmap.width + default_font.glyph_padding * 2;
+    rect.h = glyph_bitmap.height + default_font.glyph_padding * 2;
+    pack_rects.push_back(rect);
   }
 
   // Pack rects
@@ -718,35 +715,36 @@ Renderer::load_and_upload_ascii_font_atlas(const std::string &font_path) {
   atlas.height = ATLAS_SIZE;
   atlas.channels = 4;
   atlas.pixel_format = PixelFormat::RGBA8;
-  atlas.pixels.resize(ATLAS_SIZE * ATLAS_SIZE * 4, 0);
+  atlas.pixels.resize(ATLAS_SIZE * ATLAS_SIZE * atlas.channels, 0);
 
   for (int i = 0; i < NUM_GLYPHS; i++) {
-    const GlyphBitmap &gb = bitmaps[i];
-    const stbrp_rect &r = pack_rects[i];
+    const GlyphBitmap &glyph_bitmap = bitmaps[i];
+    const stbrp_rect &rect = pack_rects[i];
 
-    // Resolve advance and bearing for all glyphs including space
     int adv_raw, lsb_raw;
-    stbtt_GetCodepointHMetrics(&_font_info, gb.codepoint, &adv_raw, &lsb_raw);
+    stbtt_GetCodepointHMetrics(&font_info, glyph_bitmap.codepoint, &adv_raw,
+                               &lsb_raw);
 
     int ascent, descent, line_gap;
-    stbtt_GetFontVMetrics(&_font_info, &ascent, &descent, &line_gap);
-    int ascent_px = static_cast<int>(roundf(ascent * _font_scale));
-    int descent_px = static_cast<int>(roundf(descent * _font_scale));
+    stbtt_GetFontVMetrics(&font_info, &ascent, &descent, &line_gap);
+    int ascent_px = static_cast<int>(roundf(ascent * default_font.font_scale));
+    int descent_px =
+        static_cast<int>(roundf(descent * default_font.font_scale));
     int glyph_height = ascent_px - descent_px;
 
-    GlyphMetrics gm{};
-    gm.size = glm::vec2(gb.bw, gb.bh);
-    gm.bearing = glm::vec2(gb.xoff, gb.yoff);
-    gm.advance = roundf(adv_raw * _font_scale);
+    GlyphMetrics glyph_metric{};
+    glyph_metric.size = glm::vec2(glyph_bitmap.width, glyph_bitmap.height);
+    glyph_metric.bearing = glm::vec2(glyph_bitmap.xoff, glyph_bitmap.yoff);
+    glyph_metric.advance = roundf(adv_raw * default_font.font_scale);
 
-    if (r.was_packed && gb.bw > 0 && gb.bh > 0) {
+    if (rect.was_packed && glyph_bitmap.width > 0 && glyph_bitmap.height > 0) {
       // Ink starts at (r.x + padding, r.y + padding)
-      int ink_x = r.x + _glyph_padding;
-      int ink_y = r.y + _glyph_padding;
+      int ink_x = rect.x + default_font.glyph_padding;
+      int ink_y = rect.y + default_font.glyph_padding;
 
       // Blit grayscale bitmap into RGBA atlas as white + alpha
-      for (int gy = 0; gy < gb.bh; gy++) {
-        for (int gx = 0; gx < gb.bw; gx++) {
+      for (int gy = 0; gy < glyph_bitmap.height; gy++) {
+        for (int gx = 0; gx < glyph_bitmap.width; gx++) {
           int ax = ink_x + gx;
           int ay = ink_y + gy;
           if (ax < 0 || ax >= ATLAS_SIZE || ay < 0 || ay >= ATLAS_SIZE)
@@ -755,29 +753,27 @@ Renderer::load_and_upload_ascii_font_atlas(const std::string &font_path) {
           atlas.pixels[idx + 0] = 255;
           atlas.pixels[idx + 1] = 255;
           atlas.pixels[idx + 2] = 255;
-          atlas.pixels[idx + 3] = gb.pixels[gy * gb.bw + gx];
+          atlas.pixels[idx + 3] =
+              glyph_bitmap.pixels[gy * glyph_bitmap.width + gx];
         }
       }
 
       // UV rect covers only the ink region (excluding padding)
-      gm.uv_rect = glm::vec4(static_cast<float>(ink_x) / ATLAS_SIZE,
-                             static_cast<float>(ink_y) / ATLAS_SIZE,
-                             static_cast<float>(ink_x + gb.bw) / ATLAS_SIZE,
-                             static_cast<float>(ink_y + gb.bh) / ATLAS_SIZE);
+      // TODO: Reverse this, UV rect should cover padding
+      glyph_metric.uv_rect = glm::vec4(
+          static_cast<float>(ink_x) / ATLAS_SIZE,
+          static_cast<float>(ink_y) / ATLAS_SIZE,
+          static_cast<float>(ink_x + glyph_bitmap.width) / ATLAS_SIZE,
+          static_cast<float>(ink_y + glyph_bitmap.height) / ATLAS_SIZE);
     } else {
-      gm.uv_rect = glm::vec4(0.0f);
+      glyph_metric.uv_rect = glm::vec4(0.0f);
     }
 
-    _glyph_metrics[gb.codepoint] = gm;
+    default_font.glyph_metrics[glyph_bitmap.codepoint] = glyph_metric;
+    default_font.line_height = static_cast<float>(glyph_height);
 
-    // Store line height on the renderer using ascent/descent
-    // We use the font's line height at sample point size as reference
-    // draw_text scales this by (point_size / font_sample_point_size)
-    // glyph_size.y is repurposed here to store line height only
-    line_height = static_cast<float>(glyph_height);
-
-    if (gb.pixels) {
-      stbtt_FreeBitmap(gb.pixels, nullptr);
+    if (glyph_bitmap.pixels) {
+      stbtt_FreeBitmap(glyph_bitmap.pixels, nullptr);
     }
   }
 
@@ -790,16 +786,15 @@ void Renderer::create_render_targets() {
   SDL_GPUTextureCreateInfo msaa_render_target_info = {
       .type = SDL_GPU_TEXTURETYPE_2D,
       .format = swapchain_format,
-      .usage = SDL_GPU_TEXTUREUSAGE_COLOR_TARGET,
+      .usage =
+          SDL_GPU_TEXTUREUSAGE_COLOR_TARGET |
+          (_sample_count == SDL_GPU_SAMPLECOUNT_1 ? SDL_GPU_TEXTUREUSAGE_SAMPLER
+                                                  : 0),
       .width = this->width,
       .height = this->height,
       .layer_count_or_depth = 1,
       .num_levels = 1,
       .sample_count = _sample_count};
-
-  if (_sample_count == SDL_GPU_SAMPLECOUNT_1) {
-    msaa_render_target_info.usage |= SDL_GPU_TEXTUREUSAGE_SAMPLER;
-  }
 
   _color_render_target =
       SDL_CreateGPUTexture(this->_device, &msaa_render_target_info);
@@ -887,6 +882,8 @@ bool Renderer::compute_film(void *fragment_uniforms_ptr,
   if (film_source_texture.id == -1 || film_target_texture.id == -1)
     return false;
 
+  _bound_pipeline = BoundPipeline::NONE;
+
   SDL_GPUTextureSamplerBinding sampler_bindings[1];
   sampler_bindings[0] = SDL_GPUTextureSamplerBinding{
       .texture = _gpu_textures[film_source_texture.id],
@@ -944,19 +941,21 @@ bool Renderer::begin_render_pass() {
                                  &common_fragment_uniform_buffer,
                                  sizeof(CommonFragmentUniformBuffer));
 
+  _bound_pipeline = BoundPipeline::NONE;
+
   return true;
 }
 
 bool Renderer::end_render_pass() {
   SDL_EndGPURenderPass(_render_pass);
 
-  SDL_GPUTexture *blitSourceTexture =
+  SDL_GPUTexture *blit_source_texture =
       (this->_sample_count == SDL_GPU_SAMPLECOUNT_1)
           ? this->_color_render_target
           : this->_resolve_target;
 
   SDL_GPUBlitInfo blit_info = {
-      .source = {.texture = blitSourceTexture,
+      .source = {.texture = blit_source_texture,
                  .w = this->width,
                  .h = this->height},
       .destination = {.texture = _swapchain_texture, .w = width, .h = height},
@@ -965,64 +964,13 @@ bool Renderer::end_render_pass() {
 
   SDL_BlitGPUTexture(_command_buffer, &blit_info);
 
-  // SDL_SubmitGPUCommandBuffer(_command_buffer);
-
-  // TODO: Why is this at end frame?
   this->viewport_scale = SDL_GetWindowPixelDensity(this->_window);
 
   return true;
 }
 
 // LGTM
-bool Renderer::draw_sprite(TextureID texture_id, glm::vec2 translation,
-                           float rotation, glm::vec2 scale, glm::vec4 color) {
-  // Vertex buffer
-  SDL_GPUBufferBinding vertex_buffer_bindings[1];
-  vertex_buffer_bindings[0].buffer = _vertex_buffers[_quad_geometry_id];
-  vertex_buffer_bindings[0].offset = 0;
-  // Index buffer
-  SDL_GPUBufferBinding index_buffer_bindings{
-      .buffer = _index_buffers[_quad_geometry_id],
-      .offset = 0,
-  };
-  // Samplers
-  if (_gpu_textures.find(texture_id) == _gpu_textures.end()) {
-    // TODO: Maybe bind a dummy texture instead
-    SDL_Log("Texture not found in draw_sprite. Ignoring..");
-  }
-  SDL_GPUTextureSamplerBinding fragment_sampler_bindings[1];
-  fragment_sampler_bindings[0].texture = _gpu_textures[texture_id];
-  fragment_sampler_bindings[0].sampler = _clamp_sampler;
-  // Uniforms
-  SpriteFragmentUniformBuffer fragment_uniforms = {
-      .modulate = color,
-  };
-  glm::mat4 model_matrix = glm::mat4(1.0f);
-  model_matrix = glm::translate(model_matrix,
-                                glm::vec3(translation.x, -translation.y, 0.0f));
-  model_matrix = glm::rotate(model_matrix, glm::radians(rotation),
-                             glm::vec3(0.0f, 0.0f, 1.0f));
-  model_matrix = glm::scale(model_matrix, glm::vec3(scale, 1.0f));
-  BasicVertexUniformBuffer vertex_uniforms{
-      .mvp_matrix = this->_projection_matrix * model_matrix};
-
-  SDL_BindGPUGraphicsPipeline(_render_pass,
-                              _graphics_pipelines[_sprite_pipeline_id]);
-  SDL_BindGPUVertexBuffers(_render_pass, 0, vertex_buffer_bindings, 1);
-  SDL_BindGPUIndexBuffer(_render_pass, &index_buffer_bindings,
-                         SDL_GPU_INDEXELEMENTSIZE_16BIT);
-  SDL_BindGPUFragmentSamplers(_render_pass, 0, fragment_sampler_bindings, 1);
-  SDL_PushGPUVertexUniformData(_command_buffer, 0, &vertex_uniforms,
-                               sizeof(BasicVertexUniformBuffer));
-  SDL_PushGPUFragmentUniformData(_command_buffer, 1, &fragment_uniforms,
-                                 sizeof(SpriteFragmentUniformBuffer));
-  SDL_DrawGPUIndexedPrimitives(_render_pass, 6, 1, 0, 0, 0);
-
-  return true;
-}
-
-// LGTM
-bool Renderer::draw_rect(RectParams params) {
+void Renderer::draw_rect(RectParams params) {
   struct SDFRectStrokeFragmentUniformBuffer {
     glm::vec4 size;
     glm::vec4 modulate;
@@ -1046,13 +994,12 @@ bool Renderer::draw_rect(RectParams params) {
   // Samplers
   if (params.use_texture &&
       _gpu_textures.find(params.texture_id) == _gpu_textures.end()) {
-    // TODO: Maybe bind a dummy texture instead
     SDL_Log("Texture not found in draw_rect. Ignoring..");
   }
   SDL_GPUTextureSamplerBinding fragment_sampler_bindings[1];
   fragment_sampler_bindings[0].texture = params.use_texture
                                              ? _gpu_textures[params.texture_id]
-                                             : _gpu_textures[_dummy_texture_id];
+                                             : _gpu_textures[_dummy_texture.id];
   fragment_sampler_bindings[0].sampler =
       params.tiling ? _wrap_sampler : _clamp_sampler;
   // Uniforms
@@ -1087,24 +1034,24 @@ bool Renderer::draw_rect(RectParams params) {
       .mvp_matrix = this->_projection_matrix * model_matrix,
   };
 
-  SDL_BindGPUGraphicsPipeline(
-      _render_pass, _graphics_pipelines[_sdf_rect_stroke_pipeline_id]);
-  SDL_BindGPUVertexBuffers(_render_pass, 0, vertex_buffer_bindings, 1);
-  SDL_BindGPUIndexBuffer(_render_pass, &index_buffer_bindings,
-                         SDL_GPU_INDEXELEMENTSIZE_16BIT);
+  if (_bound_pipeline != BoundPipeline::RECT) {
+    SDL_BindGPUGraphicsPipeline(
+        _render_pass, _graphics_pipelines[_sdf_rect_stroke_pipeline_id]);
+    SDL_BindGPUVertexBuffers(_render_pass, 0, vertex_buffer_bindings, 1);
+    SDL_BindGPUIndexBuffer(_render_pass, &index_buffer_bindings,
+                           SDL_GPU_INDEXELEMENTSIZE_16BIT);
+    _bound_pipeline = BoundPipeline::RECT;
+  }
   SDL_BindGPUFragmentSamplers(_render_pass, 0, fragment_sampler_bindings, 1);
   SDL_PushGPUVertexUniformData(_command_buffer, 0, &vertex_uniforms,
                                sizeof(BasicVertexUniformBuffer));
   SDL_PushGPUFragmentUniformData(_command_buffer, 1, &fragment_uniforms,
                                  sizeof(SDFRectStrokeFragmentUniformBuffer));
   SDL_DrawGPUIndexedPrimitives(_render_pass, 6, 1, 0, 0, 0);
-
-  return true;
 }
 
 // TODO: Implement batch rendering/instancing using storage buffers?
-bool Renderer::draw_text(const char *text, int length, float point_size,
-                         glm::vec2 position, glm::vec4 color) {
+bool Renderer::draw_text(TextParams params) {
   struct TextVertexUniformBuffer {
     glm::mat4 mvp_matrix;
     float time;
@@ -1136,62 +1083,63 @@ bool Renderer::draw_text(const char *text, int length, float point_size,
   fragment_sampler_bindings.texture = _gpu_textures[_font_atlas.id];
   fragment_sampler_bindings.sampler = _clamp_sampler;
 
-  SDL_BindGPUGraphicsPipeline(_render_pass,
-                              _graphics_pipelines[_text_pipeline_id]);
-  SDL_BindGPUVertexBuffers(_render_pass, 0, vertex_buffer_bindings, 1);
-  SDL_BindGPUIndexBuffer(_render_pass, index_buffer_bindings,
-                         SDL_GPU_INDEXELEMENTSIZE_16BIT);
-  SDL_BindGPUFragmentSamplers(_render_pass, 0, &fragment_sampler_bindings, 1);
+  if (_bound_pipeline != BoundPipeline::TEXT) {
+    SDL_BindGPUGraphicsPipeline(_render_pass,
+                                _graphics_pipelines[_text_pipeline_id]);
+    SDL_BindGPUVertexBuffers(_render_pass, 0, vertex_buffer_bindings, 1);
+    SDL_BindGPUIndexBuffer(_render_pass, index_buffer_bindings,
+                           SDL_GPU_INDEXELEMENTSIZE_16BIT);
+    SDL_BindGPUFragmentSamplers(_render_pass, 0, &fragment_sampler_bindings, 1);
+    _bound_pipeline = BoundPipeline::TEXT;
+  }
 
-  float scalar = point_size / font_sample_point_size;
+  float scalar =
+      static_cast<float>(params.point_size) / default_font.sample_point_size;
 
   int ascent, descent, line_gap;
-  ascent = font_ascent;
-  descent = font_descent;
-  line_gap = font_line_gap;
-  // stbtt_GetFontVMetrics(&_font_info, &ascent, &descent, &line_gap);
-  int ascent_px = static_cast<int>(roundf(ascent * _font_scale));
+  ascent = default_font.ascent;
+  descent = default_font.descent;
+  line_gap = default_font.line_gap;
+  int ascent_px = static_cast<int>(roundf(ascent * default_font.font_scale));
 
-  float cursor_x = position.x;
+  float cursor_x = params.position.x;
 
-  for (int i = 0; i < length; i++) {
-    int cp = static_cast<unsigned char>(text[i]);
+  for (int i = 0; i < params.text.length(); i++) {
+    int codedpoint = static_cast<unsigned char>(params.text[i]);
 
-    auto it = _glyph_metrics.find(cp);
-    if (it == _glyph_metrics.end())
+    auto it = default_font.glyph_metrics.find(codedpoint);
+    if (it == default_font.glyph_metrics.end())
       continue;
 
-    const GlyphMetrics &gm = it->second;
+    const GlyphMetrics &glyph_metrics = it->second;
 
     // Space and zero-size glyphs: advance cursor, skip draw
-    if (gm.size.x <= 0 || gm.size.y <= 0) {
-      cursor_x += gm.advance * scalar;
+    if (glyph_metrics.size.x <= 0 || glyph_metrics.size.y <= 0) {
+      cursor_x += glyph_metrics.advance * scalar;
       continue;
     }
 
     // bearing.y is negative-upward from stbtt (e.g. -12 means 12px above
     // baseline) We want to offset the glyph down from the baseline origin
-    float glyph_x = cursor_x + gm.bearing.x * scalar;
-    float glyph_y = position.y + (ascent_px + gm.bearing.y) * scalar;
+    float glyph_x = cursor_x + glyph_metrics.bearing.x * scalar;
+    float glyph_y =
+        params.position.y + (ascent_px + glyph_metrics.bearing.y) * scalar;
 
-    float glyph_w = ceilf(gm.size.x * scalar);
-    float glyph_h = ceilf(gm.size.y * scalar);
+    float glyph_w = ceilf(glyph_metrics.size.x * scalar);
+    float glyph_h = ceilf(glyph_metrics.size.y * scalar);
 
     TextFragmentUniformBuffer text_fragment_uniform_buffer{};
-    text_fragment_uniform_buffer.modulate = color;
-    text_fragment_uniform_buffer.uv_rect = gm.uv_rect;
+    text_fragment_uniform_buffer.modulate = params.color;
+    text_fragment_uniform_buffer.uv_rect = glyph_metrics.uv_rect;
 
     glm::mat4 model_matrix = glm::mat4(1.0f);
     model_matrix =
         glm::translate(model_matrix, glm::vec3(glyph_x, -glyph_y, 0.0f));
     model_matrix = glm::scale(model_matrix, glm::vec3(glyph_w, glyph_h, 1.0f));
-    // Pivot: quad is assumed to be centered at origin, shift to top-left
     model_matrix = glm::translate(model_matrix, glm::vec3(0.5f, -0.5f, 0.0f));
 
-    glm::mat4 view_matrix = glm::mat4(1.0f);
     TextVertexUniformBuffer text_vertex_uniform_buffer{};
-    text_vertex_uniform_buffer.mvp_matrix =
-        _projection_matrix * view_matrix * model_matrix;
+    text_vertex_uniform_buffer.mvp_matrix = _projection_matrix * model_matrix;
     text_vertex_uniform_buffer.time = SDL_GetTicksNS() / 1e9f;
     text_vertex_uniform_buffer.offset = static_cast<float>(i);
 
@@ -1203,38 +1151,21 @@ bool Renderer::draw_text(const char *text, int length, float point_size,
                                  sizeof(TextVertexUniformBuffer));
     SDL_DrawGPUIndexedPrimitives(_render_pass, 6, 1, 0, 0, 0);
 
-    cursor_x += gm.advance * scalar;
+    cursor_x += glyph_metrics.advance * scalar;
   }
 
   return true;
 }
 
 // LGTM
-bool Renderer::begin_scissor_mode(glm::ivec2 pos, glm::ivec2 size) {
-  const SDL_Rect rect = {
-      pos.x,
-      pos.y,
-      size.x,
-      size.y,
-  };
+void Renderer::begin_scissor(glm::ivec2 pos, glm::ivec2 size) {
+  const SDL_Rect rect = {pos.x, pos.y, size.x, size.y};
   SDL_SetGPUScissor(_render_pass, &rect);
-  return true;
 }
 
 // LGTM
-bool Renderer::end_scissor_mode() {
-  const SDL_Rect rect = {
-      0,
-      0,
-      static_cast<int>(this->width),
-      static_cast<int>(this->height),
-  };
+void Renderer::end_scissor() {
+  const SDL_Rect rect = {0, 0, static_cast<int>(this->width),
+                         static_cast<int>(this->height)};
   SDL_SetGPUScissor(_render_pass, &rect);
-  return true;
 }
-
-void Renderer::get_font_metrics(int *ascent, int *descent, int *line_gap) {
-  *ascent = font_ascent;
-  *descent = font_descent;
-  *line_gap = font_line_gap;
-};
