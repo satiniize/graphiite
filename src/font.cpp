@@ -115,11 +115,11 @@ Image Font::generate_atlas(const std::string &font_path) {
         }
       }
 
-      glyph_metric.uv_rect = glm::vec4(
-          static_cast<float>(ink_x) / ATLAS_SIZE,
-          static_cast<float>(ink_y) / ATLAS_SIZE,
-          static_cast<float>(ink_x + glyph_bitmap.width) / ATLAS_SIZE,
-          static_cast<float>(ink_y + glyph_bitmap.height) / ATLAS_SIZE);
+      glyph_metric.uv_rect =
+          glm::vec4(static_cast<float>(rect.x) / ATLAS_SIZE,
+                    static_cast<float>(rect.y) / ATLAS_SIZE,
+                    static_cast<float>(rect.x + rect.w) / ATLAS_SIZE,
+                    static_cast<float>(rect.y + rect.h) / ATLAS_SIZE);
     } else {
       glyph_metric.uv_rect = glm::vec4(0.0f);
     }

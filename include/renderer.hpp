@@ -116,7 +116,7 @@ public:
 
   // Drawing functions
   void draw_rect(RectParams params);
-  bool draw_text(TextParams params);
+  void draw_text(TextParams params);
   // Scissor mode
   void begin_scissor(glm::ivec2 pos, glm::ivec2 size);
   void end_scissor();

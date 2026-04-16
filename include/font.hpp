@@ -19,9 +19,9 @@ public:
   int line_height;
   int line_gap;
 
-  int glyph_padding = 8;
+  int glyph_padding = 16;
 
-  float sample_point_size = 18.0f;
+  float sample_point_size = 36.0f;
   float font_scale;
 
   Texture font_atlas;

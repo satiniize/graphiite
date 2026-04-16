@@ -9,18 +9,9 @@
 #include <fstream>
 #include <glm/gtc/matrix_transform.hpp>
 
-// Vertex uniform blocks
-struct BasicVertexUniformBuffer {
-  glm::mat4 mvp_matrix;
-};
-
 // Fragment uniform blocks
 struct CommonFragmentUniformBuffer {
   float time;
-};
-
-struct SpriteFragmentUniformBuffer {
-  glm::vec4 modulate;
 };
 
 static std::vector<char> load_shader(const std::string &path) {
@@ -822,7 +813,11 @@ bool Renderer::end_render_pass() {
 
 // LGTM
 void Renderer::draw_rect(RectParams params) {
-  struct SDFRectStrokeFragmentUniformBuffer {
+  struct VertexUniforms {
+    glm::mat4 mvp_matrix;
+  };
+
+  struct FragmentUniforms {
     glm::vec4 size;
     glm::vec4 modulate;
     glm::vec4 corner_radii;
@@ -853,6 +848,18 @@ void Renderer::draw_rect(RectParams params) {
   fragment_sampler_bindings[0].sampler =
       params.tiling ? _wrap_sampler : _clamp_sampler;
   // Uniforms
+  glm::mat4 model_matrix = glm::mat4(1.0f);
+  model_matrix = glm::translate(
+      model_matrix,
+      glm::vec3(params.position.x + params.size.x / 2.0f,
+                -(params.position.y + params.size.y / 2.0f), 0.0f));
+  model_matrix = glm::scale(
+      model_matrix,
+      glm::vec3(params.size + glm::vec2(params.smoothing * 2.0f), 1.0f));
+  VertexUniforms vertex_uniforms{
+      .mvp_matrix = this->_projection_matrix * model_matrix,
+  };
+
   glm::vec4 inner_corner_radii =
       params.corner_radii -
       glm::vec4(std::min(params.stroke_thickness.z, params.stroke_thickness.x),
@@ -860,7 +867,7 @@ void Renderer::draw_rect(RectParams params) {
                 std::min(params.stroke_thickness.w, params.stroke_thickness.x),
                 std::min(params.stroke_thickness.w, params.stroke_thickness.y));
   glm::vec2 padded_size = params.size + glm::vec2(params.smoothing * 2.0f);
-  SDFRectStrokeFragmentUniformBuffer fragment_uniforms{
+  FragmentUniforms fragment_uniforms{
       .size =
           glm::vec4(params.size.x, params.size.y, padded_size.x, padded_size.y),
       .modulate = params.color,
@@ -871,17 +878,6 @@ void Renderer::draw_rect(RectParams params) {
       .use_texture = static_cast<uint32_t>(params.use_texture ? 1 : 0),
       .draw_stroke = static_cast<uint32_t>(params.draw_stroke ? 1 : 0),
       .smoothing = params.smoothing,
-  };
-  glm::mat4 model_matrix = glm::mat4(1.0f);
-  model_matrix = glm::translate(
-      model_matrix,
-      glm::vec3(params.position.x + params.size.x / 2.0f,
-                -(params.position.y + params.size.y / 2.0f), 0.0f));
-  model_matrix = glm::scale(
-      model_matrix,
-      glm::vec3(params.size + glm::vec2(params.smoothing * 2.0f), 1.0f));
-  BasicVertexUniformBuffer vertex_uniforms{
-      .mvp_matrix = this->_projection_matrix * model_matrix,
   };
 
   if (_bound_pipeline != BoundPipeline::RECT) {
@@ -894,15 +890,15 @@ void Renderer::draw_rect(RectParams params) {
   }
   SDL_BindGPUFragmentSamplers(_render_pass, 0, fragment_sampler_bindings, 1);
   SDL_PushGPUVertexUniformData(_command_buffer, 0, &vertex_uniforms,
-                               sizeof(BasicVertexUniformBuffer));
+                               sizeof(VertexUniforms));
   SDL_PushGPUFragmentUniformData(_command_buffer, 1, &fragment_uniforms,
-                                 sizeof(SDFRectStrokeFragmentUniformBuffer));
+                                 sizeof(FragmentUniforms));
   SDL_DrawGPUIndexedPrimitives(_render_pass, 6, 1, 0, 0, 0);
 }
 
 // TODO: Implement batch rendering/instancing using storage buffers?
-bool Renderer::draw_text(TextParams params) {
-  struct TextVertexUniformBuffer {
+void Renderer::draw_text(TextParams params) {
+  struct VertexUniforms {
     glm::mat4 mvp_matrix;
     float time;
     float offset;
@@ -910,7 +906,7 @@ bool Renderer::draw_text(TextParams params) {
     float padding2;
   };
 
-  struct TextFragmentUniformBuffer {
+  struct FragmentUniforms {
     glm::vec4 modulate;
     glm::vec4 uv_rect;
   };
@@ -919,9 +915,10 @@ bool Renderer::draw_text(TextParams params) {
   vertex_buffer_bindings[0].buffer = _vertex_buffers[_quad_geometry_id];
   vertex_buffer_bindings[0].offset = 0;
 
-  SDL_GPUBufferBinding index_buffer_bindings[1];
-  index_buffer_bindings[0].buffer = _index_buffers[_quad_geometry_id];
-  index_buffer_bindings[0].offset = 0;
+  SDL_GPUBufferBinding index_buffer_bindings{
+      .buffer = _index_buffers[_quad_geometry_id],
+      .offset = 0,
+  };
 
   TextureID texture_id = default_font.font_atlas.id;
   if (_gpu_textures.find(texture_id) == _gpu_textures.end()) {
@@ -936,7 +933,7 @@ bool Renderer::draw_text(TextParams params) {
     SDL_BindGPUGraphicsPipeline(_render_pass,
                                 _graphics_pipelines[_text_pipeline_id]);
     SDL_BindGPUVertexBuffers(_render_pass, 0, vertex_buffer_bindings, 1);
-    SDL_BindGPUIndexBuffer(_render_pass, index_buffer_bindings,
+    SDL_BindGPUIndexBuffer(_render_pass, &index_buffer_bindings,
                            SDL_GPU_INDEXELEMENTSIZE_16BIT);
     SDL_BindGPUFragmentSamplers(_render_pass, 0, &fragment_sampler_bindings, 1);
     _bound_pipeline = BoundPipeline::TEXT;
@@ -967,39 +964,40 @@ bool Renderer::draw_text(TextParams params) {
 
     // bearing.y is negative-upward from stbtt (e.g. -12 means 12px above
     // baseline) We want to offset the glyph down from the baseline origin
-    float glyph_x = cursor_x + glyph_metrics.bearing.x * scalar;
-    float glyph_y =
-        params.position.y + (ascent_px + glyph_metrics.bearing.y) * scalar;
+    float glyph_x =
+        cursor_x +
+        (glyph_metrics.bearing.x - default_font.glyph_padding) * scalar;
+    float glyph_y = params.position.y + (ascent_px + glyph_metrics.bearing.y -
+                                         default_font.glyph_padding) *
+                                            scalar;
 
-    float glyph_w = glyph_metrics.size.x * scalar;
-    float glyph_h = glyph_metrics.size.y * scalar;
+    float glyph_w =
+        (glyph_metrics.size.x + 2.0f * default_font.glyph_padding) * scalar;
+    float glyph_h =
+        (glyph_metrics.size.y + 2.0f * default_font.glyph_padding) * scalar;
 
     glm::mat4 model = glm::mat4(1.0f);
     model = glm::translate(model, glm::vec3(glyph_x, -glyph_y, 0.0f));
     model = glm::scale(model, glm::vec3(glyph_w, glyph_h, 1.0f));
     model = glm::translate(model, glm::vec3(0.5f, -0.5f, 0.0f));
 
-    TextVertexUniformBuffer text_vertex_uniform_buffer{};
-    text_vertex_uniform_buffer.mvp_matrix = _projection_matrix * model;
-    text_vertex_uniform_buffer.time = SDL_GetTicksNS() / 1e9f;
-    text_vertex_uniform_buffer.offset = static_cast<float>(i);
-
-    TextFragmentUniformBuffer text_fragment_uniform_buffer{};
-    text_fragment_uniform_buffer.modulate = params.color;
-    text_fragment_uniform_buffer.uv_rect = glyph_metrics.uv_rect;
-
-    SDL_PushGPUVertexUniformData(_command_buffer, 0,
-                                 &text_vertex_uniform_buffer,
-                                 sizeof(TextVertexUniformBuffer));
-    SDL_PushGPUFragmentUniformData(_command_buffer, 1,
-                                   &text_fragment_uniform_buffer,
-                                   sizeof(TextFragmentUniformBuffer));
-    SDL_DrawGPUIndexedPrimitives(_render_pass, 6, 1, 0, 0, 0);
-
     cursor_x += glyph_metrics.advance * scalar;
-  }
 
-  return true;
+    VertexUniforms vertex_uniforms{};
+    vertex_uniforms.mvp_matrix = _projection_matrix * model;
+    vertex_uniforms.time = SDL_GetTicksNS() / 1e9f;
+    vertex_uniforms.offset = static_cast<float>(i);
+
+    FragmentUniforms fragment_uniforms{};
+    fragment_uniforms.modulate = params.color;
+    fragment_uniforms.uv_rect = glyph_metrics.uv_rect;
+
+    SDL_PushGPUVertexUniformData(_command_buffer, 0, &vertex_uniforms,
+                                 sizeof(VertexUniforms));
+    SDL_PushGPUFragmentUniformData(_command_buffer, 1, &fragment_uniforms,
+                                   sizeof(FragmentUniforms));
+    SDL_DrawGPUIndexedPrimitives(_render_pass, 6, 1, 0, 0, 0);
+  }
 }
 
 // LGTM
