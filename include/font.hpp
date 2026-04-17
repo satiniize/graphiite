@@ -4,6 +4,7 @@
 
 #include "image.hpp"
 #include "texture.hpp"
+#include "theme.hpp"
 
 struct GlyphMetrics {
   glm::vec4 uv_rect; // normalized 0..1 atlas UVs (x0, y0, x1, y1)
@@ -21,7 +22,7 @@ public:
 
   int glyph_padding = 16;
 
-  float sample_point_size = 36.0f;
+  float sample_point_size = static_cast<float>(FontSize::MEDIUM);
   float font_scale;
 
   Texture font_atlas;

@@ -964,17 +964,12 @@ void Renderer::draw_text(TextParams params) {
 
     // bearing.y is negative-upward from stbtt (e.g. -12 means 12px above
     // baseline) We want to offset the glyph down from the baseline origin
-    float glyph_x =
-        cursor_x +
-        (glyph_metrics.bearing.x - default_font.glyph_padding) * scalar;
-    float glyph_y = params.position.y + (ascent_px + glyph_metrics.bearing.y -
-                                         default_font.glyph_padding) *
-                                            scalar;
+    float glyph_x = cursor_x + (glyph_metrics.bearing.x) * scalar;
+    float glyph_y =
+        params.position.y + (ascent_px + glyph_metrics.bearing.y) * scalar;
 
-    float glyph_w =
-        (glyph_metrics.size.x + 2.0f * default_font.glyph_padding) * scalar;
-    float glyph_h =
-        (glyph_metrics.size.y + 2.0f * default_font.glyph_padding) * scalar;
+    float glyph_w = (glyph_metrics.size.x) * scalar;
+    float glyph_h = (glyph_metrics.size.y) * scalar;
 
     glm::mat4 model = glm::mat4(1.0f);
     model = glm::translate(model, glm::vec3(glyph_x, -glyph_y, 0.0f));

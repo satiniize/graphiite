@@ -49,15 +49,21 @@ Image Font::generate_atlas(const std::string &font_path) {
        codepoint++) {
     GlyphBitmap glyph_bitmap{};
     glyph_bitmap.codepoint = codepoint;
-    glyph_bitmap.pixels = stbtt_GetCodepointBitmap(
-        &font_info, 0, this->font_scale, codepoint, &glyph_bitmap.width,
-        &glyph_bitmap.height, &glyph_bitmap.xoff, &glyph_bitmap.yoff);
+    // glyph_bitmap.pixels = stbtt_GetCodepointBitmap(
+    //     &font_info, 0, this->font_scale, codepoint, &glyph_bitmap.width,
+    //     &glyph_bitmap.height, &glyph_bitmap.xoff, &glyph_bitmap.yoff);
+
+    glyph_bitmap.pixels = stbtt_GetCodepointSDF(
+        &font_info, this->font_scale, codepoint, this->glyph_padding, 128, 64,
+        &glyph_bitmap.width, &glyph_bitmap.height, &glyph_bitmap.xoff,
+        &glyph_bitmap.yoff);
+
     bitmaps.push_back(glyph_bitmap);
 
     stbrp_rect rect{};
     rect.id = codepoint;
-    rect.w = glyph_bitmap.width + this->glyph_padding * 2;
-    rect.h = glyph_bitmap.height + this->glyph_padding * 2;
+    rect.w = glyph_bitmap.width;
+    rect.h = glyph_bitmap.height;
     pack_rects.push_back(rect);
   }
 
@@ -96,8 +102,8 @@ Image Font::generate_atlas(const std::string &font_path) {
 
     if (rect.was_packed && glyph_bitmap.width > 0 && glyph_bitmap.height > 0) {
       // Ink starts at (r.x + padding, r.y + padding)
-      int ink_x = rect.x + this->glyph_padding;
-      int ink_y = rect.y + this->glyph_padding;
+      int ink_x = rect.x;
+      int ink_y = rect.y;
 
       // Blit grayscale bitmap into RGBA atlas as white + alpha
       for (int gy = 0; gy < glyph_bitmap.height; gy++) {

@@ -25,7 +25,6 @@ static SliderDragState g_slider_drag;
 void slider_interaction(Clay_ElementId elementId, Clay_PointerData pointerInfo,
                         intptr_t userData);
 void UpdateSliderDrag(bool is_mouse_down, Clay_Vector2 pointerPosition);
-// TODO: Automate id
 void Slider(SliderContext *slider_context, uint32_t id, Texture &stroke_texture,
             Texture &fill_texture);
 void Knob();
