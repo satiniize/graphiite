@@ -32,7 +32,7 @@ inline constexpr Clay_Color PANEL_STROKE = MIDDLE_GREY;
 
 namespace FontSize {
 inline constexpr uint16_t SMALL = 8;
-inline constexpr uint16_t MEDIUM = 18;
+inline constexpr uint16_t MEDIUM = 14;
 inline constexpr uint16_t LARGE = 36;
 } // namespace FontSize
 

@@ -44,15 +44,7 @@ public:
     Renderer &renderer = *(Renderer *)userData;
     float scalar = config->fontSize / renderer.default_font.sample_point_size;
 
-    // int ascent, descent, line_gap;
-    // renderer.get_font_metrics(&ascent, &descent, &line_gap);
-
-    int ascent = renderer.default_font.get_ascent();
-    int descent = renderer.default_font.get_descent();
-    int line_gap = renderer.default_font.get_line_gap();
-
-    float line_height =
-        roundf((ascent - descent) * renderer.default_font.font_scale) * scalar;
+    float line_height = renderer.default_font.get_line_height() * scalar;
 
     float width = 0.0f;
     for (int i = 0; i < text.length; i++) {

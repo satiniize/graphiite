@@ -14,6 +14,7 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/$<CONFIGURATION>")
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/$<CONFIGURATION>")
 
 # SDL static build
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 set(SDL_SHARED OFF CACHE BOOL "" FORCE)
 set(SDL_STATIC ON CACHE BOOL "" FORCE)
 
@@ -65,7 +66,11 @@ add_subdirectory(external/glm EXCLUDE_FROM_ALL)
 add_subdirectory(external/stb EXCLUDE_FROM_ALL)
 add_subdirectory(external/clay EXCLUDE_FROM_ALL)
 add_subdirectory(external/tinyfiledialogs EXCLUDE_FROM_ALL)
+
+set(_SAVED_BUILD_SHARED_LIBS ${BUILD_SHARED_LIBS})
+set(BUILD_SHARED_LIBS ON CACHE BOOL "" FORCE)
 add_subdirectory(external/LibRaw EXCLUDE_FROM_ALL)
+set(BUILD_SHARED_LIBS ${_SAVED_BUILD_SHARED_LIBS} CACHE BOOL "" FORCE)
 
 add_library(graphiite STATIC
   src/base_components.cpp
@@ -91,7 +96,7 @@ target_include_directories(graphiite PUBLIC
 target_link_libraries(graphiite
 PUBLIC
   SDL3::SDL3
-  glm::glm
+  glm::glm-header-only
   clay
 PRIVATE
   stb

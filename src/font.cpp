@@ -19,11 +19,15 @@ static std::vector<uint8_t> load_font(const std::string &path) {
   return font_buffer;
 }
 
-Image Font::generate_atlas(const std::string &font_path) {
+Font::Font(const std::filesystem::path &font_path) {
+  this->font_path = font_path;
+}
+
+Image Font::generate_atlas() {
   constexpr int FIRST_CODEPOINT = 32;
   constexpr int LAST_CODEPOINT = 126;
   constexpr int NUM_GLYPHS = LAST_CODEPOINT - FIRST_CODEPOINT + 1;
-  constexpr int ATLAS_SIZE = 1024;
+  constexpr int ATLAS_SIZE = 512;
 
   struct GlyphBitmap {
     int codepoint;
@@ -35,29 +39,31 @@ Image Font::generate_atlas(const std::string &font_path) {
   std::vector<uint8_t> font_buffer = load_font(font_path);
   stbtt_fontinfo font_info;
   stbtt_InitFont(&font_info, font_buffer.data(), 0);
-  stbtt_GetFontVMetrics(&font_info, &this->ascent, &this->descent,
-                        &this->line_gap);
-  this->font_scale =
-      stbtt_ScaleForPixelHeight(&font_info, this->sample_point_size);
+  int ascent_raw, descent_raw, line_gap_raw;
+  stbtt_GetFontVMetrics(&font_info, &ascent_raw, &descent_raw, &line_gap_raw);
+  font_scale = stbtt_ScaleForMappingEmToPixels(&font_info, sample_point_size);
+
+  ascent = static_cast<int>(roundf(ascent_raw * font_scale));
+  descent = static_cast<int>(roundf(descent_raw * font_scale));
+  line_height = ascent - descent; // TODO: sample size
 
   std::vector<GlyphBitmap> bitmaps;
   bitmaps.reserve(NUM_GLYPHS);
   std::vector<stbrp_rect> pack_rects;
   pack_rects.reserve(NUM_GLYPHS);
 
+  uint32_t available_pixels = ATLAS_SIZE * ATLAS_SIZE;
+  uint32_t used_pixels = 0;
+
   for (int codepoint = FIRST_CODEPOINT; codepoint <= LAST_CODEPOINT;
        codepoint++) {
     GlyphBitmap glyph_bitmap{};
     glyph_bitmap.codepoint = codepoint;
-    // glyph_bitmap.pixels = stbtt_GetCodepointBitmap(
-    //     &font_info, 0, this->font_scale, codepoint, &glyph_bitmap.width,
-    //     &glyph_bitmap.height, &glyph_bitmap.xoff, &glyph_bitmap.yoff);
-
-    glyph_bitmap.pixels = stbtt_GetCodepointSDF(
-        &font_info, this->font_scale, codepoint, this->glyph_padding, 128, 64,
-        &glyph_bitmap.width, &glyph_bitmap.height, &glyph_bitmap.xoff,
-        &glyph_bitmap.yoff);
-
+    glyph_bitmap.pixels =
+        stbtt_GetCodepointSDF( // TODO: Smoothing is not scaled properly
+            &font_info, font_scale, codepoint, glyph_padding, 128, 64,
+            &glyph_bitmap.width, &glyph_bitmap.height, &glyph_bitmap.xoff,
+            &glyph_bitmap.yoff);
     bitmaps.push_back(glyph_bitmap);
 
     stbrp_rect rect{};
@@ -65,7 +71,13 @@ Image Font::generate_atlas(const std::string &font_path) {
     rect.w = glyph_bitmap.width;
     rect.h = glyph_bitmap.height;
     pack_rects.push_back(rect);
+
+    used_pixels += glyph_bitmap.width * glyph_bitmap.height;
   }
+
+  SDL_Log("Atlas usage for font %s: %.2f%%", font_path.c_str(),
+          static_cast<float>(used_pixels) /
+              static_cast<float>(available_pixels) * 100.0f);
 
   stbrp_context pack_ctx{};
   std::vector<stbrp_node> pack_nodes(ATLAS_SIZE);
@@ -74,18 +86,12 @@ Image Font::generate_atlas(const std::string &font_path) {
   stbrp_pack_rects(&pack_ctx, pack_rects.data(),
                    static_cast<int>(pack_rects.size()));
 
-  // Build RGBA atlas
   Image atlas{};
   atlas.width = ATLAS_SIZE;
   atlas.height = ATLAS_SIZE;
   atlas.channels = 4;
   atlas.pixel_format = PixelFormat::RGBA8;
   atlas.pixels.resize(ATLAS_SIZE * ATLAS_SIZE * atlas.channels, 0);
-
-  int ascent_px = static_cast<int>(roundf(this->ascent * this->font_scale));
-  int descent_px = static_cast<int>(roundf(this->descent * this->font_scale));
-  int glyph_height = ascent_px - descent_px;
-  this->line_height = static_cast<float>(glyph_height);
 
   for (int i = 0; i < NUM_GLYPHS; i++) {
     const GlyphBitmap &glyph_bitmap = bitmaps[i];
@@ -98,39 +104,35 @@ Image Font::generate_atlas(const std::string &font_path) {
     GlyphMetrics glyph_metric{};
     glyph_metric.size = glm::vec2(glyph_bitmap.width, glyph_bitmap.height);
     glyph_metric.bearing = glm::vec2(glyph_bitmap.xoff, glyph_bitmap.yoff);
-    glyph_metric.advance = roundf(adv_raw * this->font_scale);
+    glyph_metric.advance = roundf(adv_raw * font_scale);
 
-    if (rect.was_packed && glyph_bitmap.width > 0 && glyph_bitmap.height > 0) {
-      // Ink starts at (r.x + padding, r.y + padding)
-      int ink_x = rect.x;
-      int ink_y = rect.y;
-
-      // Blit grayscale bitmap into RGBA atlas as white + alpha
-      for (int gy = 0; gy < glyph_bitmap.height; gy++) {
-        for (int gx = 0; gx < glyph_bitmap.width; gx++) {
-          int ax = ink_x + gx;
-          int ay = ink_y + gy;
-          if (ax < 0 || ax >= ATLAS_SIZE || ay < 0 || ay >= ATLAS_SIZE)
-            continue;
-          int idx = (ay * ATLAS_SIZE + ax) * atlas.channels;
-          atlas.pixels[idx + 0] = 255;
-          atlas.pixels[idx + 1] = 255;
-          atlas.pixels[idx + 2] = 255;
-          atlas.pixels[idx + 3] =
-              glyph_bitmap.pixels[gy * glyph_bitmap.width + gx];
-        }
-      }
-
-      glyph_metric.uv_rect =
-          glm::vec4(static_cast<float>(rect.x) / ATLAS_SIZE,
-                    static_cast<float>(rect.y) / ATLAS_SIZE,
-                    static_cast<float>(rect.x + rect.w) / ATLAS_SIZE,
-                    static_cast<float>(rect.y + rect.h) / ATLAS_SIZE);
-    } else {
-      glyph_metric.uv_rect = glm::vec4(0.0f);
+    if (!rect.was_packed) {
+      glyph_metric.uv_rect = glm::vec4(0.0f, 0.0f, 1.0f, 1.0f);
+      glyph_metrics[glyph_bitmap.codepoint] = glyph_metric;
+      continue;
     }
 
-    this->glyph_metrics[glyph_bitmap.codepoint] = glyph_metric;
+    for (int gy = 0; gy < glyph_bitmap.height; gy++) {
+      for (int gx = 0; gx < glyph_bitmap.width; gx++) {
+        int ax = rect.x + gx;
+        int ay = rect.y + gy;
+        if (ax < 0 || ax >= ATLAS_SIZE || ay < 0 || ay >= ATLAS_SIZE)
+          continue;
+        int idx = (ay * ATLAS_SIZE + ax) * atlas.channels;
+        atlas.pixels[idx + 0] = 255;
+        atlas.pixels[idx + 1] = 255;
+        atlas.pixels[idx + 2] = 255;
+        atlas.pixels[idx + 3] =
+            glyph_bitmap.pixels[gy * glyph_bitmap.width + gx];
+      }
+    }
+
+    glyph_metric.uv_rect =
+        glm::vec4(static_cast<float>(rect.x) / ATLAS_SIZE,
+                  static_cast<float>(rect.y) / ATLAS_SIZE,
+                  static_cast<float>(rect.x + rect.w) / ATLAS_SIZE,
+                  static_cast<float>(rect.y + rect.h) / ATLAS_SIZE);
+    glyph_metrics[glyph_bitmap.codepoint] = glyph_metric;
 
     if (glyph_bitmap.pixels) {
       stbtt_FreeBitmap(glyph_bitmap.pixels, nullptr);

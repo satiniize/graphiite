@@ -1,5 +1,7 @@
 #pragma once
 
+#include <filesystem>
+
 #include <glm/glm.hpp>
 
 #include "image.hpp"
@@ -15,6 +17,7 @@ struct GlyphMetrics {
 
 class Font {
 public:
+  // In px, ie. font units * font_scale
   int ascent;
   int descent;
   int line_height;
@@ -22,19 +25,22 @@ public:
 
   int glyph_padding = 16;
 
+  // This is actually in pixels, the font now occupies px in height
   float sample_point_size = static_cast<float>(FontSize::MEDIUM);
   float font_scale;
+
+  std::filesystem::path font_path;
 
   Texture font_atlas;
   std::unordered_map<int, GlyphMetrics> glyph_metrics;
 
-  // Font() = default;
+  Font(const std::filesystem::path &font_path);
   // ~Font();
 
   int get_ascent() const { return ascent; }
   int get_descent() const { return descent; }
   int get_line_gap() const { return line_gap; }
-  int get_line_height() const { return ascent + descent + line_gap; }
+  int get_line_height() const { return line_height; }
 
-  Image generate_atlas(const std::string &font_path);
+  Image generate_atlas();
 };

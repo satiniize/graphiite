@@ -123,16 +123,12 @@ public:
 
   float viewport_scale = 1.0f;
 
-  Font default_font;
+  Font default_font = Font("assets/fonts/AtkinsonHyperlegibleNext-Medium.ttf");
 
 private:
   std::string _title;
   SDL_Window *_window;
   SDL_GPUDevice *_device;
-
-  // TODO: Input file path sanitizing
-  const std::string regular_font_path =
-      "assets/fonts/AtkinsonHyperlegibleNext-Medium.ttf";
 
   // TODO: Pipelines need to be recreated when the sample count changes
   SDL_GPUSampleCount _sample_count = SDL_GPU_SAMPLECOUNT_1;

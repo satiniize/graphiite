@@ -121,7 +121,7 @@ Renderer::Renderer(std::string name, uint32_t width, uint32_t height) {
 
   _clamp_sampler = SDL_CreateGPUSampler(this->_device, &clamp_sampler_info);
   if (!_clamp_sampler) {
-    SDL_Log("Failed to create GPU sampler");
+    SDL_Log("Failed to create clamp sampler");
     return;
   }
 
@@ -135,7 +135,7 @@ Renderer::Renderer(std::string name, uint32_t width, uint32_t height) {
 
   _wrap_sampler = SDL_CreateGPUSampler(this->_device, &wrap_sampler_info);
   if (!_wrap_sampler) {
-    SDL_Log("Failed to create GPU sampler");
+    SDL_Log("Failed to create wrap sampler");
     return;
   }
 
@@ -152,7 +152,7 @@ Renderer::Renderer(std::string name, uint32_t width, uint32_t height) {
       upload_geometry(quad_vertices, std::size(quad_vertices) * sizeof(Vertex),
                       quad_indices, std::size(quad_indices) * sizeof(Uint16));
 
-  Image atlas = default_font.generate_atlas(regular_font_path);
+  Image atlas = default_font.generate_atlas();
   default_font.font_atlas = this->upload_texture(atlas);
 
   Image dummy_image(128, 128);
@@ -888,6 +888,7 @@ void Renderer::draw_rect(RectParams params) {
                            SDL_GPU_INDEXELEMENTSIZE_16BIT);
     _bound_pipeline = BoundPipeline::RECT;
   }
+
   SDL_BindGPUFragmentSamplers(_render_pass, 0, fragment_sampler_bindings, 1);
   SDL_PushGPUVertexUniformData(_command_buffer, 0, &vertex_uniforms,
                                sizeof(VertexUniforms));
@@ -939,12 +940,8 @@ void Renderer::draw_text(TextParams params) {
     _bound_pipeline = BoundPipeline::TEXT;
   }
 
-  float scalar =
+  const float scalar =
       static_cast<float>(params.point_size) / default_font.sample_point_size;
-
-  int ascent_px =
-      static_cast<int>(roundf(default_font.ascent * default_font.font_scale));
-
   float cursor_x = params.position.x;
 
   for (int i = 0; i < params.text.length(); i++) {
@@ -956,17 +953,9 @@ void Renderer::draw_text(TextParams params) {
 
     const GlyphMetrics &glyph_metrics = it->second;
 
-    // Space and zero-size glyphs: advance cursor, skip draw
-    if (glyph_metrics.size.x <= 0 || glyph_metrics.size.y <= 0) {
-      cursor_x += glyph_metrics.advance * scalar;
-      continue;
-    }
-
-    // bearing.y is negative-upward from stbtt (e.g. -12 means 12px above
-    // baseline) We want to offset the glyph down from the baseline origin
     float glyph_x = cursor_x + (glyph_metrics.bearing.x) * scalar;
-    float glyph_y =
-        params.position.y + (ascent_px + glyph_metrics.bearing.y) * scalar;
+    float glyph_y = params.position.y +
+                    (default_font.ascent + glyph_metrics.bearing.y) * scalar;
 
     float glyph_w = (glyph_metrics.size.x) * scalar;
     float glyph_h = (glyph_metrics.size.y) * scalar;
