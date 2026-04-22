@@ -34,7 +34,7 @@ endif()
 
 ExternalProject_Add(libjpeg_turbo_project
     PREFIX "${LIBJPEG_TURBO_PREFIX}"
-    SOURCE_DIR ${CMAKE_SOURCE_DIR}/external/libjpeg-turbo
+    SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/external/libjpeg-turbo
     INSTALL_DIR "${LIBJPEG_TURBO_INSTALL_DIR}"
     CMAKE_ARGS
         -DCMAKE_INSTALL_PREFIX=${LIBJPEG_TURBO_INSTALL_DIR}
@@ -104,5 +104,4 @@ PRIVATE
   libjpeg_turbo
 )
 
-add_subdirectory(examples/oxiide)
 add_subdirectory(tests)
