@@ -51,9 +51,8 @@ void Components::UpdateSliderDrag(bool is_mouse_down,
   *ctx->value = min_v + raw * (max_v - min_v);
 }
 
-void Components::Slider(SliderContext *slider_context, uint32_t id,
-                        Texture &stroke_texture, Texture &fill_texture) {
-  const float handle_radius = 10;
+void Components::Slider(SliderContext *slider_context, uint32_t id) {
+  const float handle_radius = 8;
 
   // Derive normalised position from the context
   float min_v = std::min(slider_context->min_value, slider_context->max_value);
@@ -91,8 +90,8 @@ void Components::Slider(SliderContext *slider_context, uint32_t id,
                   },
               .padding =
                   {
-                      .left = static_cast<uint16_t>(handle_radius - 3.0f),
-                      .right = static_cast<uint16_t>(handle_radius - 3.0f),
+                      .left = static_cast<uint16_t>(handle_radius - 2.0f),
+                      .right = static_cast<uint16_t>(handle_radius - 2.0f),
                   },
               .childAlignment =
                   {
@@ -111,16 +110,11 @@ void Components::Slider(SliderContext *slider_context, uint32_t id,
                 .sizing =
                     {
                         .width = CLAY_SIZING_GROW(0),
-                        .height = CLAY_SIZING_FIXED(6),
+                        .height = CLAY_SIZING_FIXED(4),
                     },
             },
-        .backgroundColor = Color::GREY,
-        .cornerRadius = CLAY_CORNER_RADIUS(3),
-        .border =
-            {
-                .color = Color::BLACK,
-                .width = CLAY_BORDER_OUTSIDE(2),
-            },
+        .backgroundColor = Color::BG_FILL,
+        .cornerRadius = CLAY_CORNER_RADIUS(2),
     }) {}
 
     // Handle
@@ -134,12 +128,8 @@ void Components::Slider(SliderContext *slider_context, uint32_t id,
                     },
                 .padding = CLAY_PADDING_ALL(4),
             },
-        .backgroundColor = Color::WHITE,
+        .backgroundColor = Color::SLIDER_HANDLE_FILL,
         .cornerRadius = CLAY_CORNER_RADIUS(handle_radius),
-        .image =
-            {
-                .imageData = static_cast<void *>(&stroke_texture),
-            },
         .floating =
             {
                 .offset = Clay_Vector2{offset, 0.0f},
@@ -154,36 +144,14 @@ void Components::Slider(SliderContext *slider_context, uint32_t id,
             },
         .border =
             {
-                .color = Color::BLACK,
+                .color =
+                    (g_slider_drag.active && g_slider_drag.id.id == this_id.id)
+                        ? Color::WHITE60
+                        : (Clay_Hovered() ? Color::WHITE80 : Color::ON_PANEL),
                 .width = CLAY_BORDER_ALL(2),
             },
         .userData = reinterpret_cast<void *>(&shadow_config),
-    }) {
-      CLAY({
-          .layout =
-              {
-                  .sizing =
-                      {
-                          .width = CLAY_SIZING_GROW(0),
-                          .height = CLAY_SIZING_GROW(0),
-                      },
-                  .childAlignment =
-                      {
-                          .x = CLAY_ALIGN_X_CENTER,
-                          .y = CLAY_ALIGN_Y_CENTER,
-                      },
-              },
-          .backgroundColor =
-              (g_slider_drag.active && g_slider_drag.id.id == this_id.id)
-                  ? Color::WHITE60
-                  : (Clay_Hovered() ? Color::WHITE80 : Color::WHITE100),
-          .cornerRadius = CLAY_CORNER_RADIUS(handle_radius - 4.0f),
-          .image =
-              {
-                  .imageData = static_cast<void *>(&fill_texture),
-              },
-      }) {}
-    }
+    }) {}
   }
 }
 
