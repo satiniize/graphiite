@@ -1,0 +1,49 @@
+# List of third-party libraries used in software-renderer
+
+[[library]]
+name = "Clay"
+copyright = "Copyright (c) 2024 Nic Barker"
+license = "Zlib"
+license_file = "licenses/clay.txt"
+
+[[library]]
+name = "LibRaw"
+copyright = "Copyright (c) 2008-2026 LibRaw LLC"
+license = "CDDL 1.0"
+license_file = "licenses/libraw.txt"
+
+[[library]]
+name = "SDL"
+copyright = "Copyright (c) 1997-2026 Sam Lantinga"
+license = "Zlib"
+license_file = "licenses/sdl.txt"
+
+[[library]]
+name = "glm"
+copyright = "Copyright (c) 2005 - 2026 G-Truc Creation"
+license = "MIT"
+license_file = "licenses/glm.txt"
+
+[[library]]
+name = "libjpeg-turbo"
+copyright = "Copyright (c) 1991-2026 The libjpeg-turbo Project"
+license = "Modified BSD"
+license_file = "licenses/libjpeg-turbo.txt"
+
+[[library]]
+name = "stb_image"
+copyright = "Public Domain (Sean Barrett)"
+license = "MIT"
+license_file = "licenses/stb.txt"
+
+[[library]]
+name = "tinyfiledialogs"
+copyright = "Copyright (c) 2014-2026 Guillaume Vareille"
+license = "Zlib"
+license_file = "licenses/tinyfiledialogs.txt"
+
+[[library]]
+name = "TinyEXIF"
+copyright = "Copyright (c) 2017-2026 MIT License"
+license = "MIT"
+license_file = "licenses/tinyexif.txt"
